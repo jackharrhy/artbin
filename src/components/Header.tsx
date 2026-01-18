@@ -17,7 +17,7 @@ export function Header({ user, onUploadClick }: HeaderProps) {
         {user ? (
           <>
             <a href="/folders" className="header-link">folders</a>
-            {onUploadClick ? (
+            {onUploadClick && (
               <button
                 type="button"
                 className="btn btn-sm"
@@ -25,8 +25,6 @@ export function Header({ user, onUploadClick }: HeaderProps) {
               >
                 upload
               </button>
-            ) : (
-              <a href="/folders" className="btn btn-sm">upload</a>
             )}
             <a href="/settings" className="header-link">@{user.username}</a>
             {user.isAdmin && <span className="badge-admin">admin</span>}
