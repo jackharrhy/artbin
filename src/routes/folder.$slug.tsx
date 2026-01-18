@@ -1,9 +1,13 @@
-import { useLoaderData, redirect } from "react-router";
+import { useLoaderData, redirect, Form, useNavigation } from "react-router";
 import type { Route } from "./+types/folder.$slug";
 import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
 import { db, folders, textures, users } from "~/db";
 import { eq, desc } from "drizzle-orm";
 import { Header } from "~/components/Header";
+import { unlink } from "fs/promises";
+import { join } from "path";
+
+const UPLOADS_DIR = join(process.cwd(), "public", "uploads");
 
 export async function loader({ request, params }: Route.LoaderArgs) {
   const sessionId = parseSessionCookie(request.headers.get("Cookie"));
@@ -55,12 +59,84 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   return { user, folder, childFolders, parentFolder, textures: folderTextures };
 }
 
+export async function action({ request, params }: Route.ActionArgs) {
+  const sessionId = parseSessionCookie(request.headers.get("Cookie"));
+  const user = await getUserFromSession(sessionId);
+
+  if (!user || !user.isAdmin) {
+    return { error: "Unauthorized" };
+  }
+
+  const formData = await request.formData();
+  const actionType = formData.get("_action") as string;
+
+  const folder = await db.query.folders.findFirst({
+    where: eq(folders.slug, params.slug!),
+  });
+
+  if (!folder) {
+    return { error: "Folder not found" };
+  }
+
+  if (actionType === "delete") {
+    // Get all textures in this folder
+    const folderTextures = await db.query.textures.findMany({
+      where: eq(textures.folderId, folder.id),
+    });
+
+    // Delete texture files from disk
+    for (const texture of folderTextures) {
+      try {
+        await unlink(join(UPLOADS_DIR, texture.filename));
+      } catch {
+        // File may not exist, continue
+      }
+      // Also delete preview file if exists
+      if (texture.previewFilename) {
+        try {
+          await unlink(join(UPLOADS_DIR, texture.previewFilename));
+        } catch {
+          // File may not exist, continue
+        }
+      }
+    }
+
+    // Delete texture records
+    await db.delete(textures).where(eq(textures.folderId, folder.id));
+
+    // Check for child folders
+    const childFolders = await db.query.folders.findMany({
+      where: eq(folders.parentId, folder.id),
+    });
+
+    if (childFolders.length > 0) {
+      // Update child folders to have no parent (move to root)
+      for (const child of childFolders) {
+        await db
+          .update(folders)
+          .set({ parentId: null })
+          .where(eq(folders.id, child.id));
+      }
+    }
+
+    // Delete the folder
+    await db.delete(folders).where(eq(folders.id, folder.id));
+
+    return redirect("/folders");
+  }
+
+  return { error: "Unknown action" };
+}
+
 export function meta({ data }: Route.MetaArgs) {
   return [{ title: `${data?.folder?.name || "Folder"} - artbin` }];
 }
 
 export default function FolderView() {
   const { user, folder, childFolders, parentFolder, textures } = useLoaderData<typeof loader>();
+  const navigation = useNavigation();
+  const isDeleting = navigation.state === "submitting" && 
+    navigation.formData?.get("_action") === "delete";
 
   return (
     <div>
@@ -79,7 +155,33 @@ export default function FolderView() {
           <span>{folder.name}</span>
         </div>
 
-        <h1 className="page-title">{folder.name}</h1>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+          <h1 className="page-title" style={{ marginBottom: 0 }}>{folder.name}</h1>
+          
+          {user.isAdmin && (
+            <Form 
+              method="post" 
+              onSubmit={(e) => {
+                const textureCount = textures.length;
+                const msg = textureCount > 0
+                  ? `Delete folder "${folder.name}" and ${textureCount} texture(s)? This will permanently delete all files.`
+                  : `Delete empty folder "${folder.name}"?`;
+                if (!confirm(msg)) {
+                  e.preventDefault();
+                }
+              }}
+            >
+              <input type="hidden" name="_action" value="delete" />
+              <button 
+                type="submit" 
+                className="btn btn-danger"
+                disabled={isDeleting}
+              >
+                {isDeleting ? "Deleting..." : "Delete Folder"}
+              </button>
+            </Form>
+          )}
+        </div>
 
         {/* Child Folders */}
         {childFolders.length > 0 && (
