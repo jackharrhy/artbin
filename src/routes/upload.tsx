@@ -1,4 +1,5 @@
 import { Form, redirect, useLoaderData, useActionData, useSearchParams } from "react-router";
+import { useState, useEffect } from "react";
 import type { Route } from "./+types/upload";
 import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
 import { db, folders, files } from "~/db";
@@ -293,6 +294,97 @@ export function meta() {
   return [{ title: "Upload - artbin" }];
 }
 
+function slugify(str: string): string {
+  return str
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function ArchiveExtractForm({
+  tempFile,
+  originalName,
+  suggestedName,
+}: {
+  tempFile: string;
+  originalName: string;
+  suggestedName: string;
+}) {
+  const [folderName, setFolderName] = useState(suggestedName);
+  const [customSlug, setCustomSlug] = useState(false);
+  const [slug, setSlug] = useState(slugify(suggestedName));
+
+  // Auto-update slug when folder name changes (unless custom slug is enabled)
+  useEffect(() => {
+    if (!customSlug) {
+      setSlug(slugify(folderName));
+    }
+  }, [folderName, customSlug]);
+
+  return (
+    <Form method="post">
+      <input type="hidden" name="_action" value="extract" />
+      <input type="hidden" name="tempFile" value={tempFile} />
+      <input type="hidden" name="originalName" value={originalName} />
+
+      <div className="card">
+        <p className="form-help" style={{ marginBottom: "1rem" }}>
+          This archive will be extracted into a new folder. All files will be
+          preserved with their original directory structure.
+        </p>
+
+        <div className="form-group">
+          <label className="form-label">Folder Name</label>
+          <input
+            type="text"
+            name="folderName"
+            className="input"
+            style={{ width: "100%" }}
+            value={folderName}
+            onChange={(e) => setFolderName(e.target.value)}
+            required
+          />
+        </div>
+
+        <div className="form-group">
+          <label className="form-label">
+            Folder Slug (URL path)
+            {!customSlug && (
+              <span style={{ fontWeight: 400, color: "#666" }}> — auto-generated</span>
+            )}
+          </label>
+          <input
+            type="text"
+            name="folderSlug"
+            className="input"
+            style={{ width: "100%", background: customSlug ? undefined : "#f5f5f5" }}
+            value={slug}
+            onChange={(e) => setSlug(e.target.value)}
+            pattern="[a-z0-9-]+"
+            readOnly={!customSlug}
+            required
+          />
+          <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginTop: "0.5rem", fontSize: "0.875rem" }}>
+            <input
+              type="checkbox"
+              checked={customSlug}
+              onChange={(e) => setCustomSlug(e.target.checked)}
+            />
+            Customize slug
+          </label>
+        </div>
+
+        <div style={{ display: "flex", gap: "0.5rem" }}>
+          <button type="submit" className="btn btn-primary">
+            Extract Archive
+          </button>
+          <a href="/upload" className="btn">Cancel</a>
+        </div>
+      </div>
+    </Form>
+  );
+}
+
 export default function Upload() {
   const { user, folders, selectedFolder } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
@@ -387,51 +479,11 @@ export default function Upload() {
               </details>
             </div>
 
-            <Form method="post">
-              <input type="hidden" name="_action" value="extract" />
-              <input type="hidden" name="tempFile" value={actionData.archiveAnalysis!.tempFile} />
-              <input type="hidden" name="originalName" value={actionData.archiveAnalysis!.originalName} />
-
-              <div className="card">
-                <p className="form-help" style={{ marginBottom: "1rem" }}>
-                  This archive will be extracted into a new folder. All files will be
-                  preserved with their original directory structure.
-                </p>
-
-                <div className="form-group">
-                  <label className="form-label">Folder Name</label>
-                  <input
-                    type="text"
-                    name="folderName"
-                    className="input"
-                    style={{ width: "100%" }}
-                    defaultValue={actionData.archiveAnalysis!.suggestedName}
-                    required
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">Folder Slug (URL path)</label>
-                  <input
-                    type="text"
-                    name="folderSlug"
-                    className="input"
-                    style={{ width: "100%" }}
-                    defaultValue={actionData.archiveAnalysis!.suggestedSlug}
-                    pattern="[a-z0-9-]+"
-                    required
-                  />
-                  <p className="form-help">Lowercase letters, numbers, and hyphens only</p>
-                </div>
-
-                <div style={{ display: "flex", gap: "0.5rem" }}>
-                  <button type="submit" className="btn btn-primary">
-                    Extract Archive
-                  </button>
-                  <a href="/upload" className="btn">Cancel</a>
-                </div>
-              </div>
-            </Form>
+<ArchiveExtractForm
+              tempFile={actionData.archiveAnalysis!.tempFile}
+              originalName={actionData.archiveAnalysis!.originalName}
+              suggestedName={actionData.archiveAnalysis!.suggestedName}
+            />
           </div>
         )}
 
