@@ -4,6 +4,7 @@ import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
 import { db, moodboards, moodboardItems, users } from "~/db";
 import { eq, desc } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import { Header } from "~/components/Header";
 
 export async function loader({ request }: Route.LoaderArgs) {
   const sessionId = parseSessionCookie(request.headers.get("Cookie"));
@@ -13,17 +14,14 @@ export async function loader({ request }: Route.LoaderArgs) {
     return redirect("/login");
   }
 
-  // Get user's moodboards
   const userMoodboards = await db
     .select({
       id: moodboards.id,
       name: moodboards.name,
       description: moodboards.description,
       createdAt: moodboards.createdAt,
-      ownerUsername: users.username,
     })
     .from(moodboards)
-    .leftJoin(users, eq(moodboards.ownerId, users.id))
     .where(eq(moodboards.ownerId, user.id))
     .orderBy(desc(moodboards.createdAt));
 
@@ -64,13 +62,9 @@ export async function action({ request }: Route.ActionArgs) {
 
   if (intent === "delete") {
     const id = formData.get("id") as string;
-
-    // Delete items first
     await db.delete(moodboardItems).where(eq(moodboardItems.moodboardId, id));
-    // Delete moodboard
     await db.delete(moodboards).where(eq(moodboards.id, id));
-
-    return { success: "Moodboard deleted" };
+    return { success: "Deleted" };
   }
 
   return null;
@@ -81,134 +75,80 @@ export function meta() {
 }
 
 export default function Moodboards() {
-  const { moodboards } = useLoaderData<typeof loader>();
+  const { user, moodboards } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
 
   return (
-    <div className="min-h-screen">
-      {/* Header */}
-      <header className="border-b-4 border-fuchsia p-4">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <h1 className="text-2xl font-bold">
-            <a href="/dashboard">
-              <span className="text-fuchsia">*</span>
-              <span className="text-aqua">~</span>
-              <span className="text-lime"> artbin </span>
-              <span className="text-aqua">~</span>
-              <span className="text-fuchsia">*</span>
-            </a>
-          </h1>
-          <nav className="flex items-center gap-4">
-            <a href="/textures" className="btn">Textures</a>
-            <a href="/dashboard" className="btn">Dashboard</a>
-          </nav>
-        </div>
-      </header>
-
-      <main className="max-w-6xl mx-auto p-8">
-        <h2 className="text-3xl font-bold text-center text-yellow mb-2">
-          :: Moodboards ::
-        </h2>
-        <p className="text-center text-sm mb-4">
-          Create boards to collect textures, images, and notes for your game's vibe
-        </p>
-        <hr className="hr-rainbow my-4" />
+    <div>
+      <Header user={user} />
+      <main className="main-content" style={{ maxWidth: "600px" }}>
+        <h1 className="page-title">Moodboards</h1>
 
         {actionData?.error && (
-          <div className="box-warning mb-4 text-center">
-            {actionData.error}
-          </div>
+          <div className="alert alert-error">{actionData.error}</div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* Create New */}
-          <div className="box-retro">
-            <h3 className="text-xl font-bold text-lime mb-4">Create New Moodboard</h3>
-            <Form method="post" className="space-y-4">
-              <input type="hidden" name="intent" value="create" />
-
-              <div>
-                <label htmlFor="name" className="block text-aqua mb-1">
-                  Name:
-                </label>
-                <input
-                  type="text"
-                  id="name"
-                  name="name"
-                  required
-                  placeholder="My Game Vibes"
-                  className="input-retro w-full"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="description" className="block text-aqua mb-1">
-                  Description:
-                </label>
-                <textarea
-                  id="description"
-                  name="description"
-                  rows={3}
-                  placeholder="What's this board about?"
-                  className="input-retro w-full"
-                />
-              </div>
-
-              <button type="submit" className="btn btn-success w-full">
-                Create Board
-              </button>
-            </Form>
+        {/* Create form */}
+        <Form method="post" className="card" style={{ marginBottom: "1.5rem" }}>
+          <input type="hidden" name="intent" value="create" />
+          <div className="form-group">
+            <label htmlFor="name" className="form-label">Name</label>
+            <input
+              type="text"
+              id="name"
+              name="name"
+              required
+              className="input"
+              style={{ width: "100%" }}
+            />
           </div>
+          <div className="form-group">
+            <label htmlFor="description" className="form-label">Description</label>
+            <input
+              type="text"
+              id="description"
+              name="description"
+              className="input"
+              style={{ width: "100%" }}
+            />
+          </div>
+          <button type="submit" className="btn btn-primary btn-sm">
+            Create
+          </button>
+        </Form>
 
-          {/* Boards List */}
-          <div className="box-retro">
-            <h3 className="text-xl font-bold text-fuchsia mb-4">Your Moodboards</h3>
-            
-            {moodboards.length === 0 ? (
-              <p className="text-gray text-center py-8">
-                No moodboards yet. Create your first one!
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {moodboards.map((board) => (
-                  <div
-                    key={board.id}
-                    className="p-3 border-2 border-fuchsia hover:border-lime flex items-center justify-between"
+        {/* List */}
+        {moodboards.length === 0 ? (
+          <div className="empty-state">No moodboards yet</div>
+        ) : (
+          <div>
+            {moodboards.map((board) => (
+              <div key={board.id} className="invite-item">
+                <div>
+                  <a href={`/moodboard/${board.id}`} style={{ fontWeight: "500" }}>
+                    {board.name}
+                  </a>
+                  {board.description && (
+                    <div className="invite-meta">{board.description}</div>
+                  )}
+                </div>
+                <Form method="post">
+                  <input type="hidden" name="intent" value="delete" />
+                  <input type="hidden" name="id" value={board.id} />
+                  <button
+                    type="submit"
+                    className="btn btn-sm btn-danger"
+                    onClick={(e) => {
+                      if (!confirm("Delete?")) e.preventDefault();
+                    }}
                   >
-                    <div>
-                      <a
-                        href={`/moodboard/${board.id}`}
-                        className="text-lime font-bold hover:text-aqua"
-                      >
-                        {board.name}
-                      </a>
-                      {board.description && (
-                        <p className="text-sm text-gray truncate">
-                          {board.description}
-                        </p>
-                      )}
-                    </div>
-                    <Form method="post">
-                      <input type="hidden" name="intent" value="delete" />
-                      <input type="hidden" name="id" value={board.id} />
-                      <button
-                        type="submit"
-                        className="text-red text-sm hover:underline"
-                        onClick={(e) => {
-                          if (!confirm("Delete this moodboard?")) {
-                            e.preventDefault();
-                          }
-                        }}
-                      >
-                        delete
-                      </button>
-                    </Form>
-                  </div>
-                ))}
+                    delete
+                  </button>
+                </Form>
               </div>
-            )}
+            ))}
           </div>
-        </div>
+        )}
       </main>
     </div>
   );

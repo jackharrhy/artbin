@@ -21,8 +21,9 @@ export const inviteCodes = sqliteTable("invite_codes", {
   id: text("id").primaryKey(),
   code: text("code").notNull().unique(),
   createdBy: text("created_by").notNull().references(() => users.id),
-  usedBy: text("used_by").references(() => users.id),
-  usedAt: integer("used_at", { mode: "timestamp" }),
+  maxUses: integer("max_uses"), // null = unlimited
+  useCount: integer("use_count").default(0),
+  isActive: integer("is_active", { mode: "boolean" }).default(true),
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });
 

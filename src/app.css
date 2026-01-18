@@ -2,403 +2,485 @@
 
 /*
  * ARTBIN THEME
- * Neocities-era aesthetic with modern Tailwind v4
- * 
- * RULES:
- * - Only web standard named colors (no hex, rgb, hsl)
- * - Gaudy borders (thick, colored, varied styles)
- * - Retro feel, modern implementation
+ * Clean, minimal, museum-catalog aesthetic
+ * White backgrounds, serif fonts, thin borders
  */
 
 @theme {
-  /* Use system monospace for that retro terminal feel */
-  --font-sans: "Comic Sans MS", "Comic Sans", cursive, system-ui, sans-serif;
+  --font-sans: "Times New Roman", Georgia, serif;
   --font-mono: "Courier New", Courier, monospace;
   
-  /* Named colors only - the bold, stark ones */
-  --color-primary: fuchsia;
-  --color-secondary: aqua;
-  --color-accent: lime;
-  --color-warning: yellow;
-  --color-danger: red;
-  --color-info: blue;
-  
-  /* Background colors */
-  --color-bg-dark: navy;
-  --color-bg-light: white;
-  --color-bg-muted: silver;
-  
-  /* Text colors */
-  --color-text-dark: black;
-  --color-text-light: white;
-  --color-text-link: blue;
-  --color-text-link-hover: fuchsia;
-  --color-text-visited: purple;
+  --color-border: #222;
+  --color-border-light: #ccc;
+  --color-text: #111;
+  --color-text-muted: #666;
+  --color-bg: #fff;
+  --color-bg-hover: #f5f5f5;
+  --color-accent: #111;
 }
 
-/* Base styles - neocities vibes */
 html {
-  background-color: navy;
-  color: white;
+  background-color: #f0f0f0;
+  color: var(--color-text);
 }
 
 body {
-  background-color: navy;
-  color: white;
+  background-color: #f0f0f0;
+  color: var(--color-text);
   font-family: var(--font-sans);
   min-height: 100vh;
 }
 
-/* Links - classic web style */
+/* Links */
 a {
-  color: aqua;
+  color: var(--color-text);
   text-decoration: underline;
 }
 
 a:hover {
-  color: fuchsia;
+  color: #000;
 }
 
-a:visited {
-  color: violet;
-}
-
-/* Gaudy border utilities */
-.border-gaudy {
-  border: 4px solid fuchsia;
-}
-
-.border-gaudy-aqua {
-  border: 4px solid aqua;
-}
-
-.border-gaudy-lime {
-  border: 4px solid lime;
-}
-
-.border-gaudy-yellow {
-  border: 4px solid yellow;
-}
-
-.border-gaudy-red {
-  border: 4px solid red;
-}
-
-.border-chunky {
-  border: 4px double fuchsia;
-}
-
-.border-dotted-loud {
-  border: 4px dotted lime;
-}
-
-.border-dashed-loud {
-  border: 4px dashed aqua;
-}
-
-.border-ridge {
-  border: 4px ridge silver;
-}
-
-.border-groove {
-  border: 4px groove silver;
-}
-
-.border-inset {
-  border: 4px inset silver;
-}
-
-.border-outset {
-  border: 4px outset silver;
-}
-
-/* Box styles - for panels and cards */
-.box-retro {
-  background-color: navy;
-  border: 4px solid fuchsia;
-  padding: 1rem;
-}
-
-.box-highlight {
-  background-color: teal;
-  border: 4px solid aqua;
-  padding: 1rem;
-}
-
-.box-warning {
-  background-color: maroon;
-  border: 4px solid red;
-  padding: 1rem;
-}
-
-.box-inset {
-  background-color: silver;
-  border: 4px inset gray;
-  padding: 1rem;
-  color: black;
-}
-
-/* Button styles */
-.btn {
-  display: inline-block;
+/* Sticky header */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: #fff;
+  border-bottom: 1px solid var(--color-border);
   padding: 0.5rem 1rem;
-  font-weight: bold;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.header-logo {
+  font-size: 1.125rem;
+  font-weight: 400;
   text-decoration: none;
-  cursor: pointer;
-  border: 4px outset silver;
-  background-color: silver;
-  color: black;
+  letter-spacing: 0.05em;
 }
 
-.btn:hover {
-  border-style: inset;
-  background-color: gray;
-  color: white;
+.header-logo:hover {
+  text-decoration: none;
 }
 
-.btn:active {
-  border-style: inset;
-}
-
-.btn-primary {
-  background-color: fuchsia;
-  border-color: fuchsia;
-  color: white;
-}
-
-.btn-primary:hover {
-  background-color: purple;
-  border-color: purple;
-}
-
-.btn-danger {
-  background-color: red;
-  border-color: red;
-  color: white;
-}
-
-.btn-danger:hover {
-  background-color: maroon;
-  border-color: maroon;
-}
-
-.btn-success {
-  background-color: lime;
-  border-color: lime;
-  color: black;
-}
-
-.btn-success:hover {
-  background-color: green;
-  border-color: green;
-  color: white;
-}
-
-/* Form inputs - retro style */
-.input-retro {
-  background-color: white;
-  border: 2px inset silver;
-  padding: 0.5rem;
-  color: black;
-  font-family: var(--font-mono);
-}
-
-.input-retro:focus {
-  outline: 2px solid fuchsia;
-  border-color: fuchsia;
-}
-
-/* Headers with flair */
-.header-marquee {
-  background: linear-gradient(90deg, red, orange, yellow, lime, aqua, blue, fuchsia);
-  background-clip: text;
-  -webkit-background-clip: text;
-  color: transparent;
-  font-weight: bold;
-  text-transform: uppercase;
-}
-
-.header-glow {
-  color: lime;
-  text-shadow: 0 0 10px lime, 0 0 20px lime, 0 0 30px lime;
-}
-
-/* Dividers */
-.hr-rainbow {
-  height: 4px;
-  border: none;
-  background: linear-gradient(90deg, red, orange, yellow, lime, aqua, blue, fuchsia);
-}
-
-.hr-dotted {
-  border: none;
-  border-top: 4px dotted fuchsia;
-}
-
-.hr-dashed {
-  border: none;
-  border-top: 4px dashed aqua;
-}
-
-/* Grid for texture display */
-.texture-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+.header-nav {
+  display: flex;
+  align-items: center;
   gap: 1rem;
 }
 
-.texture-card {
-  border: 4px solid fuchsia;
-  background-color: black;
+.header-link {
+  font-size: 0.875rem;
+  text-decoration: none;
+  color: var(--color-text-muted);
+}
+
+.header-link:hover {
+  color: var(--color-text);
+}
+
+/* Buttons */
+.btn {
+  display: inline-block;
+  padding: 0.375rem 0.75rem;
+  font-size: 0.875rem;
+  text-decoration: none;
+  cursor: pointer;
+  border: 1px solid var(--color-border);
+  background-color: #fff;
+  color: var(--color-text);
+  transition: background-color 0.15s;
+}
+
+.btn:hover {
+  background-color: var(--color-bg-hover);
+  text-decoration: none;
+}
+
+.btn-primary {
+  background-color: var(--color-text);
+  color: #fff;
+  border-color: var(--color-text);
+}
+
+.btn-primary:hover {
+  background-color: #333;
+}
+
+.btn-sm {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+}
+
+.btn-danger {
+  border-color: #c00;
+  color: #c00;
+}
+
+.btn-danger:hover {
+  background-color: #c00;
+  color: #fff;
+}
+
+/* Form inputs */
+.input {
+  background-color: #fff;
+  border: 1px solid var(--color-border-light);
   padding: 0.5rem;
-  transition: border-color 0.2s;
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 0.875rem;
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--color-border);
+}
+
+/* Cards and boxes */
+.card {
+  background-color: #fff;
+  border: 1px solid var(--color-border-light);
+  padding: 1rem;
+}
+
+.card-bordered {
+  border-color: var(--color-border);
+}
+
+/* Main content area */
+.main-content {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 1rem;
+  background: #fff;
+  min-height: calc(100vh - 48px);
+}
+
+/* Texture grid - dense, minimal */
+.texture-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.5rem;
+}
+
+.texture-card {
+  position: relative;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border: 1px solid var(--color-border-light);
+  background: #f9f9f9;
+  transition: border-color 0.15s;
 }
 
 .texture-card:hover {
-  border-color: lime;
+  border-color: var(--color-border);
 }
 
 .texture-card img {
   width: 100%;
-  height: auto;
-  image-rendering: pixelated;
+  height: 100%;
+  object-fit: cover;
 }
 
-/* Scrollbar styling for that retro feel */
+.texture-card-info {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 0.25rem 0.5rem;
+  background: rgba(255,255,255,0.95);
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  opacity: 0;
+  transition: opacity 0.15s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.texture-card:hover .texture-card-info {
+  opacity: 1;
+}
+
+/* Folder grid */
+.folder-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.5rem;
+}
+
+.folder-card {
+  display: block;
+  padding: 0.75rem;
+  border: 1px solid var(--color-border-light);
+  background: #fff;
+  text-decoration: none;
+  transition: border-color 0.15s;
+}
+
+.folder-card:hover {
+  border-color: var(--color-border);
+  text-decoration: none;
+}
+
+.folder-name {
+  font-weight: 500;
+  margin-bottom: 0.25rem;
+}
+
+.folder-meta {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+/* Page sections */
+.page-title {
+  font-size: 1.25rem;
+  font-weight: 400;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.section {
+  margin-bottom: 2rem;
+}
+
+.section-title {
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+  margin-bottom: 0.75rem;
+}
+
+/* Filters bar */
+.filters {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.filter-input {
+  padding: 0.375rem 0.5rem;
+  border: 1px solid var(--color-border-light);
+  font-size: 0.875rem;
+  background: #fff;
+}
+
+.filter-input:focus {
+  outline: none;
+  border-color: var(--color-border);
+}
+
+/* Tags */
+.tag {
+  display: inline-block;
+  padding: 0.125rem 0.375rem;
+  font-size: 0.7rem;
+  border: 1px solid var(--color-border-light);
+  background: #fff;
+  text-decoration: none;
+  color: var(--color-text-muted);
+}
+
+.tag:hover {
+  border-color: var(--color-border);
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.tag-active {
+  background: var(--color-text);
+  color: #fff;
+  border-color: var(--color-text);
+}
+
+/* Breadcrumb */
+.breadcrumb {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  margin-bottom: 1rem;
+}
+
+.breadcrumb a {
+  color: var(--color-text-muted);
+}
+
+.breadcrumb a:hover {
+  color: var(--color-text);
+}
+
+.breadcrumb-sep {
+  margin: 0 0.5rem;
+}
+
+/* Settings / forms layout */
+.form-group {
+  margin-bottom: 1rem;
+}
+
+.form-label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+  margin-bottom: 0.25rem;
+}
+
+.form-help {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  margin-top: 0.25rem;
+}
+
+/* Invite list */
+.invite-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem;
+  border: 1px solid var(--color-border-light);
+  margin-bottom: 0.5rem;
+  background: #fff;
+}
+
+.invite-code {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+}
+
+.invite-meta {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+/* Alert / message boxes */
+.alert {
+  padding: 0.75rem;
+  border: 1px solid var(--color-border-light);
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
+}
+
+.alert-error {
+  border-color: #c00;
+  background: #fff0f0;
+}
+
+.alert-success {
+  border-color: #080;
+  background: #f0fff0;
+}
+
+/* Login / auth pages */
+.auth-container {
+  max-width: 360px;
+  margin: 4rem auto;
+  padding: 2rem;
+  background: #fff;
+  border: 1px solid var(--color-border);
+}
+
+.auth-title {
+  font-size: 1.25rem;
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+/* Detail page layout */
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 2rem;
+}
+
+@media (max-width: 768px) {
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.detail-image {
+  border: 1px solid var(--color-border-light);
+  background: #f9f9f9;
+}
+
+.detail-image img {
+  width: 100%;
+  height: auto;
+}
+
+.detail-info dt {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.detail-info dd {
+  margin-bottom: 0.75rem;
+}
+
+/* Scrollbar - minimal */
 ::-webkit-scrollbar {
-  width: 16px;
-  height: 16px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: navy;
-  border: 2px solid silver;
+  background: #f0f0f0;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: fuchsia;
-  border: 2px solid silver;
+  background: #ccc;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: aqua;
+  background: #999;
 }
 
-/* Table styles */
-table {
-  border-collapse: collapse;
-  border: 4px solid fuchsia;
-}
-
-th {
-  background-color: fuchsia;
-  color: white;
-  padding: 0.5rem;
-  border: 2px solid white;
-}
-
-td {
-  background-color: navy;
-  padding: 0.5rem;
-  border: 2px solid fuchsia;
-}
-
-tr:hover td {
-  background-color: teal;
-}
-
-/* Blink animation for that authentic feel (use sparingly!) */
-@keyframes blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
-}
-
-.blink {
-  animation: blink 1s infinite;
-}
-
-/* Marquee-style scroll animation */
-@keyframes marquee {
-  0% { transform: translateX(100%); }
-  100% { transform: translateX(-100%); }
-}
-
-.marquee {
-  overflow: hidden;
-  white-space: nowrap;
-}
-
-.marquee-content {
-  display: inline-block;
-  animation: marquee 10s linear infinite;
-}
-
-/* Selection styling */
+/* Selection */
 ::selection {
-  background-color: fuchsia;
-  color: white;
+  background-color: #111;
+  color: #fff;
 }
 
-/* Badge/tag styles */
-.tag {
-  display: inline-block;
-  padding: 0.25rem 0.5rem;
-  font-size: 0.75rem;
-  font-weight: bold;
-  border: 2px solid;
+/* Admin badge */
+.badge-admin {
+  font-size: 0.625rem;
+  padding: 0.125rem 0.25rem;
+  background: #111;
+  color: #fff;
   text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
-.tag-seamless {
-  background-color: lime;
-  border-color: lime;
-  color: black;
+/* Empty state */
+.empty-state {
+  text-align: center;
+  padding: 3rem;
+  color: var(--color-text-muted);
 }
 
-.tag-wood {
-  background-color: maroon;
-  border-color: maroon;
-  color: white;
+/* Grid header with count */
+.grid-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
 }
 
-.tag-metal {
-  background-color: silver;
-  border-color: silver;
-  color: black;
-}
-
-.tag-stone {
-  background-color: gray;
-  border-color: gray;
-  color: white;
-}
-
-.tag-fabric {
-  background-color: purple;
-  border-color: purple;
-  color: white;
-}
-
-.tag-water {
-  background-color: blue;
-  border-color: blue;
-  color: white;
-}
-
-.tag-fire {
-  background-color: red;
-  border-color: orange;
-  color: white;
-}
-
-.tag-90s {
-  background-color: fuchsia;
-  border-color: fuchsia;
-  color: white;
-}
-
-.tag-pixel {
-  background-color: aqua;
-  border-color: aqua;
-  color: black;
+.grid-count {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
 }

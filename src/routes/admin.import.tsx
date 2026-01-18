@@ -229,110 +229,55 @@ export default function AdminImport() {
   const actionData = useActionData<typeof action>();
 
   return (
-    <div className="min-h-screen">
-      {/* Header */}
-      <header className="border-b-4 border-red p-4 bg-maroon">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <h1 className="text-2xl font-bold">
-            <a href="/dashboard">
-              <span className="text-fuchsia">*</span>
-              <span className="text-aqua">~</span>
-              <span className="text-lime"> artbin </span>
-              <span className="text-aqua">~</span>
-              <span className="text-fuchsia">*</span>
-            </a>
-          </h1>
-          <span className="tag tag-fire">ADMIN</span>
-        </div>
+    <div>
+      <header className="header">
+        <a href="/textures" className="header-logo">artbin</a>
+        <span className="badge-admin">admin</span>
       </header>
 
-      <main className="max-w-4xl mx-auto p-8">
-        <h2 className="text-3xl font-bold text-center text-yellow mb-2">
-          :: Import Textures ::
-        </h2>
-        <p className="text-center text-sm mb-4">
-          Library: {textureCount} textures in {folderCount} folders
+      <main className="main-content" style={{ maxWidth: "600px" }}>
+        <h1 className="page-title">Import Textures</h1>
+        <p className="grid-count" style={{ marginBottom: "1rem" }}>
+          {textureCount} textures in {folderCount} folders
         </p>
-        <hr className="hr-rainbow my-4" />
 
         {"error" in (actionData || {}) && (
-          <div className="box-warning mb-4 text-center">{(actionData as { error: string }).error}</div>
+          <div className="alert alert-error">{(actionData as { error: string }).error}</div>
         )}
 
         {"success" in (actionData || {}) && (
-          <div className="box-highlight mb-4">
-            <p className="text-center font-bold">{(actionData as { success: string; errors?: string[] }).success}</p>
-            {(actionData as { success: string; errors?: string[] }).errors && (actionData as { success: string; errors?: string[] }).errors!.length > 0 && (
-              <div className="mt-2 text-sm text-yellow">
-                <p>Some errors occurred:</p>
-                <ul className="list-disc list-inside">
-                  {(actionData as { success: string; errors?: string[] }).errors!.map((err: string, i: number) => (
-                    <li key={i}>{err}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
+          <div className="alert alert-success">
+            {(actionData as { success: string; errors?: string[] }).success}
           </div>
         )}
 
-        {/* Import Sources */}
-        <div className="space-y-4">
-          {sources.map((source) => (
-            <div key={source.id} className="box-retro">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h3 className="text-xl font-bold text-lime">{source.name}</h3>
-                  <p className="text-sm text-gray mb-2">{source.description}</p>
-                  <a
-                    href={source.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs"
-                  >
-                    {source.url}
-                  </a>
-                </div>
-                <Form method="post">
-                  <input type="hidden" name="source" value={source.id} />
-                  <button
-                    type="submit"
-                    className="btn btn-danger"
-                    onClick={(e) => {
-                      if (
-                        !confirm(
-                          `Import ALL textures from ${source.name}? This may take a while.`
-                        )
-                      ) {
-                        e.preventDefault();
-                      }
-                    }}
-                  >
-                    Import All
-                  </button>
-                </Form>
+        {sources.map((source) => (
+          <div key={source.id} className="card" style={{ marginBottom: "1rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", gap: "1rem" }}>
+              <div>
+                <div style={{ fontWeight: "500" }}>{source.name}</div>
+                <div className="form-help">{source.description}</div>
               </div>
+              <Form method="post">
+                <input type="hidden" name="source" value={source.id} />
+                <button
+                  type="submit"
+                  className="btn btn-sm"
+                  onClick={(e) => {
+                    if (!confirm(`Import from ${source.name}?`)) {
+                      e.preventDefault();
+                    }
+                  }}
+                >
+                  Import
+                </button>
+              </Form>
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
 
-        <hr className="hr-dashed my-8" />
-
-        <div className="box-inset">
-          <h3 className="text-lg font-bold mb-2">How Import Works</h3>
-          <ul className="list-disc list-inside text-sm space-y-1">
-            <li>Creates a parent folder for the source (e.g. "TextureTown")</li>
-            <li>Creates child folders for each category</li>
-            <li>Downloads all textures into their folders</li>
-            <li>Auto-tags textures by category</li>
-            <li>Skips textures already imported (by URL)</li>
-            <li>May take several minutes for large sources</li>
-          </ul>
-        </div>
-
-        <hr className="hr-dashed my-8" />
-
-        <p className="text-center text-sm">
-          <a href="/dashboard">Back to Dashboard</a> | <a href="/folders">Browse Folders</a>
+        <p style={{ marginTop: "2rem", fontSize: "0.875rem" }}>
+          <a href="/settings">Settings</a> | <a href="/folders">Folders</a>
         </p>
       </main>
     </div>

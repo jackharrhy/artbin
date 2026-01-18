@@ -1,14 +1,30 @@
-import { Form, redirect, useActionData } from "react-router";
+import { Form, redirect, useActionData, useSearchParams, useLoaderData } from "react-router";
 import type { Route } from "./+types/register";
-import { createUser, login, getSessionCookie, parseSessionCookie, getSession } from "~/lib/auth.server";
+import { createUser, getSessionCookie, login, parseSessionCookie, getUserFromSession, getInviteByCode } from "~/lib/auth.server";
+import { Header } from "~/components/Header";
 
 export async function loader({ request }: Route.LoaderArgs) {
   const sessionId = parseSessionCookie(request.headers.get("Cookie"));
-  const session = await getSession(sessionId);
-  if (session) {
-    return redirect("/dashboard");
+  const user = await getUserFromSession(sessionId);
+  if (user) {
+    return redirect("/textures");
   }
-  return null;
+
+  const url = new URL(request.url);
+  const code = url.searchParams.get("code");
+
+  // Validate invite code if provided
+  if (code) {
+    const invite = await getInviteByCode(code);
+    if (!invite || !invite.isActive) {
+      return redirect("/login?error=invalid_invite");
+    }
+    if (invite.maxUses !== null && (invite.useCount ?? 0) >= invite.maxUses) {
+      return redirect("/login?error=invite_exhausted");
+    }
+  }
+
+  return { code };
 }
 
 export async function action({ request }: Route.ActionArgs) {
@@ -18,30 +34,26 @@ export async function action({ request }: Route.ActionArgs) {
   const password = formData.get("password") as string;
   const inviteCode = formData.get("inviteCode") as string;
 
-  if (!email || !username || !password || !inviteCode) {
-    return { error: "All fields are required" };
+  if (!inviteCode) {
+    return { error: "Invite code is required" };
   }
 
-  if (password.length < 6) {
-    return { error: "Password must be at least 6 characters" };
-  }
+  const result = await createUser(email, username, password, inviteCode);
 
-  if (username.length < 3) {
-    return { error: "Username must be at least 3 characters" };
-  }
-
-  const { user, error } = await createUser(email, username, password, inviteCode);
-
-  if (error) {
-    return { error };
+  if (result.error) {
+    return { error: result.error };
   }
 
   // Auto-login after registration
-  const { session } = await login(email, password);
+  const loginResult = await login(email, password);
 
-  return redirect("/dashboard", {
+  if (loginResult.error) {
+    return redirect("/login");
+  }
+
+  return redirect("/textures", {
     headers: {
-      "Set-Cookie": getSessionCookie(session!.id),
+      "Set-Cookie": getSessionCookie(loginResult.session!.id),
     },
   });
 }
@@ -51,98 +63,71 @@ export function meta() {
 }
 
 export default function Register() {
+  const { code } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <div className="box-retro w-full max-w-md">
-        <h1 className="text-3xl font-bold text-center mb-2">
-          <span className="text-aqua">~</span> Register <span className="text-aqua">~</span>
-        </h1>
-        <hr className="hr-rainbow my-4" />
-
-        <p className="text-center text-sm mb-4">
-          artbin is invite-only. Enter your invite code to join!
-        </p>
+    <div>
+      <Header />
+      <main className="auth-container">
+        <h1 className="auth-title">Register</h1>
 
         {actionData?.error && (
-          <div className="box-warning mb-4 text-center">
-            {actionData.error}
-          </div>
+          <div className="alert alert-error">{actionData.error}</div>
         )}
 
-        <Form method="post" className="space-y-4">
-          <div>
-            <label htmlFor="inviteCode" className="block text-yellow mb-1">
-              Invite Code:
-            </label>
-            <input
-              type="text"
-              id="inviteCode"
-              name="inviteCode"
-              required
-              placeholder="XXXXXXXX"
-              className="input-retro w-full uppercase"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="email" className="block text-lime mb-1">
-              Email:
-            </label>
+        <Form method="post">
+          <input type="hidden" name="inviteCode" value={code || ""} />
+          
+          <div className="form-group">
+            <label htmlFor="email" className="form-label">Email</label>
             <input
               type="email"
               id="email"
               name="email"
               required
-              className="input-retro w-full"
+              className="input"
+              style={{ width: "100%" }}
             />
           </div>
 
-          <div>
-            <label htmlFor="username" className="block text-lime mb-1">
-              Username:
-            </label>
+          <div className="form-group">
+            <label htmlFor="username" className="form-label">Username</label>
             <input
               type="text"
               id="username"
               name="username"
               required
-              minLength={3}
-              className="input-retro w-full"
+              pattern="[a-zA-Z0-9_]+"
+              className="input"
+              style={{ width: "100%" }}
             />
+            <div className="form-help">Letters, numbers, and underscores only</div>
           </div>
 
-          <div>
-            <label htmlFor="password" className="block text-lime mb-1">
-              Password:
-            </label>
+          <div className="form-group">
+            <label htmlFor="password" className="form-label">Password</label>
             <input
               type="password"
               id="password"
               name="password"
               required
-              minLength={6}
-              className="input-retro w-full"
+              minLength={8}
+              className="input"
+              style={{ width: "100%" }}
             />
+            <div className="form-help">At least 8 characters</div>
           </div>
 
-          <button type="submit" className="btn btn-success w-full">
-            Join artbin
+          <button type="submit" className="btn btn-primary" style={{ width: "100%" }}>
+            Create Account
           </button>
         </Form>
 
-        <hr className="hr-dashed my-4" />
-
-        <p className="text-center text-sm">
-          Already have an account?{" "}
-          <a href="/login">Login</a>
+        <p style={{ marginTop: "1rem", fontSize: "0.875rem", textAlign: "center" }}>
+          Already have an account? <a href="/login">Login</a>
         </p>
-
-        <p className="text-center text-sm mt-2">
-          <a href="/">Back to home</a>
-        </p>
-      </div>
+      </main>
     </div>
   );
 }

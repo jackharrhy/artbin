@@ -3,6 +3,7 @@ import type { Route } from "./+types/folder.$slug";
 import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
 import { db, folders, textures, users } from "~/db";
 import { eq, desc } from "drizzle-orm";
+import { Header } from "~/components/Header";
 
 export async function loader({ request, params }: Route.LoaderArgs) {
   const sessionId = parseSessionCookie(request.headers.get("Cookie"));
@@ -14,7 +15,6 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 
   const slug = params.slug!;
 
-  // Find folder by slug (supports nested paths like "texturetown/wood")
   const folder = await db.query.folders.findFirst({
     where: eq(folders.slug, slug),
   });
@@ -44,15 +44,12 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       filename: textures.filename,
       originalName: textures.originalName,
       isSeamless: textures.isSeamless,
-      createdAt: textures.createdAt,
-      uploaderUsername: users.username,
-      source: textures.source,
     })
     .from(textures)
     .leftJoin(users, eq(textures.uploaderId, users.id))
     .where(eq(textures.folderId, folder.id))
     .orderBy(desc(textures.createdAt))
-    .limit(200);
+    .limit(500);
 
   return { user, folder, childFolders, parentFolder, textures: folderTextures };
 }
@@ -62,85 +59,51 @@ export function meta({ data }: Route.MetaArgs) {
 }
 
 export default function FolderView() {
-  const { folder, childFolders, parentFolder, textures } = useLoaderData<typeof loader>();
-
-  // Build breadcrumb
-  const breadcrumbs = [];
-  if (parentFolder) {
-    breadcrumbs.push({ name: parentFolder.name, slug: parentFolder.slug });
-  }
-  breadcrumbs.push({ name: folder.name, slug: folder.slug });
+  const { user, folder, childFolders, parentFolder, textures } = useLoaderData<typeof loader>();
 
   return (
-    <div className="min-h-screen">
-      {/* Header */}
-      <header className="border-b-4 border-fuchsia p-4">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <h1 className="text-2xl font-bold">
-            <a href="/dashboard">
-              <span className="text-fuchsia">*</span>
-              <span className="text-aqua">~</span>
-              <span className="text-lime"> artbin </span>
-              <span className="text-aqua">~</span>
-              <span className="text-fuchsia">*</span>
-            </a>
-          </h1>
-          <nav className="flex items-center gap-4">
-            <a href="/textures" className="btn">All Textures</a>
-            <a href="/folders" className="btn">Folders</a>
-          </nav>
-        </div>
-      </header>
-
-      <main className="max-w-6xl mx-auto p-8">
+    <div>
+      <Header user={user} />
+      <main className="main-content">
         {/* Breadcrumb */}
-        <div className="mb-4 text-sm">
-          <a href="/folders" className="text-gray hover:text-white">Folders</a>
-          {breadcrumbs.map((crumb, i) => (
-            <span key={crumb.slug}>
-              <span className="text-gray mx-2">/</span>
-              {i === breadcrumbs.length - 1 ? (
-                <span className="text-lime">{crumb.name}</span>
-              ) : (
-                <a href={`/folder/${crumb.slug}`} className="text-aqua hover:text-white">
-                  {crumb.name}
-                </a>
-              )}
-            </span>
-          ))}
+        <div className="breadcrumb">
+          <a href="/folders">Folders</a>
+          {parentFolder && (
+            <>
+              <span className="breadcrumb-sep">/</span>
+              <a href={`/folder/${parentFolder.slug}`}>{parentFolder.name}</a>
+            </>
+          )}
+          <span className="breadcrumb-sep">/</span>
+          <span>{folder.name}</span>
         </div>
 
-        <h2 className="text-3xl font-bold text-lime mb-2">{folder.name}</h2>
-        {folder.description && (
-          <p className="text-gray mb-4">{folder.description}</p>
-        )}
-        <hr className="hr-rainbow my-4" />
+        <h1 className="page-title">{folder.name}</h1>
 
         {/* Child Folders */}
         {childFolders.length > 0 && (
-          <div className="mb-8">
-            <h3 className="text-xl font-bold text-aqua mb-4">Subfolders</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+          <section className="section">
+            <h2 className="section-title">Subfolders</h2>
+            <div className="folder-grid">
               {childFolders.map((child) => (
                 <a
                   key={child.id}
                   href={`/folder/${child.slug}`}
-                  className="p-3 border-2 border-fuchsia hover:border-lime text-center"
+                  className="folder-card"
                 >
-                  <div className="text-2xl mb-1">📁</div>
-                  <div className="text-sm text-lime truncate">{child.name}</div>
+                  <div className="folder-name">{child.name}</div>
                 </a>
               ))}
             </div>
-          </div>
+          </section>
         )}
 
         {/* Textures */}
-        {textures.length > 0 ? (
-          <>
-            <h3 className="text-xl font-bold text-aqua mb-4">
-              Textures ({textures.length})
-            </h3>
+        {textures.length > 0 && (
+          <section className="section">
+            <div className="grid-header">
+              <span className="grid-count">{textures.length} textures</span>
+            </div>
             <div className="texture-grid">
               {textures.map((texture) => (
                 <a
@@ -153,23 +116,20 @@ export default function FolderView() {
                     alt={texture.originalName}
                     loading="lazy"
                   />
-                  <div className="mt-2 text-xs">
-                    <p className="text-lime truncate" title={texture.originalName}>
-                      {texture.originalName}
-                    </p>
-                    {texture.isSeamless && (
-                      <span className="tag tag-seamless text-xs">seamless</span>
-                    )}
+                  <div className="texture-card-info">
+                    {texture.originalName}
                   </div>
                 </a>
               ))}
             </div>
-          </>
-        ) : childFolders.length === 0 ? (
-          <div className="box-retro text-center">
-            <p className="text-xl text-gray">This folder is empty</p>
+          </section>
+        )}
+
+        {childFolders.length === 0 && textures.length === 0 && (
+          <div className="empty-state">
+            This folder is empty
           </div>
-        ) : null}
+        )}
       </main>
     </div>
   );

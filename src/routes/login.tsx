@@ -1,12 +1,13 @@
-import { Form, redirect, useActionData } from "react-router";
+import { Form, redirect, useActionData, useSearchParams } from "react-router";
 import type { Route } from "./+types/login";
-import { login, getSessionCookie, parseSessionCookie, getSession } from "~/lib/auth.server";
+import { login, getSessionCookie, parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
+import { Header } from "~/components/Header";
 
 export async function loader({ request }: Route.LoaderArgs) {
   const sessionId = parseSessionCookie(request.headers.get("Cookie"));
-  const session = await getSession(sessionId);
-  if (session) {
-    return redirect("/dashboard");
+  const user = await getUserFromSession(sessionId);
+  if (user) {
+    return redirect("/textures");
   }
   return null;
 }
@@ -16,19 +17,15 @@ export async function action({ request }: Route.ActionArgs) {
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
 
-  if (!email || !password) {
-    return { error: "Email and password are required" };
+  const result = await login(email, password);
+
+  if (result.error) {
+    return { error: result.error };
   }
 
-  const { session, error } = await login(email, password);
-
-  if (error) {
-    return { error };
-  }
-
-  return redirect("/dashboard", {
+  return redirect("/textures", {
     headers: {
-      "Set-Cookie": getSessionCookie(session!.id),
+      "Set-Cookie": getSessionCookie(result.session!.id),
     },
   });
 }
@@ -39,64 +36,60 @@ export function meta() {
 
 export default function Login() {
   const actionData = useActionData<typeof action>();
+  const [searchParams] = useSearchParams();
+  const errorParam = searchParams.get("error");
+
+  let errorMessage = actionData?.error;
+  if (errorParam === "invalid_invite") {
+    errorMessage = "Invalid or expired invite link";
+  } else if (errorParam === "invite_exhausted") {
+    errorMessage = "This invite link has reached its usage limit";
+  }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <div className="box-retro w-full max-w-md">
-        <h1 className="text-3xl font-bold text-center mb-2">
-          <span className="text-fuchsia">*</span> Login <span className="text-fuchsia">*</span>
-        </h1>
-        <hr className="hr-rainbow my-4" />
+    <div>
+      <Header />
+      <main className="auth-container">
+        <h1 className="auth-title">Login</h1>
 
-        {actionData?.error && (
-          <div className="box-warning mb-4 text-center">
-            {actionData.error}
-          </div>
+        {errorMessage && (
+          <div className="alert alert-error">{errorMessage}</div>
         )}
 
-        <Form method="post" className="space-y-4">
-          <div>
-            <label htmlFor="email" className="block text-lime mb-1">
-              Email:
-            </label>
+        <Form method="post">
+          <div className="form-group">
+            <label htmlFor="email" className="form-label">Email</label>
             <input
               type="email"
               id="email"
               name="email"
               required
-              className="input-retro w-full"
+              className="input"
+              style={{ width: "100%" }}
             />
           </div>
 
-          <div>
-            <label htmlFor="password" className="block text-lime mb-1">
-              Password:
-            </label>
+          <div className="form-group">
+            <label htmlFor="password" className="form-label">Password</label>
             <input
               type="password"
               id="password"
               name="password"
               required
-              className="input-retro w-full"
+              className="input"
+              style={{ width: "100%" }}
             />
           </div>
 
-          <button type="submit" className="btn btn-primary w-full">
-            Enter
+          <button type="submit" className="btn btn-primary" style={{ width: "100%" }}>
+            Login
           </button>
         </Form>
 
-        <hr className="hr-dashed my-4" />
-
-        <p className="text-center text-sm">
-          Need an account?{" "}
-          <a href="/register">Register with invite code</a>
+        <p style={{ marginTop: "1rem", fontSize: "0.875rem", textAlign: "center" }}>
+          Need an account? Get an invite link from a member.
         </p>
-
-        <p className="text-center text-sm mt-2">
-          <a href="/">Back to home</a>
-        </p>
-      </div>
+      </main>
     </div>
   );
 }

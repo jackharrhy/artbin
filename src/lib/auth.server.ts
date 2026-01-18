@@ -29,8 +29,11 @@ export async function createUser(
     if (!invite) {
       return { error: "Invalid invite code" };
     }
-    if (invite.usedBy) {
-      return { error: "Invite code already used" };
+    if (!invite.isActive) {
+      return { error: "Invite code is no longer active" };
+    }
+    if (invite.maxUses !== null && (invite.useCount ?? 0) >= invite.maxUses) {
+      return { error: "Invite code has reached its usage limit" };
     }
     invitedBy = invite.createdBy;
   }
@@ -64,12 +67,17 @@ export async function createUser(
     })
     .returning();
 
-  // Mark invite code as used
+  // Increment invite use count
   if (inviteCode) {
-    await db
-      .update(inviteCodes)
-      .set({ usedBy: id, usedAt: new Date() })
-      .where(eq(inviteCodes.code, inviteCode));
+    const invite = await db.query.inviteCodes.findFirst({
+      where: eq(inviteCodes.code, inviteCode),
+    });
+    if (invite) {
+      await db
+        .update(inviteCodes)
+        .set({ useCount: (invite.useCount ?? 0) + 1 })
+        .where(eq(inviteCodes.code, inviteCode));
+    }
   }
 
   return { user };
@@ -139,14 +147,48 @@ export async function getUserFromSession(sessionId: string | undefined) {
   return user;
 }
 
-export async function createInviteCode(userId: string): Promise<string> {
+export async function createInviteCode(userId: string, maxUses?: number): Promise<string> {
   const code = nanoid(8).toUpperCase();
   await db.insert(inviteCodes).values({
     id: nanoid(),
     code,
     createdBy: userId,
+    maxUses: maxUses ?? null,
+    useCount: 0,
+    isActive: true,
   });
   return code;
+}
+
+export async function deleteInviteCode(userId: string, codeId: string): Promise<boolean> {
+  const invite = await db.query.inviteCodes.findFirst({
+    where: eq(inviteCodes.id, codeId),
+  });
+  if (!invite || invite.createdBy !== userId) {
+    return false;
+  }
+  await db.delete(inviteCodes).where(eq(inviteCodes.id, codeId));
+  return true;
+}
+
+export async function toggleInviteCode(userId: string, codeId: string): Promise<boolean> {
+  const invite = await db.query.inviteCodes.findFirst({
+    where: eq(inviteCodes.id, codeId),
+  });
+  if (!invite || invite.createdBy !== userId) {
+    return false;
+  }
+  await db
+    .update(inviteCodes)
+    .set({ isActive: !invite.isActive })
+    .where(eq(inviteCodes.id, codeId));
+  return true;
+}
+
+export async function getInviteByCode(code: string) {
+  return db.query.inviteCodes.findFirst({
+    where: eq(inviteCodes.code, code),
+  });
 }
 
 export function getSessionCookie(sessionId: string): string {
