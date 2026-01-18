@@ -31,12 +31,16 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     orderBy: [folders.name],
   });
 
-  // Get parent folder if exists
-  let parentFolder = null;
-  if (folder.parentId) {
-    parentFolder = await db.query.folders.findFirst({
-      where: eq(folders.id, folder.parentId),
+  // Build ancestor chain for breadcrumbs
+  const ancestors: { id: string; name: string; slug: string }[] = [];
+  let currentParentId = folder.parentId;
+  while (currentParentId) {
+    const parent = await db.query.folders.findFirst({
+      where: eq(folders.id, currentParentId),
     });
+    if (!parent) break;
+    ancestors.unshift(parent); // Add to front to maintain order
+    currentParentId = parent.parentId;
   }
 
   // Get files in this folder
@@ -57,7 +61,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     .orderBy(desc(files.createdAt))
     .limit(500);
 
-  return { user, folder, childFolders, parentFolder, files: folderFiles };
+  return { user, folder, childFolders, ancestors, files: folderFiles };
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
@@ -159,7 +163,7 @@ function getFileIcon(kind: string | null): string {
 }
 
 export default function FolderView() {
-  const { user, folder, childFolders, parentFolder, files } =
+  const { user, folder, childFolders, ancestors, files } =
     useLoaderData<typeof loader>();
   const navigation = useNavigation();
   const isDeleting =
@@ -177,12 +181,12 @@ export default function FolderView() {
         {/* Breadcrumb */}
         <div className="breadcrumb">
           <a href="/folders">Folders</a>
-          {parentFolder && (
-            <>
+          {ancestors.map((ancestor) => (
+            <span key={ancestor.id}>
               <span className="breadcrumb-sep">/</span>
-              <a href={`/folder/${parentFolder.slug}`}>{parentFolder.name}</a>
-            </>
-          )}
+              <a href={`/folder/${ancestor.slug}`}>{ancestor.name}</a>
+            </span>
+          ))}
           <span className="breadcrumb-sep">/</span>
           <span>{folder.name}</span>
         </div>
