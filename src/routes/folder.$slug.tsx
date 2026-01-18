@@ -17,7 +17,9 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     return redirect("/login");
   }
 
-  const slug = params.slug!;
+  // Combine slug and splat for nested folder paths
+  // Route is folder/:slug/* so /folder/parent/child gives slug="parent", *="child"
+  const slug = params["*"] ? `${params.slug}/${params["*"]}` : params.slug!;
 
   const folder = await db.query.folders.findFirst({
     where: eq(folders.slug, slug),
@@ -70,8 +72,11 @@ export async function action({ request, params }: Route.ActionArgs) {
   const formData = await request.formData();
   const actionType = formData.get("_action") as string;
 
+  // Combine slug and splat for nested folder paths
+  const slug = params["*"] ? `${params.slug}/${params["*"]}` : params.slug!;
+
   const folder = await db.query.folders.findFirst({
-    where: eq(folders.slug, params.slug!),
+    where: eq(folders.slug, slug),
   });
 
   if (!folder) {
