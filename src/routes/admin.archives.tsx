@@ -416,13 +416,14 @@ function ArchiveItem({
   );
 }
 
-function BatchImportBar({
+function BatchImportButton({
   selectedPaths,
   onClear,
 }: {
   selectedPaths: Set<string>;
   onClear: () => void;
 }) {
+  const [isOpen, setIsOpen] = useState(false);
   const [folderName, setFolderName] = useState("");
   const [folderSlug, setFolderSlug] = useState("");
 
@@ -435,52 +436,79 @@ function BatchImportBar({
   if (selectedPaths.size === 0) return null;
 
   return (
-    <div className="batch-import-bar">
-      <div className="batch-import-info">
-        <strong>{selectedPaths.size}</strong> selected
-        <button type="button" className="btn btn-sm" onClick={onClear}>
-          Clear
-        </button>
-      </div>
+    <>
+      {/* Fixed button in bottom right */}
+      <button
+        type="button"
+        className="batch-import-fab"
+        onClick={() => setIsOpen(true)}
+      >
+        Import {selectedPaths.size} selected
+      </button>
 
-      <Form method="post" className="batch-import-form">
-        <input type="hidden" name="intent" value="batch-import" />
-        <input type="hidden" name="archivePaths" value={JSON.stringify([...selectedPaths])} />
+      {/* Modal */}
+      {isOpen && (
+        <div className="modal-overlay" onClick={() => setIsOpen(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2 className="modal-title">Batch Import</h2>
+              <button type="button" className="modal-close" onClick={() => setIsOpen(false)}>
+                &times;
+              </button>
+            </div>
+            <div className="modal-body">
+              <p style={{ marginBottom: "1rem", color: "#666" }}>
+                Import <strong>{selectedPaths.size}</strong> archives as subfolders of a new parent folder.
+                Each archive will become a subfolder named after its filename.
+              </p>
 
-        <div className="batch-import-fields">
-          <div className="form-group">
-            <label className="form-label">Parent Folder</label>
-            <input
-              type="text"
-              name="folderName"
-              className="input"
-              placeholder="e.g. Thirty Flights of Loving"
-              value={folderName}
-              onChange={handleNameChange}
-              required
-            />
+              <Form method="post" onSubmit={() => setIsOpen(false)}>
+                <input type="hidden" name="intent" value="batch-import" />
+                <input type="hidden" name="archivePaths" value={JSON.stringify([...selectedPaths])} />
+
+                <div className="form-group">
+                  <label className="form-label">Parent Folder Name</label>
+                  <input
+                    type="text"
+                    name="folderName"
+                    className="input"
+                    style={{ width: "100%" }}
+                    placeholder="e.g. Thirty Flights of Loving"
+                    value={folderName}
+                    onChange={handleNameChange}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Slug</label>
+                  <input
+                    type="text"
+                    name="folderSlug"
+                    className="input"
+                    style={{ width: "100%" }}
+                    placeholder="thirty-flights-of-loving"
+                    value={folderSlug}
+                    onChange={(e) => setFolderSlug(e.target.value)}
+                    pattern="[a-z0-9-]+"
+                    required
+                  />
+                </div>
+
+                <div className="modal-actions">
+                  <button type="button" className="btn" onClick={onClear}>
+                    Clear Selection
+                  </button>
+                  <button type="submit" className="btn btn-primary" disabled={!folderName || !folderSlug}>
+                    Import as Subfolders
+                  </button>
+                </div>
+              </Form>
+            </div>
           </div>
-
-          <div className="form-group">
-            <label className="form-label">Slug</label>
-            <input
-              type="text"
-              name="folderSlug"
-              className="input"
-              placeholder="thirty-flights-of-loving"
-              value={folderSlug}
-              onChange={(e) => setFolderSlug(e.target.value)}
-              pattern="[a-z0-9-]+"
-              required
-            />
-          </div>
-
-          <button type="submit" className="btn btn-primary" disabled={!folderName || !folderSlug}>
-            Import as Subfolders
-          </button>
         </div>
-      </Form>
-    </div>
+      )}
+    </>
   );
 }
 
@@ -552,7 +580,7 @@ export default function AdminArchives() {
   return (
     <div>
       <Header user={user} />
-      <main className="main-content" style={{ maxWidth: "1000px", paddingBottom: selectedPaths.size > 0 ? "120px" : "1rem" }}>
+      <main className="main-content" style={{ maxWidth: "1000px" }}>
         <div className="breadcrumb">
           <a href="/folders">Folders</a>
           <span className="breadcrumb-sep">/</span>
@@ -652,7 +680,7 @@ export default function AdminArchives() {
         </p>
       </main>
 
-      <BatchImportBar
+      <BatchImportButton
         selectedPaths={selectedPaths}
         onClear={handleClearSelection}
       />
