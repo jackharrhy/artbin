@@ -286,111 +286,17 @@ function ArchiveImportForm({ archive }: { archive: FoundArchive }) {
         </div>
       )}
 
-      <style>{`
-        .archive-item {
-          border: 1px solid var(--color-border-light);
-          margin-bottom: 0.5rem;
-          background: #fff;
-        }
-
-        .archive-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-          padding: 0.5rem 0.75rem;
-          width: 100%;
-          border: none;
-          background: #fff;
-          cursor: pointer;
-          text-align: left;
-          font-family: inherit;
-        }
-
-        .archive-header:hover {
-          background: var(--color-bg-hover);
-        }
-
-        .archive-info {
-          display: flex;
-          flex-direction: column;
-          gap: 0.25rem;
-          flex: 1;
-          min-width: 0;
-        }
-
-        .archive-info-top {
-          display: flex;
-          align-items: center;
-          gap: 0.75rem;
-          flex-wrap: wrap;
-        }
-
-        .archive-path-preview {
-          font-size: 0.7rem;
-          font-family: var(--font-mono);
-          color: var(--color-text-muted);
-          word-break: break-all;
-          line-height: 1.3;
-        }
-
-        .archive-type {
-          font-size: 0.625rem;
-          font-weight: 600;
-          padding: 0.125rem 0.375rem;
-          background: #eee;
-          border-radius: 2px;
-          font-family: var(--font-mono);
-        }
-
-        .archive-name {
-          font-weight: 500;
-        }
-
-        .archive-size {
-          font-size: 0.75rem;
-          color: var(--color-text-muted);
-        }
-
-        .archive-gamedir {
-          font-size: 0.625rem;
-          padding: 0.125rem 0.375rem;
-          background: #d4edda;
-          border-radius: 2px;
-        }
-
-        .archive-expand {
-          font-size: 1.25rem;
-          color: var(--color-text-muted);
-          width: 1.5rem;
-          text-align: center;
-          flex-shrink: 0;
-          padding-top: 0.125rem;
-        }
-
-        .archive-details {
-          padding: 0.75rem;
-          border-top: 1px solid var(--color-border-light);
-          background: #fafafa;
-        }
-
-        .archive-form {
-          display: flex;
-          flex-direction: column;
-          gap: 0.75rem;
-        }
-
-        .archive-form .form-group {
-          margin-bottom: 0;
-        }
-      `}</style>
     </div>
   );
 }
+
+const ARCHIVES_PER_PAGE = 50;
 
 export default function AdminImport() {
   const { user, sources, stats, scanResults, scanJobStatus, scanJobProgress, scanJobMessage } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const revalidator = useRevalidator();
+  const [showAllArchives, setShowAllArchives] = useState(false);
 
   // Auto-refresh while scan is running
   useEffect(() => {
@@ -403,6 +309,11 @@ export default function AdminImport() {
   }, [scanJobStatus, revalidator]);
 
   const isScanning = scanJobStatus === "running" || scanJobStatus === "pending";
+  
+  // Limit displayed archives unless "show all" is clicked
+  const displayedArchives = scanResults && !showAllArchives && scanResults.length > ARCHIVES_PER_PAGE
+    ? scanResults.slice(0, ARCHIVES_PER_PAGE)
+    : scanResults;
 
   return (
     <div>
@@ -516,10 +427,23 @@ export default function AdminImport() {
             <div>
               <div style={{ fontSize: "0.875rem", color: "#666", marginBottom: "0.75rem" }}>
                 Found {scanResults.length} archive(s). Click to expand and import.
+                {!showAllArchives && scanResults.length > ARCHIVES_PER_PAGE && (
+                  <span> Showing first {ARCHIVES_PER_PAGE}.</span>
+                )}
               </div>
-              {scanResults.map((archive, i) => (
+              {displayedArchives?.map((archive, i) => (
                 <ArchiveImportForm key={`${archive.path}-${i}`} archive={archive} />
               ))}
+              {!showAllArchives && scanResults.length > ARCHIVES_PER_PAGE && (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ marginTop: "0.5rem" }}
+                  onClick={() => setShowAllArchives(true)}
+                >
+                  Show All {scanResults.length} Archives
+                </button>
+              )}
             </div>
           )}
 
