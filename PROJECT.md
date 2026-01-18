@@ -1,6 +1,6 @@
 # artbin
 
-A texture and game asset repository for finding, uploading, and moodboarding visual resources for game development.
+A texture and game asset repository for finding and uploading visual resources for game development.
 
 **Inspiration:** [TextureTown](https://textures.neocities.org/) - study this site for UX patterns and as an import source.
 
@@ -104,24 +104,7 @@ Tools for extracting assets from game files. Leverage existing CLI tools rather 
 - PAK/PK3 archive browsing and extraction
 - Texture ripping from uploaded game files
 
-### 5. Moodboards
-
-Shared collaborative boards for finding the vibe of a game project.
-
-**Board contents:**
-- Text notes
-- Images (reference art, screenshots)
-- Textures (from artbin library)
-- 3D models
-- Color palettes
-- External links
-
-**Collaboration:**
-- Invite collaborators to boards
-- Real-time updates (future)
-- Export/share board as image or PDF
-
-### 6. Viewers
+### 5. Viewers
 
 Web components for viewing different asset types:
 
@@ -135,7 +118,7 @@ Web components for viewing different asset types:
 - BSP level viewing inspired by noclip.website
 - Texture extraction from viewed levels
 
-### 7. Admin Tools
+### 6. Admin Tools
 
 For site administrators:
 
@@ -174,19 +157,6 @@ Texture
   - source_url (if imported)
   - created_at
 
-Moodboard
-  - id, name, description
-  - owner (User)
-  - collaborators[] (User)
-  - created_at
-
-MoodboardItem
-  - id, moodboard (Moodboard)
-  - type: text | image | texture | model | link
-  - content (JSON)
-  - position_x, position_y
-  - created_at
-
 Tag
   - id, name, slug
   - category (optional)
@@ -202,7 +172,6 @@ artbin/
       dashboard.tsx       # Main texture browser
       textures.$id.tsx    # Single texture view
       collections/
-      moodboards/
       admin/
     components/
       ModelViewer.tsx
@@ -239,12 +208,7 @@ artbin/
 - [ ] Admin: TextureTown import
 - [ ] Batch tagging
 
-### Phase 4: Moodboards
-- [ ] Create/edit moodboards
-- [ ] Add items to boards
-- [ ] Share and collaborate
-
-### Phase 5: Extended Assets
+### Phase 4: Extended Assets
 - [ ] Model upload and viewer
 - [ ] BSP tools integration
 - [ ] Shader snippets

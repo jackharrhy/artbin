@@ -10,8 +10,7 @@ export default [
   route("folders", "routes/folders.tsx"),
   route("folder/:slug/*", "routes/folder.$slug.tsx"),
   route("file/*", "routes/file.$.tsx"),
-  route("moodboards", "routes/moodboards.tsx"),
-  route("moodboard/:id", "routes/moodboard.$id.tsx"),
+
   route("admin/jobs", "routes/admin.jobs.tsx"),
   route("admin/import", "routes/admin.import.tsx"),
 ] satisfies RouteConfig;

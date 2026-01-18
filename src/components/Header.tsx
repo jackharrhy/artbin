@@ -17,7 +17,6 @@ export function Header({ user }: HeaderProps) {
         {user ? (
           <>
             <a href="/folders" className="header-link">folders</a>
-            <a href="/moodboards" className="header-link">moodboards</a>
             <a href="/upload" className="btn btn-sm">upload</a>
             <a href="/settings" className="header-link">@{user.username}</a>
             {user.isAdmin && <span className="badge-admin">admin</span>}

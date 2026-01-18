@@ -135,32 +135,6 @@ export const jobs = sqliteTable("jobs", {
 });
 
 // ============================================================================
-// Moodboards - Visual collections
-// ============================================================================
-
-export const moodboards = sqliteTable("moodboards", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  description: text("description"),
-  ownerId: text("owner_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  visibility: text("visibility", { enum: ["public", "private", "unlisted"] }).default("private"),
-  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn((): Date => new Date()),
-});
-
-export const moodboardItems = sqliteTable("moodboard_items", {
-  id: text("id").primaryKey(),
-  moodboardId: text("moodboard_id").notNull().references(() => moodboards.id, { onDelete: "cascade" }),
-  fileId: text("file_id").references(() => files.id, { onDelete: "cascade" }), // null for non-file items
-  type: text("type", { enum: ["file", "text", "link", "color"] }).notNull(),
-  content: text("content"),                        // JSON for text/link/color items
-  positionX: integer("position_x").default(0),
-  positionY: integer("position_y").default(0),
-  width: integer("width").default(200),
-  height: integer("height").default(200),
-  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn((): Date => new Date()),
-});
-
-// ============================================================================
 // Type exports
 // ============================================================================
 
@@ -172,5 +146,3 @@ export type File = typeof files.$inferSelect;
 export type Tag = typeof tags.$inferSelect;
 export type FileTag = typeof fileTags.$inferSelect;
 export type Job = typeof jobs.$inferSelect;
-export type Moodboard = typeof moodboards.$inferSelect;
-export type MoodboardItem = typeof moodboardItems.$inferSelect;
