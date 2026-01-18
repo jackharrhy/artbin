@@ -62,21 +62,17 @@ export default function Folders() {
       <main className="main-content">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
           <h1 className="page-title" style={{ marginBottom: 0 }}>Folders</h1>
-          {user.isAdmin && (
-            <a href="/admin/extract" className="btn btn-primary">
-              Extract Archive
-            </a>
-          )}
+          <a href="/upload" className="btn btn-primary">
+            Upload
+          </a>
         </div>
 
         {folders.length === 0 ? (
           <div className="empty-state">
             <p>No folders yet</p>
-            {user.isAdmin && (
-              <p style={{ marginTop: "1rem" }}>
-                <a href="/admin/extract">Extract an archive</a> to create folders
-              </p>
-            )}
+            <p style={{ marginTop: "1rem" }}>
+              <a href="/upload">Upload an archive</a> to create a folder
+            </p>
           </div>
         ) : (
           <div className="folder-grid">

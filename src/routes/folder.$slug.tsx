@@ -199,31 +199,38 @@ export default function FolderView() {
             {folder.name}
           </h1>
 
-          {user.isAdmin && (
-            <Form
-              method="post"
-              onSubmit={(e) => {
-                const fileCount = files.length;
-                const folderCount = childFolders.length;
-                let msg = `Delete folder "${folder.name}"?`;
-                if (fileCount > 0 || folderCount > 0) {
-                  msg = `Delete folder "${folder.name}" with ${fileCount} file(s) and ${folderCount} subfolder(s)? This will permanently delete all contents.`;
-                }
-                if (!confirm(msg)) {
-                  e.preventDefault();
-                }
-              }}
-            >
-              <input type="hidden" name="_action" value="delete" />
-              <button
-                type="submit"
-                className="btn btn-danger"
-                disabled={isDeleting}
+          <div style={{ display: "flex", gap: "0.5rem" }}>
+            <a href={`/upload?folder=${encodeURIComponent(folder.slug)}`} className="btn btn-primary">
+              Upload to folder
+            </a>
+            
+            {user.isAdmin && (
+              <Form
+                method="post"
+                style={{ display: "inline" }}
+                onSubmit={(e) => {
+                  const fileCount = files.length;
+                  const folderCount = childFolders.length;
+                  let msg = `Delete folder "${folder.name}"?`;
+                  if (fileCount > 0 || folderCount > 0) {
+                    msg = `Delete folder "${folder.name}" with ${fileCount} file(s) and ${folderCount} subfolder(s)? This will permanently delete all contents.`;
+                  }
+                  if (!confirm(msg)) {
+                    e.preventDefault();
+                  }
+                }}
               >
-                {isDeleting ? "Deleting..." : "Delete Folder"}
-              </button>
-            </Form>
-          )}
+                <input type="hidden" name="_action" value="delete" />
+                <button
+                  type="submit"
+                  className="btn btn-danger"
+                  disabled={isDeleting}
+                >
+                  {isDeleting ? "Deleting..." : "Delete"}
+                </button>
+              </Form>
+            )}
+          </div>
         </div>
 
         {folder.description && (

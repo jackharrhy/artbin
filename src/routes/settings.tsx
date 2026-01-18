@@ -197,8 +197,8 @@ export default function Settings() {
         {user.isAdmin && (
           <section className="section">
             <h2 className="section-title">Admin</h2>
-            <div className="card">
-              <a href="/admin/import" className="btn btn-sm">Import Textures</a>
+            <div className="card" style={{ display: "flex", gap: "0.5rem" }}>
+              <a href="/admin/jobs" className="btn btn-sm">View Jobs</a>
             </div>
           </section>
         )}
