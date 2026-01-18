@@ -1,5 +1,5 @@
 import { Form, redirect, useLoaderData, useActionData, useRevalidator } from "react-router";
-import { useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import type { Route } from "./+types/admin.archives";
 import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
 import { db, jobs } from "~/db";
@@ -115,6 +115,49 @@ export async function action({ request }: Route.ActionArgs) {
     return { success: true, jobId: job.id, action: "import-archive", archiveName: archivePath.split("/").pop() };
   }
 
+  if (intent === "batch-import") {
+    const folderName = formData.get("folderName") as string;
+    const folderSlug = formData.get("folderSlug") as string;
+    const archivePathsJson = formData.get("archivePaths") as string;
+
+    if (!folderName || !folderSlug || !archivePathsJson) {
+      return { error: "Missing required fields" };
+    }
+
+    let archivePaths: string[];
+    try {
+      archivePaths = JSON.parse(archivePathsJson);
+    } catch {
+      return { error: "Invalid archive paths" };
+    }
+
+    if (archivePaths.length === 0) {
+      return { error: "No archives selected" };
+    }
+
+    const job = await createJob({
+      type: "batch-extract-archive",
+      input: {
+        parentFolderSlug: folderSlug,
+        parentFolderName: folderName,
+        archives: archivePaths.map((path) => ({
+          path,
+          subfolderSlug: slugify(path.split("/").pop()?.replace(/\.[^.]+$/, "") || "archive"),
+        })),
+        userId: user.id,
+      },
+      userId: user.id,
+    });
+
+    return { 
+      success: true, 
+      jobId: job.id, 
+      action: "batch-import", 
+      count: archivePaths.length,
+      folderName,
+    };
+  }
+
   return { error: "Unknown action" };
 }
 
@@ -186,9 +229,32 @@ function countArchives(node: TreeNode): number {
 }
 
 /**
+ * Get all archive paths in a tree node (including children)
+ */
+function getAllArchivePaths(node: TreeNode): string[] {
+  const paths: string[] = node.archives.map((a) => a.path);
+  for (const child of node.children.values()) {
+    paths.push(...getAllArchivePaths(child));
+  }
+  return paths;
+}
+
+/**
  * Recursively render tree nodes, collapsing paths with single children
  */
-function TreeNodeView({ node, depth = 0 }: { node: TreeNode; depth?: number }) {
+function TreeNodeView({ 
+  node, 
+  depth = 0,
+  selectedPaths,
+  onToggleArchive,
+  onToggleFolder,
+}: { 
+  node: TreeNode; 
+  depth?: number;
+  selectedPaths: Set<string>;
+  onToggleArchive: (path: string) => void;
+  onToggleFolder: (paths: string[], selected: boolean) => void;
+}) {
   const archiveCount = countArchives(node);
   
   if (archiveCount === 0) return null;
@@ -219,9 +285,30 @@ function TreeNodeView({ node, depth = 0 }: { node: TreeNode; depth?: number }) {
     a.name.localeCompare(b.name)
   );
 
+  // Calculate folder selection state
+  const allPaths = getAllArchivePaths(displayNode);
+  const selectedCount = allPaths.filter((p) => selectedPaths.has(p)).length;
+  const isAllSelected = selectedCount === allPaths.length && allPaths.length > 0;
+  const isPartiallySelected = selectedCount > 0 && selectedCount < allPaths.length;
+
+  const handleFolderCheckbox = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onToggleFolder(allPaths, !isAllSelected);
+  };
+
   return (
     <details className="tree-folder" open>
       <summary className="tree-folder-header">
+        <input
+          type="checkbox"
+          className="tree-checkbox"
+          checked={isAllSelected}
+          ref={(el) => {
+            if (el) el.indeterminate = isPartiallySelected;
+          }}
+          onChange={() => {}}
+          onClick={handleFolderCheckbox}
+        />
         <span className="tree-folder-icon">{hasChildren || hasArchives ? "📁" : "📂"}</span>
         <span className="tree-folder-name">{displayPath}</span>
         <span className="tree-folder-count">{archiveCount} archive{archiveCount !== 1 ? "s" : ""}</span>
@@ -230,26 +317,58 @@ function TreeNodeView({ node, depth = 0 }: { node: TreeNode; depth?: number }) {
       <div className="tree-folder-content">
         {/* Child folders */}
         {sortedChildren.map((child) => (
-          <TreeNodeView key={child.path} node={child} depth={depth + 1} />
+          <TreeNodeView 
+            key={child.path} 
+            node={child} 
+            depth={depth + 1}
+            selectedPaths={selectedPaths}
+            onToggleArchive={onToggleArchive}
+            onToggleFolder={onToggleFolder}
+          />
         ))}
 
         {/* Archives in this folder */}
         {sortedArchives.map((archive) => (
-          <ArchiveItem key={archive.path} archive={archive} />
+          <ArchiveItem 
+            key={archive.path} 
+            archive={archive}
+            isSelected={selectedPaths.has(archive.path)}
+            onToggle={() => onToggleArchive(archive.path)}
+          />
         ))}
       </div>
     </details>
   );
 }
 
-function ArchiveItem({ archive }: { archive: FoundArchive }) {
+function ArchiveItem({ 
+  archive,
+  isSelected,
+  onToggle,
+}: { 
+  archive: FoundArchive;
+  isSelected: boolean;
+  onToggle: () => void;
+}) {
   const defaultName = archive.gameDir
     ? `${archive.gameDir} - ${archive.name.replace(/\.[^.]+$/, "")}`
     : archive.name.replace(/\.[^.]+$/, "");
 
+  const handleCheckbox = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onToggle();
+  };
+
   return (
-    <details className="tree-archive">
+    <details className={`tree-archive ${isSelected ? "tree-archive-selected" : ""}`}>
       <summary className="tree-archive-header">
+        <input
+          type="checkbox"
+          className="tree-checkbox"
+          checked={isSelected}
+          onChange={() => {}}
+          onClick={handleCheckbox}
+        />
         <span className="tree-archive-icon">
           {archive.type === "pak" && "📦"}
           {archive.type === "pk3" && "📦"}
@@ -305,10 +424,80 @@ function ArchiveItem({ archive }: { archive: FoundArchive }) {
   );
 }
 
+function BatchImportBar({
+  selectedPaths,
+  onClear,
+}: {
+  selectedPaths: Set<string>;
+  onClear: () => void;
+}) {
+  const [folderName, setFolderName] = useState("");
+  const [folderSlug, setFolderSlug] = useState("");
+
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const name = e.target.value;
+    setFolderName(name);
+    setFolderSlug(slugify(name));
+  };
+
+  if (selectedPaths.size === 0) return null;
+
+  return (
+    <div className="batch-import-bar">
+      <div className="batch-import-info">
+        <strong>{selectedPaths.size}</strong> selected
+        <button type="button" className="btn btn-sm" onClick={onClear}>
+          Clear
+        </button>
+      </div>
+
+      <Form method="post" className="batch-import-form">
+        <input type="hidden" name="intent" value="batch-import" />
+        <input type="hidden" name="archivePaths" value={JSON.stringify([...selectedPaths])} />
+
+        <div className="batch-import-fields">
+          <div className="form-group">
+            <label className="form-label">Parent Folder</label>
+            <input
+              type="text"
+              name="folderName"
+              className="input"
+              placeholder="e.g. Thirty Flights of Loving"
+              value={folderName}
+              onChange={handleNameChange}
+              required
+            />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Slug</label>
+            <input
+              type="text"
+              name="folderSlug"
+              className="input"
+              placeholder="thirty-flights-of-loving"
+              value={folderSlug}
+              onChange={(e) => setFolderSlug(e.target.value)}
+              pattern="[a-z0-9-]+"
+              required
+            />
+          </div>
+
+          <button type="submit" className="btn btn-primary" disabled={!folderName || !folderSlug}>
+            Import as Subfolders
+          </button>
+        </div>
+      </Form>
+    </div>
+  );
+}
+
 export default function AdminArchives() {
   const { user, archives, totalArchives, scanJobStatus, scanJobProgress, scanJobMessage } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const revalidator = useRevalidator();
+
+  const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
 
   const isScanning = scanJobStatus === "running" || scanJobStatus === "pending";
 
@@ -322,18 +511,56 @@ export default function AdminArchives() {
     }
   }, [isScanning, revalidator]);
 
+  // Clear selection on successful batch import
+  useEffect(() => {
+    if (actionData?.success && actionData?.action === "batch-import") {
+      setSelectedPaths(new Set());
+    }
+  }, [actionData]);
+
   // Build tree from archives
-  const tree = buildTree(archives);
+  const tree = useMemo(() => buildTree(archives), [archives]);
 
   // Get top-level nodes (skip the root "/" node)
-  const topLevelNodes = Array.from(tree.children.values()).sort((a, b) =>
-    a.name.localeCompare(b.name)
+  const topLevelNodes = useMemo(
+    () => Array.from(tree.children.values()).sort((a, b) => a.name.localeCompare(b.name)),
+    [tree]
   );
+
+  const handleToggleArchive = (path: string) => {
+    setSelectedPaths((prev) => {
+      const next = new Set(prev);
+      if (next.has(path)) {
+        next.delete(path);
+      } else {
+        next.add(path);
+      }
+      return next;
+    });
+  };
+
+  const handleToggleFolder = (paths: string[], selected: boolean) => {
+    setSelectedPaths((prev) => {
+      const next = new Set(prev);
+      for (const path of paths) {
+        if (selected) {
+          next.add(path);
+        } else {
+          next.delete(path);
+        }
+      }
+      return next;
+    });
+  };
+
+  const handleClearSelection = () => {
+    setSelectedPaths(new Set());
+  };
 
   return (
     <div>
       <Header user={user} />
-      <main className="main-content" style={{ maxWidth: "1000px" }}>
+      <main className="main-content" style={{ maxWidth: "1000px", paddingBottom: selectedPaths.size > 0 ? "120px" : "1rem" }}>
         <div className="breadcrumb">
           <a href="/folders">Folders</a>
           <span className="breadcrumb-sep">/</span>
@@ -359,6 +586,13 @@ export default function AdminArchives() {
         {actionData?.success && actionData.action === "import-archive" && (
           <div className="alert alert-success" style={{ marginBottom: "1rem" }}>
             <strong>Import started!</strong> {actionData.archiveName} is being extracted.{" "}
+            <a href="/admin/jobs">View progress</a>
+          </div>
+        )}
+
+        {actionData?.success && actionData.action === "batch-import" && (
+          <div className="alert alert-success" style={{ marginBottom: "1rem" }}>
+            <strong>Batch import started!</strong> {actionData.count} archives will be extracted into "{actionData.folderName}".{" "}
             <a href="/admin/jobs">View progress</a>
           </div>
         )}
@@ -396,11 +630,18 @@ export default function AdminArchives() {
         {totalArchives > 0 ? (
           <div className="archive-tree">
             <div style={{ marginBottom: "1rem", color: "#666", fontSize: "0.875rem" }}>
-              Found {totalArchives} archive{totalArchives !== 1 ? "s" : ""}. Click folders to expand/collapse, click archives to import.
+              Found {totalArchives} archive{totalArchives !== 1 ? "s" : ""}. 
+              Use checkboxes to select multiple, or click archives to import individually.
             </div>
 
             {topLevelNodes.map((node) => (
-              <TreeNodeView key={node.path} node={node} />
+              <TreeNodeView 
+                key={node.path} 
+                node={node}
+                selectedPaths={selectedPaths}
+                onToggleArchive={handleToggleArchive}
+                onToggleFolder={handleToggleFolder}
+              />
             ))}
           </div>
         ) : scanJobStatus === "completed" ? (
@@ -418,6 +659,11 @@ export default function AdminArchives() {
           <a href="/admin/jobs">View Jobs</a>
         </p>
       </main>
+
+      <BatchImportBar
+        selectedPaths={selectedPaths}
+        onClear={handleClearSelection}
+      />
     </div>
   );
 }

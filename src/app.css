@@ -988,3 +988,102 @@ details.archive-item > summary:hover {
     flex: none !important;
   }
 }
+
+/* Tree checkboxes */
+.tree-checkbox {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--color-text);
+}
+
+.tree-archive-selected {
+  background: #f0f7ff;
+}
+
+.tree-archive-selected > .tree-archive-header {
+  background: #f0f7ff;
+}
+
+/* Batch import floating bar */
+.batch-import-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #fff;
+  border-top: 2px solid var(--color-border);
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  z-index: 100;
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.batch-import-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.875rem;
+  flex-shrink: 0;
+}
+
+.batch-import-info strong {
+  font-size: 1.125rem;
+}
+
+.batch-import-form {
+  flex: 1;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.batch-import-fields {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.75rem;
+}
+
+.batch-import-fields .form-group {
+  margin-bottom: 0;
+}
+
+.batch-import-fields .form-label {
+  margin-bottom: 0.125rem;
+}
+
+.batch-import-fields .input {
+  width: 200px;
+}
+
+@media (max-width: 768px) {
+  .batch-import-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+    padding: 1rem;
+  }
+
+  .batch-import-info {
+    justify-content: space-between;
+  }
+
+  .batch-import-form {
+    justify-content: stretch;
+  }
+
+  .batch-import-fields {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .batch-import-fields .input {
+    width: 100%;
+  }
+
+  .batch-import-fields button {
+    width: 100%;
+  }
+}

@@ -46,6 +46,30 @@ export interface ExtractJobInput {
   skipTempCleanup?: boolean;  // Don't delete source file (for local imports)
 }
 
+export interface BatchExtractJobInput {
+  parentFolderSlug: string;   // Parent folder slug (e.g., "thirty-flights")
+  parentFolderName: string;   // Display name for parent folder
+  archives: Array<{
+    path: string;             // Full path to archive file
+    subfolderSlug: string;    // Slug for subfolder (e.g., "pak0")
+  }>;
+  userId?: string;
+}
+
+export interface BatchExtractJobOutput {
+  parentFolderId: string;
+  parentFolderSlug: string;
+  totalFiles: number;
+  totalArchives: number;
+  archiveResults: Array<{
+    path: string;
+    subfolderSlug: string;
+    filesExtracted: number;
+    success: boolean;
+    error?: string;
+  }>;
+}
+
 export interface ExtractJobOutput {
   folderId: string;
   folderSlug: string;
@@ -271,5 +295,162 @@ async function handleExtractJob(
 // Register the job handler
 registerJobHandler("extract-archive", handleExtractJob);
 
+// ============================================================================
+// Batch Extract Job Handler
+// ============================================================================
+
+async function handleBatchExtractJob(
+  job: Job,
+  input: Record<string, unknown>
+): Promise<Record<string, unknown>> {
+  const {
+    parentFolderSlug,
+    parentFolderName,
+    archives,
+  } = input as unknown as BatchExtractJobInput;
+
+  await updateJobProgress(job.id, 2, "Creating parent folder...");
+
+  // Create parent folder
+  const parentFolderId = await getOrCreateFolder(parentFolderSlug, parentFolderName, null);
+
+  const totalArchives = archives.length;
+  let processedArchives = 0;
+  let totalFilesExtracted = 0;
+  const archiveResults: BatchExtractJobOutput["archiveResults"] = [];
+
+  for (const archiveInfo of archives) {
+    const archiveName = basename(archiveInfo.path);
+    const subfolderName = archiveInfo.path.split("/").pop()?.replace(/\.[^.]+$/, "") || archiveInfo.subfolderSlug;
+    const subfolderSlug = `${parentFolderSlug}/${archiveInfo.subfolderSlug}`;
+
+    await updateJobProgress(
+      job.id,
+      5 + Math.floor((processedArchives / totalArchives) * 90),
+      `Extracting ${archiveName} (${processedArchives + 1}/${totalArchives})...`
+    );
+
+    try {
+      // Parse archive
+      const archive = await parseArchive(archiveInfo.path);
+      const fileEntries = getFileEntries(archive.entries);
+      const dirPaths = getDirectoryPaths(archive.entries);
+
+      // Create subfolder structure under the parent
+      const folderMap = await createFolderStructure(
+        subfolderSlug,
+        subfolderName,
+        dirPaths,
+        parentFolderId
+      );
+
+      // Extract files
+      let filesExtracted = 0;
+
+      for (const entry of fileEntries) {
+        try {
+          // Extract file content
+          const buffer = await extractEntry(archiveInfo.path, entry, archive.type);
+
+          // Determine folder for this file
+          const entryDir = dirname(entry.name);
+          const folderSlug = entryDir === "."
+            ? subfolderSlug
+            : `${subfolderSlug}/${pathToSlug(entryDir)}`;
+          const folderId = folderMap.get(entryDir) || folderMap.get("")!;
+
+          // Save file to disk
+          const fileName = basename(entry.name);
+          const { path: filePath, name: savedName } = await saveFile(buffer, folderSlug, fileName, true);
+
+          // Detect kind and mime type
+          const kind = detectKind(savedName);
+          const mimeType = await getMimeType(savedName, buffer);
+
+          // Process images to get dimensions and generate previews
+          let width: number | null = null;
+          let height: number | null = null;
+          let hasPreview = false;
+
+          if (isImageKind(kind)) {
+            const imageInfo = await processImage(filePath);
+            width = imageInfo.width;
+            height = imageInfo.height;
+            hasPreview = imageInfo.hasPreview;
+          }
+
+          // Create file record
+          await db.insert(files).values({
+            id: nanoid(),
+            path: filePath,
+            name: savedName,
+            mimeType,
+            size: buffer.length,
+            kind,
+            width,
+            height,
+            hasPreview,
+            folderId,
+            source: `extracted-${archive.type}`,
+            sourceArchive: archiveName,
+          });
+
+          filesExtracted++;
+        } catch (error) {
+          console.error(`Failed to extract ${entry.name} from ${archiveName}:`, error);
+          // Continue with other files
+        }
+      }
+
+      // Generate folder previews for all created folders
+      for (const [, folderId] of folderMap) {
+        try {
+          await generateFolderPreview(folderId);
+        } catch (err) {
+          console.error(`Failed to generate preview for folder ${folderId}:`, err);
+        }
+      }
+
+      totalFilesExtracted += filesExtracted;
+      archiveResults.push({
+        path: archiveInfo.path,
+        subfolderSlug: archiveInfo.subfolderSlug,
+        filesExtracted,
+        success: true,
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`Failed to extract archive ${archiveName}:`, error);
+      archiveResults.push({
+        path: archiveInfo.path,
+        subfolderSlug: archiveInfo.subfolderSlug,
+        filesExtracted: 0,
+        success: false,
+        error: errorMessage,
+      });
+    }
+
+    processedArchives++;
+  }
+
+  // Generate preview for parent folder
+  await updateJobProgress(job.id, 97, "Generating parent folder preview...");
+  try {
+    await generateFolderPreview(parentFolderId);
+  } catch (err) {
+    console.error(`Failed to generate preview for parent folder ${parentFolderId}:`, err);
+  }
+
+  return {
+    parentFolderId,
+    parentFolderSlug,
+    totalFiles: totalFilesExtracted,
+    totalArchives: processedArchives,
+    archiveResults,
+  } satisfies BatchExtractJobOutput;
+}
+
+registerJobHandler("batch-extract-archive", handleBatchExtractJob);
+
 // Export for type checking
-export { handleExtractJob };
+export { handleExtractJob, handleBatchExtractJob };
