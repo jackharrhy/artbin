@@ -89,18 +89,37 @@ export default function TextureDetail() {
           <div>
             <div className="detail-image">
               <img
-                src={`/uploads/${texture.filename}`}
+                src={`/uploads/${texture.previewFilename || texture.filename}`}
                 alt={texture.originalName}
               />
             </div>
-            <div style={{ marginTop: "1rem", display: "flex", gap: "0.5rem" }}>
-              <a
-                href={`/uploads/${texture.filename}`}
-                download={texture.originalName}
-                className="btn"
-              >
-                Download
-              </a>
+            <div style={{ marginTop: "1rem", display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+              {texture.previewFilename ? (
+                <>
+                  <a
+                    href={`/uploads/${texture.previewFilename}`}
+                    download={texture.originalName.replace(/\.[^.]+$/, ".png")}
+                    className="btn"
+                  >
+                    Download PNG
+                  </a>
+                  <a
+                    href={`/uploads/${texture.filename}`}
+                    download={texture.originalName}
+                    className="btn"
+                  >
+                    Download Original
+                  </a>
+                </>
+              ) : (
+                <a
+                  href={`/uploads/${texture.filename}`}
+                  download={texture.originalName}
+                  className="btn"
+                >
+                  Download
+                </a>
+              )}
               {texture.sourceUrl && (
                 <a
                   href={texture.sourceUrl}

@@ -70,6 +70,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     .select({
       id: textures.id,
       filename: textures.filename,
+      previewFilename: textures.previewFilename,
       originalName: textures.originalName,
       isSeamless: textures.isSeamless,
     })
@@ -149,7 +150,7 @@ export default function Textures() {
                 className="texture-card"
               >
                 <img
-                  src={`/uploads/${texture.filename}`}
+                  src={`/uploads/${texture.previewFilename || texture.filename}`}
                   alt={texture.originalName}
                   loading="lazy"
                 />

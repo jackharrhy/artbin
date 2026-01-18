@@ -7,6 +7,7 @@ import { nanoid } from "nanoid";
 import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 import { Header } from "~/components/Header";
+import { getMimeType, processTextureUpload } from "~/lib/images.server";
 
 export async function loader({ request }: Route.LoaderArgs) {
   const sessionId = parseSessionCookie(request.headers.get("Cookie"));
@@ -41,13 +42,15 @@ export async function action({ request }: Route.ActionArgs) {
     return { error: "Please select a file" };
   }
 
-  const allowedTypes = ["image/png", "image/jpeg", "image/gif", "image/webp"];
-  if (!allowedTypes.includes(file.type)) {
-    return { error: "Only PNG, JPEG, GIF, and WebP files are allowed" };
+  // Check file extension for allowed formats
+  const ext = file.name.split(".").pop()?.toLowerCase();
+  const allowedExts = ["png", "jpg", "jpeg", "gif", "webp", "tga", "pcx", "bmp"];
+  if (!ext || !allowedExts.includes(ext)) {
+    return { error: "Only PNG, JPEG, GIF, WebP, TGA, PCX, and BMP files are allowed" };
   }
 
-  const ext = file.name.split(".").pop();
   const filename = `${nanoid()}.${ext}`;
+  const mimeType = getMimeType(file.name);
 
   const uploadsDir = join(process.cwd(), "public", "uploads");
   await mkdir(uploadsDir, { recursive: true });
@@ -55,12 +58,18 @@ export async function action({ request }: Route.ActionArgs) {
   const buffer = Buffer.from(await file.arrayBuffer());
   await writeFile(join(uploadsDir, filename), buffer);
 
+  // Process the upload (convert legacy formats, get dimensions)
+  const { previewFilename, width, height } = await processTextureUpload(uploadsDir, filename);
+
   const [newTexture] = await db.insert(textures).values({
     id: nanoid(),
     filename,
     originalName: file.name,
-    mimeType: file.type,
+    mimeType,
     size: file.size,
+    width,
+    height,
+    previewFilename,
     isSeamless,
     folderId: folderId || null,
     uploaderId: user.id,
@@ -94,12 +103,12 @@ export default function Upload() {
               type="file"
               id="file"
               name="file"
-              accept="image/png,image/jpeg,image/gif,image/webp"
+              accept="image/png,image/jpeg,image/gif,image/webp,.tga,.pcx,.bmp"
               required
               className="input"
               style={{ width: "100%" }}
             />
-            <div className="form-help">PNG, JPEG, GIF, or WebP</div>
+            <div className="form-help">PNG, JPEG, GIF, WebP, TGA, PCX, or BMP</div>
           </div>
 
           <div className="form-group">

@@ -59,6 +59,7 @@ export const textures = sqliteTable("textures", {
   size: integer("size").notNull(),
   width: integer("width"),
   height: integer("height"),
+  previewFilename: text("preview_filename"), // PNG preview for legacy formats (TGA, PCX, BMP)
   isSeamless: integer("is_seamless", { mode: "boolean" }).default(false),
   folderId: text("folder_id").references(() => folders.id),
   collectionId: text("collection_id").references(() => collections.id), // legacy
