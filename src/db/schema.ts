@@ -26,7 +26,20 @@ export const inviteCodes = sqliteTable("invite_codes", {
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });
 
-// Collections
+// Folders (nested, like filesystem directories)
+export const folders = sqliteTable("folders", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  slug: text("slug").notNull(),
+  description: text("description"),
+  parentId: text("parent_id"), // null = root folder
+  ownerId: text("owner_id").notNull().references(() => users.id),
+  visibility: text("visibility", { enum: ["public", "private", "friends"] }).default("public"),
+  source: text("source"), // e.g. "texturetown", "local", etc.
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn((): Date => new Date()),
+});
+
+// Collections (legacy, keeping for backwards compat)
 export const collections = sqliteTable("collections", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
@@ -46,7 +59,8 @@ export const textures = sqliteTable("textures", {
   width: integer("width"),
   height: integer("height"),
   isSeamless: integer("is_seamless", { mode: "boolean" }).default(false),
-  collectionId: text("collection_id").references(() => collections.id),
+  folderId: text("folder_id").references(() => folders.id),
+  collectionId: text("collection_id").references(() => collections.id), // legacy
   uploaderId: text("uploader_id").notNull().references(() => users.id),
   sourceUrl: text("source_url"),
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn((): Date => new Date()),
@@ -88,6 +102,7 @@ export const moodboardItems = sqliteTable("moodboard_items", {
 export type User = typeof users.$inferSelect;
 export type Session = typeof sessions.$inferSelect;
 export type InviteCode = typeof inviteCodes.$inferSelect;
+export type Folder = typeof folders.$inferSelect;
 export type Collection = typeof collections.$inferSelect;
 export type Texture = typeof textures.$inferSelect;
 export type Tag = typeof tags.$inferSelect;

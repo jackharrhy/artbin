@@ -89,17 +89,21 @@ export default function Dashboard() {
         </div>
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           <a href="/textures" className="box-retro hover:border-lime text-center">
-            <h3 className="text-xl font-bold text-lime mb-2">Browse Textures</h3>
-            <p className="text-sm">Explore the texture library</p>
+            <h3 className="text-xl font-bold text-lime mb-2">Textures</h3>
+            <p className="text-sm">Search all textures</p>
           </a>
-          <a href="/upload" className="box-retro hover:border-aqua text-center">
-            <h3 className="text-xl font-bold text-aqua mb-2">Upload</h3>
+          <a href="/folders" className="box-retro hover:border-aqua text-center">
+            <h3 className="text-xl font-bold text-aqua mb-2">Folders</h3>
+            <p className="text-sm">Browse by folder</p>
+          </a>
+          <a href="/upload" className="box-retro hover:border-yellow text-center">
+            <h3 className="text-xl font-bold text-yellow mb-2">Upload</h3>
             <p className="text-sm">Add new textures</p>
           </a>
-          <a href="/moodboards" className="box-retro hover:border-yellow text-center">
-            <h3 className="text-xl font-bold text-yellow mb-2">Moodboards</h3>
+          <a href="/moodboards" className="box-retro hover:border-fuchsia text-center">
+            <h3 className="text-xl font-bold text-fuchsia mb-2">Moodboards</h3>
             <p className="text-sm">Create & view boards</p>
           </a>
         </div>

@@ -7,6 +7,8 @@ export default [
   route("dashboard", "routes/dashboard.tsx"),
   route("upload", "routes/upload.tsx"),
   route("textures", "routes/textures.tsx"),
+  route("folders", "routes/folders.tsx"),
+  route("folder/*", "routes/folder.$slug.tsx"),
   route("moodboards", "routes/moodboards.tsx"),
   route("moodboard/:id", "routes/moodboard.$id.tsx"),
   route("admin/import", "routes/admin.import.tsx"),

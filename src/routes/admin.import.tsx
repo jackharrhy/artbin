@@ -1,7 +1,7 @@
 import { Form, redirect, useLoaderData, useActionData } from "react-router";
 import type { Route } from "./+types/admin.import";
 import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
-import { db, textures, collections, tags, textureTags } from "~/db";
+import { db, textures, folders, tags, textureTags } from "~/db";
 import { eq, count } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { writeFile, mkdir } from "fs/promises";
@@ -12,16 +12,9 @@ const IMPORT_SOURCES = [
   {
     id: "texturetown",
     name: "TextureTown",
-    description: "textures.neocities.org - 3800+ retro textures",
+    description: "textures.neocities.org - 3800+ retro textures organized by category",
     url: "https://textures.neocities.org/",
   },
-  // Future sources can be added here
-  // {
-  //   id: "opengameart",
-  //   name: "OpenGameArt",
-  //   description: "opengameart.org - Free game assets",
-  //   url: "https://opengameart.org/",
-  // },
 ];
 
 interface TextureTownManifest {
@@ -51,8 +44,11 @@ export async function loader({ request }: Route.LoaderArgs) {
 
   // Get current texture count
   const [{ total }] = await db.select({ total: count() }).from(textures);
+  
+  // Get folder count
+  const [{ folderCount }] = await db.select({ folderCount: count() }).from(folders);
 
-  return { user, sources: IMPORT_SOURCES, textureCount: total };
+  return { user, sources: IMPORT_SOURCES, textureCount: total, folderCount };
 }
 
 export async function action({ request }: Route.ActionArgs) {
@@ -85,25 +81,51 @@ async function importTextureTown(userId: string) {
   let totalSkipped = 0;
   const errors: string[] = [];
 
-  // Import ALL categories
+  // Create parent folder for TextureTown
+  let parentFolder = await db.query.folders.findFirst({
+    where: eq(folders.slug, "texturetown"),
+  });
+
+  if (!parentFolder) {
+    const [newFolder] = await db
+      .insert(folders)
+      .values({
+        id: nanoid(),
+        name: "TextureTown",
+        slug: "texturetown",
+        description: `Imported from textures.neocities.org - ${manifest.info.texture_count} textures`,
+        parentId: null,
+        ownerId: userId,
+        visibility: "public",
+        source: "texturetown",
+      })
+      .returning();
+    parentFolder = newFolder;
+  }
+
+  // Import ALL categories as child folders
   for (const cat of manifest.catalogue) {
-    // Create or find collection for this category
-    let collection = await db.query.collections.findFirst({
-      where: eq(collections.name, `TextureTown: ${cat.niceName}`),
+    // Create child folder for this category
+    const folderSlug = `texturetown/${cat.name}`;
+    let categoryFolder = await db.query.folders.findFirst({
+      where: eq(folders.slug, folderSlug),
     });
 
-    if (!collection) {
-      const [newCollection] = await db
-        .insert(collections)
+    if (!categoryFolder) {
+      const [newFolder] = await db
+        .insert(folders)
         .values({
           id: nanoid(),
-          name: `TextureTown: ${cat.niceName}`,
-          description: `Imported from TextureTown - ${cat.niceName}`,
+          name: cat.niceName,
+          slug: folderSlug,
+          description: `${cat.files.length} textures`,
+          parentId: parentFolder.id,
           ownerId: userId,
           visibility: "public",
+          source: "texturetown",
         })
         .returning();
-      collection = newCollection;
+      categoryFolder = newFolder;
     }
 
     // Create tag for this category
@@ -169,7 +191,7 @@ async function importTextureTown(userId: string) {
             originalName: file,
             mimeType: mimeMap[ext] || "image/jpeg",
             size: buffer.length,
-            collectionId: collection.id,
+            folderId: categoryFolder.id,
             uploaderId: userId,
             sourceUrl: url,
           })
@@ -192,7 +214,7 @@ async function importTextureTown(userId: string) {
   }
 
   return {
-    success: `Imported ${totalImported} textures from TextureTown (${totalSkipped} already existed)`,
+    success: `Imported ${totalImported} textures into ${manifest.catalogue.length} folders (${totalSkipped} already existed)`,
     errors: errors.length > 0 ? errors.slice(0, 10) : undefined,
   };
 }
@@ -202,7 +224,7 @@ export function meta() {
 }
 
 export default function AdminImport() {
-  const { sources, textureCount } = useLoaderData<typeof loader>();
+  const { sources, textureCount, folderCount } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
 
   return (
@@ -228,7 +250,7 @@ export default function AdminImport() {
           :: Import Textures ::
         </h2>
         <p className="text-center text-sm mb-4">
-          Current library: {textureCount} textures
+          Library: {textureCount} textures in {folderCount} folders
         </p>
         <hr className="hr-rainbow my-4" />
 
@@ -297,8 +319,9 @@ export default function AdminImport() {
         <div className="box-inset">
           <h3 className="text-lg font-bold mb-2">How Import Works</h3>
           <ul className="list-disc list-inside text-sm space-y-1">
-            <li>Downloads all textures from the source</li>
-            <li>Creates collections for each category</li>
+            <li>Creates a parent folder for the source (e.g. "TextureTown")</li>
+            <li>Creates child folders for each category</li>
+            <li>Downloads all textures into their folders</li>
             <li>Auto-tags textures by category</li>
             <li>Skips textures already imported (by URL)</li>
             <li>May take several minutes for large sources</li>
@@ -308,7 +331,7 @@ export default function AdminImport() {
         <hr className="hr-dashed my-8" />
 
         <p className="text-center text-sm">
-          <a href="/dashboard">Back to Dashboard</a>
+          <a href="/dashboard">Back to Dashboard</a> | <a href="/folders">Browse Folders</a>
         </p>
       </main>
     </div>
