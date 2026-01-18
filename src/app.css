@@ -1,0 +1,404 @@
+@import "tailwindcss";
+
+/*
+ * ARTBIN THEME
+ * Neocities-era aesthetic with modern Tailwind v4
+ * 
+ * RULES:
+ * - Only web standard named colors (no hex, rgb, hsl)
+ * - Gaudy borders (thick, colored, varied styles)
+ * - Retro feel, modern implementation
+ */
+
+@theme {
+  /* Use system monospace for that retro terminal feel */
+  --font-sans: "Comic Sans MS", "Comic Sans", cursive, system-ui, sans-serif;
+  --font-mono: "Courier New", Courier, monospace;
+  
+  /* Named colors only - the bold, stark ones */
+  --color-primary: fuchsia;
+  --color-secondary: aqua;
+  --color-accent: lime;
+  --color-warning: yellow;
+  --color-danger: red;
+  --color-info: blue;
+  
+  /* Background colors */
+  --color-bg-dark: navy;
+  --color-bg-light: white;
+  --color-bg-muted: silver;
+  
+  /* Text colors */
+  --color-text-dark: black;
+  --color-text-light: white;
+  --color-text-link: blue;
+  --color-text-link-hover: fuchsia;
+  --color-text-visited: purple;
+}
+
+/* Base styles - neocities vibes */
+html {
+  background-color: navy;
+  color: white;
+}
+
+body {
+  background-color: navy;
+  color: white;
+  font-family: var(--font-sans);
+  min-height: 100vh;
+}
+
+/* Links - classic web style */
+a {
+  color: aqua;
+  text-decoration: underline;
+}
+
+a:hover {
+  color: fuchsia;
+}
+
+a:visited {
+  color: violet;
+}
+
+/* Gaudy border utilities */
+.border-gaudy {
+  border: 4px solid fuchsia;
+}
+
+.border-gaudy-aqua {
+  border: 4px solid aqua;
+}
+
+.border-gaudy-lime {
+  border: 4px solid lime;
+}
+
+.border-gaudy-yellow {
+  border: 4px solid yellow;
+}
+
+.border-gaudy-red {
+  border: 4px solid red;
+}
+
+.border-chunky {
+  border: 4px double fuchsia;
+}
+
+.border-dotted-loud {
+  border: 4px dotted lime;
+}
+
+.border-dashed-loud {
+  border: 4px dashed aqua;
+}
+
+.border-ridge {
+  border: 4px ridge silver;
+}
+
+.border-groove {
+  border: 4px groove silver;
+}
+
+.border-inset {
+  border: 4px inset silver;
+}
+
+.border-outset {
+  border: 4px outset silver;
+}
+
+/* Box styles - for panels and cards */
+.box-retro {
+  background-color: navy;
+  border: 4px solid fuchsia;
+  padding: 1rem;
+}
+
+.box-highlight {
+  background-color: teal;
+  border: 4px solid aqua;
+  padding: 1rem;
+}
+
+.box-warning {
+  background-color: maroon;
+  border: 4px solid red;
+  padding: 1rem;
+}
+
+.box-inset {
+  background-color: silver;
+  border: 4px inset gray;
+  padding: 1rem;
+  color: black;
+}
+
+/* Button styles */
+.btn {
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  font-weight: bold;
+  text-decoration: none;
+  cursor: pointer;
+  border: 4px outset silver;
+  background-color: silver;
+  color: black;
+}
+
+.btn:hover {
+  border-style: inset;
+  background-color: gray;
+  color: white;
+}
+
+.btn:active {
+  border-style: inset;
+}
+
+.btn-primary {
+  background-color: fuchsia;
+  border-color: fuchsia;
+  color: white;
+}
+
+.btn-primary:hover {
+  background-color: purple;
+  border-color: purple;
+}
+
+.btn-danger {
+  background-color: red;
+  border-color: red;
+  color: white;
+}
+
+.btn-danger:hover {
+  background-color: maroon;
+  border-color: maroon;
+}
+
+.btn-success {
+  background-color: lime;
+  border-color: lime;
+  color: black;
+}
+
+.btn-success:hover {
+  background-color: green;
+  border-color: green;
+  color: white;
+}
+
+/* Form inputs - retro style */
+.input-retro {
+  background-color: white;
+  border: 2px inset silver;
+  padding: 0.5rem;
+  color: black;
+  font-family: var(--font-mono);
+}
+
+.input-retro:focus {
+  outline: 2px solid fuchsia;
+  border-color: fuchsia;
+}
+
+/* Headers with flair */
+.header-marquee {
+  background: linear-gradient(90deg, red, orange, yellow, lime, aqua, blue, fuchsia);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.header-glow {
+  color: lime;
+  text-shadow: 0 0 10px lime, 0 0 20px lime, 0 0 30px lime;
+}
+
+/* Dividers */
+.hr-rainbow {
+  height: 4px;
+  border: none;
+  background: linear-gradient(90deg, red, orange, yellow, lime, aqua, blue, fuchsia);
+}
+
+.hr-dotted {
+  border: none;
+  border-top: 4px dotted fuchsia;
+}
+
+.hr-dashed {
+  border: none;
+  border-top: 4px dashed aqua;
+}
+
+/* Grid for texture display */
+.texture-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 1rem;
+}
+
+.texture-card {
+  border: 4px solid fuchsia;
+  background-color: black;
+  padding: 0.5rem;
+  transition: border-color 0.2s;
+}
+
+.texture-card:hover {
+  border-color: lime;
+}
+
+.texture-card img {
+  width: 100%;
+  height: auto;
+  image-rendering: pixelated;
+}
+
+/* Scrollbar styling for that retro feel */
+::-webkit-scrollbar {
+  width: 16px;
+  height: 16px;
+}
+
+::-webkit-scrollbar-track {
+  background: navy;
+  border: 2px solid silver;
+}
+
+::-webkit-scrollbar-thumb {
+  background: fuchsia;
+  border: 2px solid silver;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: aqua;
+}
+
+/* Table styles */
+table {
+  border-collapse: collapse;
+  border: 4px solid fuchsia;
+}
+
+th {
+  background-color: fuchsia;
+  color: white;
+  padding: 0.5rem;
+  border: 2px solid white;
+}
+
+td {
+  background-color: navy;
+  padding: 0.5rem;
+  border: 2px solid fuchsia;
+}
+
+tr:hover td {
+  background-color: teal;
+}
+
+/* Blink animation for that authentic feel (use sparingly!) */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.blink {
+  animation: blink 1s infinite;
+}
+
+/* Marquee-style scroll animation */
+@keyframes marquee {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
+
+.marquee {
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.marquee-content {
+  display: inline-block;
+  animation: marquee 10s linear infinite;
+}
+
+/* Selection styling */
+::selection {
+  background-color: fuchsia;
+  color: white;
+}
+
+/* Badge/tag styles */
+.tag {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: bold;
+  border: 2px solid;
+  text-transform: uppercase;
+}
+
+.tag-seamless {
+  background-color: lime;
+  border-color: lime;
+  color: black;
+}
+
+.tag-wood {
+  background-color: maroon;
+  border-color: maroon;
+  color: white;
+}
+
+.tag-metal {
+  background-color: silver;
+  border-color: silver;
+  color: black;
+}
+
+.tag-stone {
+  background-color: gray;
+  border-color: gray;
+  color: white;
+}
+
+.tag-fabric {
+  background-color: purple;
+  border-color: purple;
+  color: white;
+}
+
+.tag-water {
+  background-color: blue;
+  border-color: blue;
+  color: white;
+}
+
+.tag-fire {
+  background-color: red;
+  border-color: orange;
+  color: white;
+}
+
+.tag-90s {
+  background-color: fuchsia;
+  border-color: fuchsia;
+  color: white;
+}
+
+.tag-pixel {
+  background-color: aqua;
+  border-color: aqua;
+  color: black;
+}
