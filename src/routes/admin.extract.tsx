@@ -433,63 +433,99 @@ async function handleImport(formData: FormData): Promise<ExtractResult> {
             }
           }
         } else if (bspParsed.bspType === "q2") {
-          // Quake 2 BSP - textures are external WAL files
+          // Quake 2 BSP - textures are external files
           // The BSP entries contain paths like "textures/e1u1/floor1.wal"
-          // We need to find these WAL files in the PAK/PK3
+          // Modern Q2 mods often use JPG/PNG/TGA replacements instead of WAL
           console.log(`Q2 BSP ${bspFilename} references ${bspParsed.entries.length} external textures -> folder ${bspFolderSlug}`);
 
           for (const texRef of bspParsed.entries) {
             try {
-              // Find the WAL file in the archive
+              // Get base path without extension (e.g., "textures/wall/grey_01")
               const walPath = texRef.name.toLowerCase();
-              const walEntry = parsed.entries.find(
-                (e) => e.name.toLowerCase() === walPath
-              );
-
-              if (!walEntry) {
-                // Try without textures/ prefix or with different casing
-                const altPaths = [
-                  walPath,
-                  walPath.replace("textures/", ""),
-                  `textures/${walPath}`,
-                ];
-                const found = parsed.entries.find((e) =>
-                  altPaths.some((p) => e.name.toLowerCase() === p || e.name.toLowerCase().endsWith(p))
+              const basePath = walPath.replace(/\.wal$/i, "");
+              
+              // Try to find texture with various extensions (WAL, JPG, PNG, TGA)
+              const extensions = [".wal", ".jpg", ".jpeg", ".png", ".tga"];
+              let targetEntry = null;
+              
+              for (const ext of extensions) {
+                // Try exact path
+                targetEntry = parsed.entries.find(
+                  (e) => e.name.toLowerCase() === basePath + ext
                 );
-                if (!found) {
-                  continue; // WAL not found in archive
-                }
+                if (targetEntry) break;
+                
+                // Try without textures/ prefix
+                const shortPath = basePath.replace("textures/", "") + ext;
+                targetEntry = parsed.entries.find(
+                  (e) => e.name.toLowerCase() === shortPath || 
+                         e.name.toLowerCase() === `textures/${shortPath}` ||
+                         e.name.toLowerCase().endsWith("/" + shortPath.split("/").pop())
+                );
+                if (targetEntry) break;
               }
 
-              const targetEntry = walEntry || parsed.entries.find((e) =>
-                e.name.toLowerCase().includes(walPath.replace("textures/", ""))
-              );
+              if (!targetEntry) {
+                continue; // Texture not found in archive
+              }
 
-              if (!targetEntry) continue;
-
-              // Extract the WAL file
-              let walBuffer: Buffer;
+              // Extract the texture file
+              let textureBuffer: Buffer;
               if (parsed.type === "pak") {
-                walBuffer = await extractPakEntry(tempPath, targetEntry);
+                textureBuffer = await extractPakEntry(tempPath, targetEntry);
               } else {
-                walBuffer = await extractPk3Entry(tempPath, targetEntry);
+                textureBuffer = await extractPk3Entry(tempPath, targetEntry);
               }
 
-              // Parse and convert WAL to PNG
-              const texture = parseWalBuffer(walBuffer);
-              const imageBuffer = await miptexToPng(texture, true); // Q2 palette
-              const filename = `${nanoid()}.png`;
-              const walName = targetEntry.name.split("/").pop() || targetEntry.name;
-              const originalName = walName.replace(/\.wal$/i, ".png");
+              const entryExt = targetEntry.name.split(".").pop()?.toLowerCase() || "";
+              const texName = targetEntry.name.split("/").pop() || targetEntry.name;
+              
+              let imageBuffer: Buffer;
+              let filename: string;
+              let mimeType: string;
+              let width: number | null = null;
+              let height: number | null = null;
+
+              if (entryExt === "wal") {
+                // Parse WAL and convert to PNG
+                const texture = parseWalBuffer(textureBuffer);
+                imageBuffer = await miptexToPng(texture, true); // Q2 palette
+                filename = `${nanoid()}.png`;
+                mimeType = "image/png";
+                width = texture.width;
+                height = texture.height;
+              } else if (LEGACY_FORMATS.includes(entryExt)) {
+                // Convert TGA/PCX/BMP to PNG
+                const converted = await convertLegacyFormat(textureBuffer, entryExt);
+                imageBuffer = converted.buffer;
+                filename = converted.filename;
+                mimeType = converted.mimeType;
+                width = converted.width;
+                height = converted.height;
+              } else {
+                // Already web-friendly (JPG, PNG)
+                imageBuffer = textureBuffer;
+                filename = `${nanoid()}.${entryExt}`;
+                mimeType = getMimeType(entryExt);
+                // Get dimensions
+                const tempFile = join(TEMP_DIR, filename);
+                await writeFile(tempFile, imageBuffer);
+                const dims = await getImageDimensions(tempFile);
+                width = dims?.width ?? null;
+                height = dims?.height ?? null;
+                try { await unlink(tempFile); } catch { /* ignore */ }
+              }
+
+              const originalName = texName.replace(/\.\w+$/, `.${filename.split(".").pop()}`);
 
               await saveBspTexture(
                 imageBuffer,
                 filename,
                 originalName,
-                "image/png",
+                mimeType,
                 `extracted-${parsed.type}-bsp-q2`,
-                texture.width,
-                texture.height
+                width,
+                height
               );
             } catch (err) {
               console.error(`Failed to extract ${texRef.name} for BSP ${bspFilename}:`, err);
