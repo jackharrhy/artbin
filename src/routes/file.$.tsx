@@ -419,8 +419,8 @@ export default function FileView() {
           font-size: 0.8125rem;
           line-height: 1.5;
           color: #d4d4d4;
-          white-space: pre;
-          overflow-x: auto;
+          white-space: pre-wrap;
+          word-wrap: break-word;
         }
       `}</style>
     </div>
