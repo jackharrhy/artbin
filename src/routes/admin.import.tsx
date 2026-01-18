@@ -24,6 +24,12 @@ const IMPORT_SOURCES = [
     description: "textures.neocities.org - 3800+ retro game textures",
     url: "https://textures.neocities.org/",
   },
+  {
+    id: "texture-station",
+    name: "Texture Station",
+    description: "thejang.com/textures - 392 classic tiling backgrounds from 1996",
+    url: "https://thejang.com/textures/",
+  },
 ];
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -47,6 +53,12 @@ export async function loader({ request }: Route.LoaderArgs) {
     .select({ total: count() })
     .from(files)
     .where(like(files.source, "texturetown%"));
+
+  // Check how many Texture Station files we already have
+  const [{ total: textureStationCount }] = await db
+    .select({ total: count() })
+    .from(files)
+    .where(like(files.source, "texture-station%"));
 
   // Check for most recent scan job
   const recentScanJob = await db.query.jobs.findFirst({
@@ -82,6 +94,7 @@ export async function loader({ request }: Route.LoaderArgs) {
       fileCount,
       folderCount,
       textureTownCount,
+      textureStationCount,
     },
     scanResults,
     scanJobStatus,
@@ -109,6 +122,16 @@ export async function action({ request }: Route.ActionArgs) {
       userId: user.id,
     });
     return { success: true, jobId: job.id, action: "texturetown" };
+  }
+
+  // Texture Station import
+  if (intent === "texture-station") {
+    const job = await createJob({
+      type: "texture-station-import",
+      input: { userId: user.id },
+      userId: user.id,
+    });
+    return { success: true, jobId: job.id, action: "texture-station" };
   }
 
   // Start local archive scan
@@ -404,6 +427,13 @@ export default function AdminImport() {
           </div>
         )}
 
+        {actionData?.success && actionData.action === "texture-station" && (
+          <div className="alert alert-success">
+            <p><strong>Texture Station import started!</strong></p>
+            <p><a href="/admin/jobs">View job progress</a></p>
+          </div>
+        )}
+
         {actionData?.success && actionData.action === "import-archive" && (
           <div className="alert alert-success">
             <p><strong>Archive extraction started!</strong></p>
@@ -421,6 +451,8 @@ export default function AdminImport() {
             <dd>{stats.folderCount.toLocaleString()}</dd>
             <dt>TextureTown Imports</dt>
             <dd>{stats.textureTownCount.toLocaleString()}</dd>
+            <dt>Texture Station Imports</dt>
+            <dd>{stats.textureStationCount.toLocaleString()}</dd>
           </dl>
         </div>
 
@@ -530,6 +562,12 @@ export default function AdminImport() {
               {source.id === "texturetown" && stats.textureTownCount > 0 && (
                 <p style={{ fontSize: "0.75rem", color: "#666", marginTop: "0.75rem", marginBottom: 0 }}>
                   Already imported {stats.textureTownCount.toLocaleString()} textures from TextureTown.
+                  Running import again will skip existing files.
+                </p>
+              )}
+              {source.id === "texture-station" && stats.textureStationCount > 0 && (
+                <p style={{ fontSize: "0.75rem", color: "#666", marginTop: "0.75rem", marginBottom: 0 }}>
+                  Already imported {stats.textureStationCount.toLocaleString()} textures from Texture Station.
                   Running import again will skip existing files.
                 </p>
               )}
