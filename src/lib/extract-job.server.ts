@@ -41,6 +41,7 @@ export interface ExtractJobInput {
   targetFolderSlug: string;   // Target folder slug (e.g., "thirty-flights")
   targetFolderName: string;   // Display name for folder
   userId?: string;
+  skipTempCleanup?: boolean;  // Don't delete source file (for local imports)
 }
 
 export interface ExtractJobOutput {
@@ -143,6 +144,7 @@ async function handleExtractJob(
     originalName,
     targetFolderSlug,
     targetFolderName,
+    skipTempCleanup,
   } = input as unknown as ExtractJobInput;
   
   const archiveName = basename(originalName, "." + originalName.split(".").pop());
@@ -232,12 +234,14 @@ async function handleExtractJob(
     }
   }
   
-  // Clean up temp file
-  await updateJobProgress(job.id, 98, "Cleaning up...");
-  try {
-    await unlink(tempFile);
-  } catch {
-    // Ignore cleanup errors
+  // Clean up temp file (unless it's a local import)
+  if (!skipTempCleanup) {
+    await updateJobProgress(job.id, 98, "Cleaning up...");
+    try {
+      await unlink(tempFile);
+    } catch {
+      // Ignore cleanup errors
+    }
   }
   
   return {
