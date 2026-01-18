@@ -60,35 +60,75 @@ async function getPreviewTextures(folderId: string): Promise<string[]> {
 }
 
 /**
- * Get textures from a folder and all its descendants
+ * Get all descendant folder IDs recursively
  */
-async function getPreviewTexturesRecursive(folderId: string): Promise<string[]> {
-  // First try to get textures from this folder directly
-  const directTextures = await getPreviewTextures(folderId);
-  if (directTextures.length >= GRID_SIZE * GRID_SIZE) {
-    return directTextures.slice(0, GRID_SIZE * GRID_SIZE);
-  }
-
-  // If not enough, also look in child folders
+async function getAllDescendantFolderIds(folderId: string): Promise<string[]> {
+  const result: string[] = [folderId];
+  
   const childFolders = await db.query.folders.findMany({
     where: eq(folders.parentId, folderId),
   });
 
-  const allTextures = [...directTextures];
-
   for (const child of childFolders) {
-    if (allTextures.length >= GRID_SIZE * GRID_SIZE) break;
+    const descendants = await getAllDescendantFolderIds(child.id);
+    result.push(...descendants);
+  }
 
-    const childTextures = await getPreviewTextures(child.id);
-    for (const texture of childTextures) {
-      if (allTextures.length >= GRID_SIZE * GRID_SIZE) break;
-      if (!allTextures.includes(texture)) {
-        allTextures.push(texture);
-      }
+  return result;
+}
+
+/**
+ * Shuffle an array using Fisher-Yates algorithm
+ */
+function shuffleArray<T>(array: T[]): T[] {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+
+/**
+ * Get textures from a folder and all its descendants, randomly sampled
+ */
+async function getPreviewTexturesRecursive(folderId: string): Promise<string[]> {
+  // Get all descendant folder IDs
+  const allFolderIds = await getAllDescendantFolderIds(folderId);
+
+  // Get all textures from all these folders
+  const textures = await db
+    .select({
+      path: files.path,
+      hasPreview: files.hasPreview,
+    })
+    .from(files)
+    .where(inArray(files.folderId, allFolderIds));
+
+  if (textures.length === 0) {
+    return [];
+  }
+
+  // Shuffle to get random sampling across all folders
+  const shuffled = shuffleArray(textures);
+
+  // Get paths to the actual displayable images
+  const paths: string[] = [];
+  
+  for (const t of shuffled) {
+    if (paths.length >= GRID_SIZE * GRID_SIZE) break;
+    if (!t.path) continue;
+
+    const imgPath = t.hasPreview
+      ? join(UPLOADS_DIR, t.path + ".preview.png")
+      : join(UPLOADS_DIR, t.path);
+
+    if (existsSync(imgPath) && !paths.includes(imgPath)) {
+      paths.push(imgPath);
     }
   }
 
-  return allTextures.slice(0, GRID_SIZE * GRID_SIZE);
+  return paths;
 }
 
 /**
