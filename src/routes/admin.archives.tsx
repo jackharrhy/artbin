@@ -1,4 +1,5 @@
-import { Form, redirect, useLoaderData, useSearchParams, Link } from "react-router";
+import { Form, redirect, useLoaderData, useActionData, useRevalidator } from "react-router";
+import { useEffect } from "react";
 import type { Route } from "./+types/admin.archives";
 import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
 import { db, jobs } from "~/db";
@@ -14,7 +15,12 @@ interface FoundArchive {
   gameDir: string | null;
 }
 
-const PER_PAGE = 50;
+interface TreeNode {
+  name: string;
+  path: string;
+  children: Map<string, TreeNode>;
+  archives: FoundArchive[];
+}
 
 export async function loader({ request }: Route.LoaderArgs) {
   const sessionId = parseSessionCookie(request.headers.get("Cookie"));
@@ -28,16 +34,13 @@ export async function loader({ request }: Route.LoaderArgs) {
     return redirect("/folders");
   }
 
-  const url = new URL(request.url);
-  const page = Math.max(1, parseInt(url.searchParams.get("page") || "1", 10));
-
   // Get most recent scan job
   const recentScanJob = await db.query.jobs.findFirst({
     where: eq(jobs.type, "scan-archives"),
     orderBy: [desc(jobs.createdAt)],
   });
 
-  let allArchives: FoundArchive[] = [];
+  let archives: FoundArchive[] = [];
   let scanJobStatus: string | null = null;
   let scanJobProgress: number | null = null;
   let scanJobMessage: string | null = null;
@@ -50,27 +53,17 @@ export async function loader({ request }: Route.LoaderArgs) {
     if (recentScanJob.status === "completed" && recentScanJob.output) {
       try {
         const output = JSON.parse(recentScanJob.output);
-        allArchives = output.archives || [];
+        archives = output.archives || [];
       } catch {
         // Ignore parse errors
       }
     }
   }
 
-  const totalArchives = allArchives.length;
-  const totalPages = Math.ceil(totalArchives / PER_PAGE);
-  const startIndex = (page - 1) * PER_PAGE;
-  const archives = allArchives.slice(startIndex, startIndex + PER_PAGE);
-
   return {
     user,
     archives,
-    pagination: {
-      page,
-      perPage: PER_PAGE,
-      totalArchives,
-      totalPages,
-    },
+    totalArchives: archives.length,
     scanJobStatus,
     scanJobProgress,
     scanJobMessage,
@@ -119,7 +112,7 @@ export async function action({ request }: Route.ActionArgs) {
       userId: user.id,
     });
 
-    return { success: true, jobId: job.id, action: "import-archive" };
+    return { success: true, jobId: job.id, action: "import-archive", archiveName: archivePath.split("/").pop() };
   }
 
   return { error: "Unknown action" };
@@ -142,69 +135,205 @@ function slugify(str: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-function Pagination({ page, totalPages }: { page: number; totalPages: number }) {
-  if (totalPages <= 1) return null;
+/**
+ * Build a tree structure from archive paths
+ */
+function buildTree(archives: FoundArchive[]): TreeNode {
+  const root: TreeNode = {
+    name: "/",
+    path: "/",
+    children: new Map(),
+    archives: [],
+  };
 
-  const pages: (number | "...")[] = [];
-  
-  // Always show first page
-  pages.push(1);
-  
-  // Show ellipsis if needed
-  if (page > 3) pages.push("...");
-  
-  // Show pages around current
-  for (let i = Math.max(2, page - 1); i <= Math.min(totalPages - 1, page + 1); i++) {
-    if (!pages.includes(i)) pages.push(i);
+  for (const archive of archives) {
+    // Split path into parts, excluding the filename
+    const parts = archive.path.split("/").filter(Boolean);
+    parts.pop(); // Remove filename
+
+    let current = root;
+    let currentPath = "";
+
+    for (const part of parts) {
+      currentPath += "/" + part;
+      
+      if (!current.children.has(part)) {
+        current.children.set(part, {
+          name: part,
+          path: currentPath,
+          children: new Map(),
+          archives: [],
+        });
+      }
+      current = current.children.get(part)!;
+    }
+
+    current.archives.push(archive);
   }
+
+  return root;
+}
+
+/**
+ * Count total archives in a tree node (including children)
+ */
+function countArchives(node: TreeNode): number {
+  let count = node.archives.length;
+  for (const child of node.children.values()) {
+    count += countArchives(child);
+  }
+  return count;
+}
+
+/**
+ * Recursively render tree nodes, collapsing paths with single children
+ */
+function TreeNodeView({ node, depth = 0 }: { node: TreeNode; depth?: number }) {
+  const archiveCount = countArchives(node);
   
-  // Show ellipsis if needed
-  if (page < totalPages - 2) pages.push("...");
+  if (archiveCount === 0) return null;
+
+  // Collect path segments that have only one child and no archives
+  let displayNode = node;
+  let displayPath = node.name;
   
-  // Always show last page
-  if (totalPages > 1 && !pages.includes(totalPages)) pages.push(totalPages);
+  while (
+    displayNode.children.size === 1 &&
+    displayNode.archives.length === 0
+  ) {
+    const onlyChild = Array.from(displayNode.children.values())[0];
+    displayPath += "/" + onlyChild.name;
+    displayNode = onlyChild;
+  }
+
+  const hasChildren = displayNode.children.size > 0;
+  const hasArchives = displayNode.archives.length > 0;
+
+  // Sort children by name
+  const sortedChildren = Array.from(displayNode.children.values()).sort((a, b) =>
+    a.name.localeCompare(b.name)
+  );
+
+  // Sort archives by name
+  const sortedArchives = [...displayNode.archives].sort((a, b) =>
+    a.name.localeCompare(b.name)
+  );
 
   return (
-    <div className="pagination">
-      {page > 1 && (
-        <Link to={`?page=${page - 1}`} className="pagination-link">
-          ← Prev
-        </Link>
-      )}
+    <details className="tree-folder" open>
+      <summary className="tree-folder-header">
+        <span className="tree-folder-icon">{hasChildren || hasArchives ? "📁" : "📂"}</span>
+        <span className="tree-folder-name">{displayPath}</span>
+        <span className="tree-folder-count">{archiveCount} archive{archiveCount !== 1 ? "s" : ""}</span>
+      </summary>
       
-      {pages.map((p, i) =>
-        p === "..." ? (
-          <span key={`ellipsis-${i}`} className="pagination-ellipsis">...</span>
-        ) : (
-          <Link
-            key={p}
-            to={`?page=${p}`}
-            className={`pagination-link ${p === page ? "pagination-current" : ""}`}
-          >
-            {p}
-          </Link>
-        )
-      )}
-      
-      {page < totalPages && (
-        <Link to={`?page=${page + 1}`} className="pagination-link">
-          Next →
-        </Link>
-      )}
-    </div>
+      <div className="tree-folder-content">
+        {/* Child folders */}
+        {sortedChildren.map((child) => (
+          <TreeNodeView key={child.path} node={child} depth={depth + 1} />
+        ))}
+
+        {/* Archives in this folder */}
+        {sortedArchives.map((archive) => (
+          <ArchiveItem key={archive.path} archive={archive} />
+        ))}
+      </div>
+    </details>
+  );
+}
+
+function ArchiveItem({ archive }: { archive: FoundArchive }) {
+  const defaultName = archive.gameDir
+    ? `${archive.gameDir} - ${archive.name.replace(/\.[^.]+$/, "")}`
+    : archive.name.replace(/\.[^.]+$/, "");
+
+  return (
+    <details className="tree-archive">
+      <summary className="tree-archive-header">
+        <span className="tree-archive-icon">
+          {archive.type === "pak" && "📦"}
+          {archive.type === "pk3" && "📦"}
+          {archive.type === "wad" && "🎮"}
+          {archive.type === "zip" && "🗜️"}
+        </span>
+        <span className="tree-archive-name">{archive.name}</span>
+        <span className="tree-archive-meta">
+          <span className="archive-type">{archive.type.toUpperCase()}</span>
+          <span className="archive-size">{formatSize(archive.size)}</span>
+          {archive.gameDir && <span className="archive-gamedir">{archive.gameDir}</span>}
+        </span>
+      </summary>
+
+      <div className="tree-archive-details">
+        <Form method="post" className="archive-form">
+          <input type="hidden" name="intent" value="import-archive" />
+          <input type="hidden" name="archivePath" value={archive.path} />
+
+          <div className="form-row">
+            <div className="form-group" style={{ flex: 1 }}>
+              <label className="form-label">Folder Name</label>
+              <input
+                type="text"
+                name="folderName"
+                className="input"
+                style={{ width: "100%" }}
+                defaultValue={defaultName}
+                required
+              />
+            </div>
+
+            <div className="form-group" style={{ flex: 1 }}>
+              <label className="form-label">Slug</label>
+              <input
+                type="text"
+                name="folderSlug"
+                className="input"
+                style={{ width: "100%" }}
+                defaultValue={slugify(defaultName)}
+                pattern="[a-z0-9-]+"
+                required
+              />
+            </div>
+
+            <button type="submit" className="btn btn-primary btn-sm" style={{ alignSelf: "flex-end" }}>
+              Import
+            </button>
+          </div>
+        </Form>
+      </div>
+    </details>
   );
 }
 
 export default function AdminArchives() {
-  const { user, archives, pagination, scanJobStatus, scanJobProgress, scanJobMessage } = useLoaderData<typeof loader>();
-  const [searchParams] = useSearchParams();
+  const { user, archives, totalArchives, scanJobStatus, scanJobProgress, scanJobMessage } = useLoaderData<typeof loader>();
+  const actionData = useActionData<typeof action>();
+  const revalidator = useRevalidator();
 
   const isScanning = scanJobStatus === "running" || scanJobStatus === "pending";
+
+  // Auto-refresh while scanning
+  useEffect(() => {
+    if (isScanning) {
+      const interval = setInterval(() => {
+        revalidator.revalidate();
+      }, 2000);
+      return () => clearInterval(interval);
+    }
+  }, [isScanning, revalidator]);
+
+  // Build tree from archives
+  const tree = buildTree(archives);
+
+  // Get top-level nodes (skip the root "/" node)
+  const topLevelNodes = Array.from(tree.children.values()).sort((a, b) =>
+    a.name.localeCompare(b.name)
+  );
 
   return (
     <div>
       <Header user={user} />
-      <main className="main-content" style={{ maxWidth: "900px" }}>
+      <main className="main-content" style={{ maxWidth: "1000px" }}>
         <div className="breadcrumb">
           <a href="/folders">Folders</a>
           <span className="breadcrumb-sep">/</span>
@@ -219,6 +348,20 @@ export default function AdminArchives() {
         <p style={{ marginBottom: "1.5rem", color: "#666" }}>
           Scan your computer for game archives (PAK, PK3, WAD, ZIP) and import them.
         </p>
+
+        {/* Alerts */}
+        {actionData?.error && (
+          <div className="alert alert-error" style={{ marginBottom: "1rem" }}>
+            {actionData.error}
+          </div>
+        )}
+
+        {actionData?.success && actionData.action === "import-archive" && (
+          <div className="alert alert-success" style={{ marginBottom: "1rem" }}>
+            <strong>Import started!</strong> {actionData.archiveName} is being extracted.{" "}
+            <a href="/admin/jobs">View progress</a>
+          </div>
+        )}
 
         {/* Scan Controls */}
         <div className="card" style={{ marginBottom: "1.5rem" }}>
@@ -250,23 +393,16 @@ export default function AdminArchives() {
         </div>
 
         {/* Results */}
-        {pagination.totalArchives > 0 ? (
-          <>
-            <div style={{ marginBottom: "1rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ color: "#666" }}>
-                Showing {(pagination.page - 1) * pagination.perPage + 1}–{Math.min(pagination.page * pagination.perPage, pagination.totalArchives)} of {pagination.totalArchives} archives
-              </span>
-              <Pagination page={pagination.page} totalPages={pagination.totalPages} />
+        {totalArchives > 0 ? (
+          <div className="archive-tree">
+            <div style={{ marginBottom: "1rem", color: "#666", fontSize: "0.875rem" }}>
+              Found {totalArchives} archive{totalArchives !== 1 ? "s" : ""}. Click folders to expand/collapse, click archives to import.
             </div>
 
-            {archives.map((archive, i) => (
-              <ArchiveRow key={`${archive.path}-${i}`} archive={archive} />
+            {topLevelNodes.map((node) => (
+              <TreeNodeView key={node.path} node={node} />
             ))}
-
-            <div style={{ marginTop: "1rem" }}>
-              <Pagination page={pagination.page} totalPages={pagination.totalPages} />
-            </div>
-          </>
+          </div>
         ) : scanJobStatus === "completed" ? (
           <div className="empty-state" style={{ padding: "2rem" }}>
             No game archives found. Try running a scan.
@@ -283,65 +419,5 @@ export default function AdminArchives() {
         </p>
       </main>
     </div>
-  );
-}
-
-function ArchiveRow({ archive }: { archive: FoundArchive }) {
-  const defaultName = archive.gameDir
-    ? `${archive.gameDir} - ${archive.name.replace(/\.[^.]+$/, "")}`
-    : archive.name.replace(/\.[^.]+$/, "");
-
-  return (
-    <details className="archive-item">
-      <summary className="archive-header">
-        <div className="archive-info">
-          <div className="archive-info-top">
-            <span className="archive-type">{archive.type.toUpperCase()}</span>
-            <span className="archive-name">{archive.name}</span>
-            <span className="archive-size">{formatSize(archive.size)}</span>
-            {archive.gameDir && (
-              <span className="archive-gamedir">{archive.gameDir}</span>
-            )}
-          </div>
-          <div className="archive-path-preview">{archive.path}</div>
-        </div>
-      </summary>
-
-      <div className="archive-details">
-        <Form method="post" className="archive-form">
-          <input type="hidden" name="intent" value="import-archive" />
-          <input type="hidden" name="archivePath" value={archive.path} />
-
-          <div className="form-group">
-            <label className="form-label">Folder Name</label>
-            <input
-              type="text"
-              name="folderName"
-              className="input"
-              style={{ width: "100%" }}
-              defaultValue={defaultName}
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Folder Slug</label>
-            <input
-              type="text"
-              name="folderSlug"
-              className="input"
-              style={{ width: "100%" }}
-              defaultValue={slugify(defaultName)}
-              pattern="[a-z0-9-]+"
-              required
-            />
-          </div>
-
-          <button type="submit" className="btn btn-primary btn-sm">
-            Import Archive
-          </button>
-        </Form>
-      </div>
-    </details>
   );
 }
