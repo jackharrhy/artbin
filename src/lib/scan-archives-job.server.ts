@@ -3,6 +3,7 @@
  * 
  * Scans the filesystem for game archives (PAK, PK3, WAD, ZIP) using fd.
  * Results are stored in job output for display in the admin UI.
+ * Exclusion patterns are configurable via the settings table.
  */
 
 import { type Job } from "~/db";
@@ -11,6 +12,7 @@ import { promisify } from "util";
 import { stat } from "fs/promises";
 import { basename, dirname } from "path";
 import { registerJobHandler, updateJobProgress } from "./jobs.server";
+import { getScanSettings, type ScanSettings } from "./settings.server";
 import { homedir } from "os";
 
 const execAsync = promisify(exec);
@@ -40,86 +42,16 @@ export interface ScanArchivesOutput {
 }
 
 // ============================================================================
-// Known Game Directories
-// ============================================================================
-
-// Directories that indicate game content
-const KNOWN_GAME_DIRS = new Set([
-  // Quake 1
-  "id1", "hipnotic", "rogue", "quoth", "ad", "alkaline",
-  // Quake 2
-  "baseq2", "ctf", "rogue", "xatrix",
-  // Quake 3
-  "baseq3", "missionpack", "cpma", "defrag",
-  // Half-Life
-  "valve", "cstrike", "tfc", "dod", "gearbox", "bshift",
-  // Doom
-  "doom", "doom2", "plutonia", "tnt",
-  // General
-  "data", "pak", "paks", "base", "main",
-]);
-
-// Directories to exclude from search
-const EXCLUDE_DIRS = [
-  "node_modules",
-  ".git",
-  ".npm",
-  ".cache",
-  ".Trash",
-  "Library/Caches",
-  "Library/Logs", 
-  "Library/Developer",
-  ".local/share/Trash",
-  "__pycache__",
-  ".venv",
-  "venv",
-  ".cargo/registry",
-  ".rustup",
-  "go/pkg",
-  // Electron/Chromium locale files (NOT game assets)
-  "Electron Framework.framework",
-  "Chromium Embedded Framework.framework",
-  // Test fixtures
-  "test/fixture",
-  "tests/fixture",
-  // App-specific directories with locale.pak files
-  "Battle.net",
-  "zoom.us",
-  "ToDesktop Builder",
-  "minecraft/launcher",
-];
-
-// Filenames to exclude (these are never game assets)
-const EXCLUDE_FILENAMES = new Set([
-  "locale.pak",        // Chromium/Electron locale data
-  "locale.zip",        // Locale archives
-  "cached.wad",        // Half-Life cached WAD (generated, not useful)
-  "resources.pak",     // Chromium resources
-  "resources.zip",
-  "data.zip",          // Generic data archives (usually not game assets)
-]);
-
-// Path patterns that indicate non-game files
-const EXCLUDE_PATH_PATTERNS = [
-  /\/Electron Framework\.framework\//i,
-  /\/Chromium Embedded Framework\.framework\//i,
-  /\/test\/fixture/i,
-  /\/tests\/fixture/i,
-  /TrenchBroom.*\/test\//i,  // TrenchBroom test files
-  /Songs of Syx/i,           // Songs of Syx uses .pak for non-game data
-];
-
-// ============================================================================
 // Helper Functions
 // ============================================================================
 
 /**
  * Find a known game directory in the file path
  */
-function findGameDir(filePath: string): string | null {
+function findGameDir(filePath: string, knownGameDirs: Set<string>): string | null {
   const parts = filePath.toLowerCase().split("/");
   for (const part of parts) {
-    if (KNOWN_GAME_DIRS.has(part)) {
+    if (knownGameDirs.has(part)) {
       return part;
     }
   }
@@ -129,14 +61,19 @@ function findGameDir(filePath: string): string | null {
 /**
  * Check if a file should be excluded based on filename or path patterns
  */
-function shouldExclude(filePath: string, filename: string): boolean {
+function shouldExclude(
+  filePath: string, 
+  filename: string,
+  excludeFilenames: Set<string>,
+  excludePathPatterns: RegExp[]
+): boolean {
   // Check excluded filenames
-  if (EXCLUDE_FILENAMES.has(filename.toLowerCase())) {
+  if (excludeFilenames.has(filename.toLowerCase())) {
     return true;
   }
   
   // Check path patterns
-  for (const pattern of EXCLUDE_PATH_PATTERNS) {
+  for (const pattern of excludePathPatterns) {
     if (pattern.test(filePath)) {
       return true;
     }
@@ -156,9 +93,9 @@ function getExtension(filename: string): string {
 /**
  * Build fd command for scanning archives
  */
-function buildFdCommand(rootPath: string): string {
+function buildFdCommand(rootPath: string, excludeDirs: string[]): string {
   // Build exclusion patterns
-  const excludeArgs = EXCLUDE_DIRS.map(dir => `-E "${dir}"`).join(" ");
+  const excludeArgs = excludeDirs.map((dir: string) => `-E "${dir}"`).join(" ");
   
   // Search for pak, pk3, wad, zip files
   // Use regex to match extensions (case insensitive with fd)
@@ -180,10 +117,26 @@ async function handleScanArchives(
   
   const startTime = Date.now();
   
+  await updateJobProgress(job.id, 2, "Loading scan settings...");
+  
+  // Load settings from database
+  const scanSettings = await getScanSettings();
+  
+  // Convert settings to Sets and RegExps for efficient lookup
+  const excludeFilenames = new Set(scanSettings.excludeFilenames.map(f => f.toLowerCase()));
+  const excludePathPatterns = scanSettings.excludePathPatterns.map(p => {
+    try {
+      return new RegExp(p, "i");
+    } catch {
+      return null;
+    }
+  }).filter((p): p is RegExp => p !== null);
+  const knownGameDirs = new Set(scanSettings.knownGameDirs.map(d => d.toLowerCase()));
+  
   await updateJobProgress(job.id, 5, `Scanning ${rootPath} for game archives...`);
   
   // Run fd to find archives
-  const fdCommand = buildFdCommand(rootPath);
+  const fdCommand = buildFdCommand(rootPath, scanSettings.excludeDirs);
   
   let stdout = "";
   try {
@@ -219,7 +172,7 @@ async function handleScanArchives(
       const ext = getExtension(name);
       
       // Skip excluded files based on filename or path pattern
-      if (shouldExclude(filePath, name)) {
+      if (shouldExclude(filePath, name, excludeFilenames, excludePathPatterns)) {
         processed++;
         continue;
       }
@@ -234,7 +187,7 @@ async function handleScanArchives(
       
       // For zip files, only include if in a known game directory
       if (ext === "zip") {
-        const gameDir = findGameDir(filePath);
+        const gameDir = findGameDir(filePath, knownGameDirs);
         if (!gameDir) {
           processed++;
           continue;
@@ -247,7 +200,7 @@ async function handleScanArchives(
         size: stats.size,
         type: ext,
         parentDir: basename(dirname(filePath)),
-        gameDir: findGameDir(filePath),
+        gameDir: findGameDir(filePath, knownGameDirs),
       });
     } catch {
       // Skip files we can't stat (permissions, etc)

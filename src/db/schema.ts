@@ -135,6 +135,16 @@ export const jobs = sqliteTable("jobs", {
 });
 
 // ============================================================================
+// Settings - Key-value store for app configuration
+// ============================================================================
+
+export const settings = sqliteTable("settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),                  // JSON-encoded value
+  updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn((): Date => new Date()),
+});
+
+// ============================================================================
 // Type exports
 // ============================================================================
 
@@ -146,3 +156,4 @@ export type File = typeof files.$inferSelect;
 export type Tag = typeof tags.$inferSelect;
 export type FileTag = typeof fileTags.$inferSelect;
 export type Job = typeof jobs.$inferSelect;
+export type Setting = typeof settings.$inferSelect;

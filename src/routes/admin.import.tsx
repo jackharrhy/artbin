@@ -170,9 +170,14 @@ export default function AdminImport() {
                   Find PAK, PK3, WAD, and ZIP files in game directories on this computer
                 </p>
               </div>
-              <a href="/admin/archives" className="btn btn-primary">
-                Browse Archives
-              </a>
+              <div style={{ display: "flex", gap: "0.5rem" }}>
+                <a href="/admin/scan-settings" className="btn">
+                  Settings
+                </a>
+                <a href="/admin/archives" className="btn btn-primary">
+                  Browse Archives
+                </a>
+              </div>
             </div>
           </div>
         </section>

@@ -13,6 +13,7 @@ export default [
   route("admin/jobs", "routes/admin.jobs.tsx"),
   route("admin/import", "routes/admin.import.tsx"),
   route("admin/archives", "routes/admin.archives.tsx"),
+  route("admin/scan-settings", "routes/admin.scan-settings.tsx"),
   
   // API routes
   route("api/upload", "routes/api.upload.tsx"),
