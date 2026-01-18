@@ -12,8 +12,10 @@ export default [
 
   route("admin/jobs", "routes/admin.jobs.tsx"),
   route("admin/import", "routes/admin.import.tsx"),
+  route("admin/archives", "routes/admin.archives.tsx"),
   
   // API routes
   route("api/upload", "routes/api.upload.tsx"),
   route("api/folder", "routes/api.folder.tsx"),
+  route("api/folder/move", "routes/api.folder.move.tsx"),
 ] satisfies RouteConfig;

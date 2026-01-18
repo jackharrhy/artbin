@@ -575,6 +575,15 @@ a:hover {
   margin-top: 1rem;
 }
 
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--color-border-light);
+  background: #fafafa;
+}
+
 /* Upload zone */
 .upload-zone {
   border: 2px dashed var(--color-border-light);
@@ -749,4 +758,74 @@ a:hover {
 
 .archive-form .form-group {
   margin-bottom: 0;
+}
+
+/* Archive item as details/summary */
+details.archive-item {
+  border: 1px solid var(--color-border-light);
+  margin-bottom: 0.5rem;
+  background: #fff;
+}
+
+details.archive-item > summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+details.archive-item > summary::-webkit-details-marker {
+  display: none;
+}
+
+details.archive-item > summary::after {
+  content: "+";
+  font-size: 1.25rem;
+  color: var(--color-text-muted);
+  width: 1.5rem;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+details.archive-item[open] > summary::after {
+  content: "−";
+}
+
+details.archive-item > summary:hover {
+  background: var(--color-bg-hover);
+}
+
+/* Pagination */
+.pagination {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+.pagination-link {
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--color-border-light);
+  text-decoration: none;
+  font-size: 0.875rem;
+}
+
+.pagination-link:hover {
+  background: var(--color-bg-hover);
+}
+
+.pagination-current {
+  background: var(--color-text);
+  color: #fff;
+  border-color: var(--color-text);
+}
+
+.pagination-current:hover {
+  background: var(--color-text);
+}
+
+.pagination-ellipsis {
+  padding: 0.25rem;
+  color: var(--color-text-muted);
 }

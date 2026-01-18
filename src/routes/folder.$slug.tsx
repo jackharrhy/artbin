@@ -10,6 +10,7 @@ import { SearchBar } from "~/components/SearchBar";
 import { FileGrid } from "~/components/FileGrid";
 import { FileList } from "~/components/FileList";
 import { UploadModal } from "~/components/UploadModal";
+import { MoveFolderModal } from "~/components/MoveFolderModal";
 import { deleteFile, deleteFolder, searchFiles, getDescendantFolderIds, getFileCountsByKind } from "~/lib/files.server";
 
 export async function loader({ request, params }: Route.LoaderArgs) {
@@ -66,6 +67,11 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     orderBy: [folders.name],
   });
 
+  // Get all folders for move modal
+  const allFolders = await db.query.folders.findMany({
+    orderBy: [folders.slug],
+  });
+
   if (view === "folders") {
     // Get files in this folder (direct children only for folder view)
     const folderFiles = await db
@@ -90,6 +96,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       folder,
       ancestors,
       childFolders,
+      allFolders,
       view,
       query,
       tagSlug,
@@ -124,6 +131,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     folder,
     ancestors,
     childFolders,
+    allFolders,
     view,
     query,
     tagSlug,
@@ -234,10 +242,11 @@ function getFileIcon(kind: string | null): string {
 
 export default function FolderView() {
   const data = useLoaderData<typeof loader>();
-  const { user, folder, ancestors, childFolders, view, query, tagSlug, fileCounts, tags, files: folderFiles } = data;
+  const { user, folder, ancestors, childFolders, allFolders, view, query, tagSlug, fileCounts, tags, files: folderFiles } = data;
   
-  // State for upload modal
+  // State for modals
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showMoveModal, setShowMoveModal] = useState(false);
   const revalidator = useRevalidator();
 
   const navigation = useNavigation();
@@ -326,30 +335,40 @@ export default function FolderView() {
             </button>
 
             {user.isAdmin && (
-              <Form
-                method="post"
-                style={{ display: "inline" }}
-                onSubmit={(e) => {
-                  const fileCount = folderFiles.length;
-                  const folderCount = childFolders.length;
-                  let msg = `Delete folder "${folder.name}"?`;
-                  if (fileCount > 0 || folderCount > 0) {
-                    msg = `Delete folder "${folder.name}" with ${fileCount} file(s) and ${folderCount} subfolder(s)? This will permanently delete all contents.`;
-                  }
-                  if (!confirm(msg)) {
-                    e.preventDefault();
-                  }
-                }}
-              >
-                <input type="hidden" name="_action" value="delete" />
+              <>
                 <button
-                  type="submit"
-                  className="btn btn-danger"
-                  disabled={isDeleting}
+                  type="button"
+                  className="btn"
+                  onClick={() => setShowMoveModal(true)}
                 >
-                  {isDeleting ? "Deleting..." : "Delete"}
+                  Move
                 </button>
-              </Form>
+
+                <Form
+                  method="post"
+                  style={{ display: "inline" }}
+                  onSubmit={(e) => {
+                    const fileCount = folderFiles.length;
+                    const folderCount = childFolders.length;
+                    let msg = `Delete folder "${folder.name}"?`;
+                    if (fileCount > 0 || folderCount > 0) {
+                      msg = `Delete folder "${folder.name}" with ${fileCount} file(s) and ${folderCount} subfolder(s)? This will permanently delete all contents.`;
+                    }
+                    if (!confirm(msg)) {
+                      e.preventDefault();
+                    }
+                  }}
+                >
+                  <input type="hidden" name="_action" value="delete" />
+                  <button
+                    type="submit"
+                    className="btn btn-danger"
+                    disabled={isDeleting}
+                  >
+                    {isDeleting ? "Deleting..." : "Delete"}
+                  </button>
+                </Form>
+              </>
             )}
           </div>
         </div>
@@ -516,6 +535,20 @@ export default function FolderView() {
         currentFolder={{ id: folder.id, slug: folder.slug, name: folder.name }}
         onSuccess={() => revalidator.revalidate()}
       />
+
+      {user.isAdmin && (
+        <MoveFolderModal
+          isOpen={showMoveModal}
+          onClose={() => setShowMoveModal(false)}
+          folder={{ id: folder.id, name: folder.name, slug: folder.slug, parentId: folder.parentId }}
+          allFolders={allFolders.map((f) => ({ id: f.id, name: f.name, slug: f.slug, parentId: f.parentId }))}
+          onSuccess={() => {
+            revalidator.revalidate();
+            // Redirect to new location after move
+            window.location.href = `/folders`;
+          }}
+        />
+      )}
     </div>
   );
 }

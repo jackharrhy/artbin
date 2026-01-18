@@ -76,6 +76,37 @@ const EXCLUDE_DIRS = [
   ".cargo/registry",
   ".rustup",
   "go/pkg",
+  // Electron/Chromium locale files (NOT game assets)
+  "Electron Framework.framework",
+  "Chromium Embedded Framework.framework",
+  // Test fixtures
+  "test/fixture",
+  "tests/fixture",
+  // App-specific directories with locale.pak files
+  "Battle.net",
+  "zoom.us",
+  "ToDesktop Builder",
+  "minecraft/launcher",
+];
+
+// Filenames to exclude (these are never game assets)
+const EXCLUDE_FILENAMES = new Set([
+  "locale.pak",        // Chromium/Electron locale data
+  "locale.zip",        // Locale archives
+  "cached.wad",        // Half-Life cached WAD (generated, not useful)
+  "resources.pak",     // Chromium resources
+  "resources.zip",
+  "data.zip",          // Generic data archives (usually not game assets)
+]);
+
+// Path patterns that indicate non-game files
+const EXCLUDE_PATH_PATTERNS = [
+  /\/Electron Framework\.framework\//i,
+  /\/Chromium Embedded Framework\.framework\//i,
+  /\/test\/fixture/i,
+  /\/tests\/fixture/i,
+  /TrenchBroom.*\/test\//i,  // TrenchBroom test files
+  /Songs of Syx/i,           // Songs of Syx uses .pak for non-game data
 ];
 
 // ============================================================================
@@ -93,6 +124,25 @@ function findGameDir(filePath: string): string | null {
     }
   }
   return null;
+}
+
+/**
+ * Check if a file should be excluded based on filename or path patterns
+ */
+function shouldExclude(filePath: string, filename: string): boolean {
+  // Check excluded filenames
+  if (EXCLUDE_FILENAMES.has(filename.toLowerCase())) {
+    return true;
+  }
+  
+  // Check path patterns
+  for (const pattern of EXCLUDE_PATH_PATTERNS) {
+    if (pattern.test(filePath)) {
+      return true;
+    }
+  }
+  
+  return false;
 }
 
 /**
@@ -165,9 +215,16 @@ async function handleScanArchives(
   
   for (const filePath of filePaths) {
     try {
-      const stats = await stat(filePath);
       const name = basename(filePath);
       const ext = getExtension(name);
+      
+      // Skip excluded files based on filename or path pattern
+      if (shouldExclude(filePath, name)) {
+        processed++;
+        continue;
+      }
+      
+      const stats = await stat(filePath);
       
       // Skip very small files (likely not real game archives)
       if (stats.size < 1024) {
