@@ -17,9 +17,6 @@ import {
 import { createJob } from "~/lib/jobs.server";
 import { parseArchive, getFileEntries, getDirectoryPaths } from "~/lib/archives.server";
 
-// Ensure job handler is registered
-import "~/lib/extract-job.server";
-
 const ARCHIVE_EXTENSIONS = ["pak", "pk3", "zip"];
 
 function isArchive(filename: string): boolean {

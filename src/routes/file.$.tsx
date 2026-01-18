@@ -4,15 +4,21 @@ import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
 import { db, files, folders, fileTags, tags } from "~/db";
 import { eq } from "drizzle-orm";
 import { Header } from "~/components/Header";
-import { basename, dirname, extname } from "path";
 import { readFile } from "fs/promises";
 import { getFilePath } from "~/lib/files.server";
 
 // Audio formats that browsers can play natively
 const WEB_PLAYABLE_AUDIO = ["mp3", "ogg", "wav", "m4a", "webm", "aac"];
 
+// Browser-compatible path utilities
+function getExtname(filename: string): string {
+  const lastDot = filename.lastIndexOf(".");
+  if (lastDot === -1 || lastDot === 0) return "";
+  return filename.slice(lastDot);
+}
+
 function isWebPlayableAudio(filename: string): boolean {
-  const ext = extname(filename).toLowerCase().slice(1);
+  const ext = getExtname(filename).toLowerCase().slice(1);
   return WEB_PLAYABLE_AUDIO.includes(ext);
 }
 
@@ -228,7 +234,7 @@ export default function FileView() {
                 }}
               >
                 <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>🔊</div>
-                <div style={{ marginBottom: "0.5rem" }}>{extname(file.name).slice(1).toUpperCase()} Audio</div>
+                <div style={{ marginBottom: "0.5rem" }}>{getExtname(file.name).slice(1).toUpperCase()} Audio</div>
                 <div style={{ fontSize: "0.875rem", color: "#666", marginBottom: "1rem" }}>
                   This format cannot be played in the browser
                 </div>

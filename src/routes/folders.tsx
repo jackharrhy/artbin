@@ -127,6 +127,10 @@ export default function Folders() {
   const data = useLoaderData<typeof loader>();
   const { user, view, query, tagSlug, folders, folderCounts, fileCounts, tags } = data;
 
+  // State for upload modal
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const revalidator = useRevalidator();
+
   // State for infinite scroll
   const [files, setFiles] = useState(data.searchResults?.files || []);
   const [nextCursor, setNextCursor] = useState(data.searchResults?.nextCursor || null);
@@ -163,9 +167,6 @@ export default function Folders() {
 
   const isTextureView = view === "textures";
   const isSoundsView = view === "sounds";
-  
-  const [showUploadModal, setShowUploadModal] = useState(false);
-  const revalidator = useRevalidator();
 
   return (
     <div>

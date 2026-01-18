@@ -5,12 +5,16 @@ import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
 import { db, files, folders, jobs } from "~/db";
 import { count, like, eq, desc } from "drizzle-orm";
 import { Header } from "~/components/Header";
-import { createJob, getJob } from "~/lib/jobs.server";
-import type { FoundArchive } from "~/lib/scan-archives-job.server";
+import { createJob } from "~/lib/jobs.server";
 
-// Register job handlers
-import "~/lib/texturetown-job.server";
-import "~/lib/scan-archives-job.server";
+// Local copy of FoundArchive type to avoid importing from server module
+interface FoundArchive {
+  path: string;
+  name: string;
+  size: number;
+  type: string;
+  gameDir: string | null;
+}
 
 // Import sources configuration
 const IMPORT_SOURCES = [

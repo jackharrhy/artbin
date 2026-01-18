@@ -236,6 +236,10 @@ export default function FolderView() {
   const data = useLoaderData<typeof loader>();
   const { user, folder, ancestors, childFolders, view, query, tagSlug, fileCounts, tags, files: folderFiles } = data;
   
+  // State for upload modal
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const revalidator = useRevalidator();
+
   const navigation = useNavigation();
   const isDeleting =
     navigation.state === "submitting" &&
@@ -282,9 +286,6 @@ export default function FolderView() {
   const isTextureView = view === "textures";
   const isSoundsView = view === "sounds";
   const baseUrl = `/folder/${folder.slug}`;
-  
-  const [showUploadModal, setShowUploadModal] = useState(false);
-  const revalidator = useRevalidator();
 
   return (
     <div>

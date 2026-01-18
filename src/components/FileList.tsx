@@ -1,5 +1,11 @@
 import { useEffect, useRef } from "react";
-import { extname } from "path";
+
+// Browser-compatible extname
+function extname(filename: string): string {
+  const lastDot = filename.lastIndexOf(".");
+  if (lastDot === -1 || lastDot === 0) return "";
+  return filename.slice(lastDot);
+}
 
 interface FileItem {
   id: string;
