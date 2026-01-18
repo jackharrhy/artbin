@@ -5,6 +5,8 @@ import { db, files, folders, fileTags, tags } from "~/db";
 import { eq } from "drizzle-orm";
 import { Header } from "~/components/Header";
 import { basename, dirname, extname } from "path";
+import { readFile } from "fs/promises";
+import { getFilePath } from "~/lib/files.server";
 
 // Audio formats that browsers can play natively
 const WEB_PLAYABLE_AUDIO = ["mp3", "ogg", "wav", "m4a", "webm", "aac"];
@@ -13,6 +15,19 @@ function isWebPlayableAudio(filename: string): boolean {
   const ext = extname(filename).toLowerCase().slice(1);
   return WEB_PLAYABLE_AUDIO.includes(ext);
 }
+
+// Check if mime type is text-based and we should show inline preview
+function isTextMimeType(mimeType: string): boolean {
+  return (
+    mimeType.startsWith("text/") ||
+    mimeType === "application/json" ||
+    mimeType === "application/xml" ||
+    mimeType === "application/javascript"
+  );
+}
+
+// Max size to load for text preview (100KB)
+const MAX_TEXT_PREVIEW_SIZE = 100 * 1024;
 
 export async function loader({ request, params }: Route.LoaderArgs) {
   const sessionId = parseSessionCookie(request.headers.get("Cookie"));
@@ -54,7 +69,22 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 
   const fileTags_ = fileTagRecords.map((r) => r.tag);
 
-  return { user, file, folder, tags: fileTags_ };
+  // Load text content for text files (if small enough)
+  let textContent: string | null = null;
+  let textTruncated = false;
+  
+  if (isTextMimeType(file.mimeType) && file.size <= MAX_TEXT_PREVIEW_SIZE) {
+    try {
+      const fullPath = getFilePath(file.path);
+      textContent = await readFile(fullPath, "utf-8");
+    } catch {
+      // Failed to read, leave as null
+    }
+  } else if (isTextMimeType(file.mimeType)) {
+    textTruncated = true;
+  }
+
+  return { user, file, folder, tags: fileTags_, textContent, textTruncated };
 }
 
 export function meta({ data }: Route.MetaArgs) {
@@ -109,12 +139,12 @@ function getAspectRatio(width: number, height: number): string {
 }
 
 export default function FileView() {
-  const { user, file, folder, tags } = useLoaderData<typeof loader>();
+  const { user, file, folder, tags, textContent, textTruncated } = useLoaderData<typeof loader>();
 
   const isImage = file.kind === "texture";
   const isModel = file.kind === "model";
   const isAudio = file.kind === "audio";
-  const isText = file.kind === "config";
+  const isTextFile = isTextMimeType(file.mimeType);
 
   const displayUrl = getDisplayUrl(file);
   const downloadUrl = `/uploads/${file.path}`;
@@ -208,7 +238,49 @@ export default function FileView() {
               </div>
             )}
 
-            {!isImage && !isModel && !isAudio && (
+            {/* Text file preview */}
+            {isTextFile && textContent && (
+              <div className="text-preview-container">
+                <pre className="text-preview">{textContent}</pre>
+              </div>
+            )}
+
+            {isTextFile && textTruncated && (
+              <div
+                style={{
+                  padding: "3rem",
+                  textAlign: "center",
+                  background: "#f5f5f5",
+                }}
+              >
+                <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>📄</div>
+                <div style={{ marginBottom: "0.5rem" }}>Text File</div>
+                <div style={{ fontSize: "0.875rem", color: "#666", marginBottom: "1rem" }}>
+                  File too large to preview ({formatSize(file.size)})
+                </div>
+                <a href={downloadUrl} className="btn btn-primary" download>
+                  Download
+                </a>
+              </div>
+            )}
+
+            {isTextFile && !textContent && !textTruncated && (
+              <div
+                style={{
+                  padding: "3rem",
+                  textAlign: "center",
+                  background: "#f5f5f5",
+                }}
+              >
+                <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>📄</div>
+                <div style={{ marginBottom: "1rem" }}>Text File</div>
+                <a href={downloadUrl} className="btn btn-primary" download>
+                  Download
+                </a>
+              </div>
+            )}
+
+            {!isImage && !isModel && !isAudio && !isTextFile && (
               <div
                 style={{
                   padding: "3rem",
@@ -221,8 +293,6 @@ export default function FileView() {
                     ? "🗺️"
                     : file.kind === "archive"
                     ? "📁"
-                    : file.kind === "config"
-                    ? "📄"
                     : "📎"}
                 </div>
                 <div style={{ marginBottom: "1rem" }}>{file.kind || "File"}</div>
@@ -333,6 +403,24 @@ export default function FileView() {
         
         .file-preview img {
           display: block;
+        }
+
+        .text-preview-container {
+          width: 100%;
+          max-height: 600px;
+          overflow: auto;
+          background: #1e1e1e;
+        }
+
+        .text-preview {
+          margin: 0;
+          padding: 1rem;
+          font-family: var(--font-mono);
+          font-size: 0.8125rem;
+          line-height: 1.5;
+          color: #d4d4d4;
+          white-space: pre;
+          overflow-x: auto;
         }
       `}</style>
     </div>
