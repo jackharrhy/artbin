@@ -1,4 +1,4 @@
-import { useLoaderData, redirect, Form, useNavigation, useFetcher } from "react-router";
+import { useLoaderData, redirect, Form, useNavigation, useFetcher, useRevalidator } from "react-router";
 import { useState, useCallback, useEffect } from "react";
 import type { Route } from "./+types/folder.$slug";
 import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
@@ -9,6 +9,7 @@ import { BrowseTabs, type ViewMode } from "~/components/BrowseTabs";
 import { SearchBar } from "~/components/SearchBar";
 import { FileGrid } from "~/components/FileGrid";
 import { FileList } from "~/components/FileList";
+import { UploadModal } from "~/components/UploadModal";
 import { deleteFile, deleteFolder, searchFiles, getDescendantFolderIds, getFileCountsByKind } from "~/lib/files.server";
 
 export async function loader({ request, params }: Route.LoaderArgs) {
@@ -281,10 +282,13 @@ export default function FolderView() {
   const isTextureView = view === "textures";
   const isSoundsView = view === "sounds";
   const baseUrl = `/folder/${folder.slug}`;
+  
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const revalidator = useRevalidator();
 
   return (
     <div>
-      <Header user={user} />
+      <Header user={user} onUploadClick={() => setShowUploadModal(true)} />
       <main className="main-content">
         {/* Breadcrumb */}
         <div className="breadcrumb">
@@ -312,9 +316,13 @@ export default function FolderView() {
           </h1>
 
           <div style={{ display: "flex", gap: "0.5rem" }}>
-            <a href={`/upload?folder=${encodeURIComponent(folder.slug)}`} className="btn btn-primary">
-              Upload to folder
-            </a>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => setShowUploadModal(true)}
+            >
+              Add
+            </button>
 
             {user.isAdmin && (
               <Form
@@ -500,6 +508,13 @@ export default function FolderView() {
           />
         )}
       </main>
+
+      <UploadModal
+        isOpen={showUploadModal}
+        onClose={() => setShowUploadModal(false)}
+        currentFolder={{ id: folder.id, slug: folder.slug, name: folder.name }}
+        onSuccess={() => revalidator.revalidate()}
+      />
     </div>
   );
 }

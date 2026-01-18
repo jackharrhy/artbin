@@ -41,6 +41,7 @@ export interface ExtractJobInput {
   originalName: string;       // Original filename
   targetFolderSlug: string;   // Target folder slug (e.g., "thirty-flights")
   targetFolderName: string;   // Display name for folder
+  parentFolderId?: string | null; // Parent folder ID if extracting into existing folder
   userId?: string;
   skipTempCleanup?: boolean;  // Don't delete source file (for local imports)
 }
@@ -106,12 +107,13 @@ async function getOrCreateFolder(
 async function createFolderStructure(
   baseSlug: string,
   baseName: string,
-  dirPaths: string[]
+  dirPaths: string[],
+  parentFolderId?: string | null
 ): Promise<Map<string, string>> {
   const folderMap = new Map<string, string>(); // path -> folderId
   
   // Create base folder
-  const baseId = await getOrCreateFolder(baseSlug, baseName, null);
+  const baseId = await getOrCreateFolder(baseSlug, baseName, parentFolderId || null);
   folderMap.set("", baseId);
   
   // Sort paths to ensure parents are created before children
@@ -145,6 +147,7 @@ async function handleExtractJob(
     originalName,
     targetFolderSlug,
     targetFolderName,
+    parentFolderId,
     skipTempCleanup,
   } = input as unknown as ExtractJobInput;
   
@@ -161,7 +164,7 @@ async function handleExtractJob(
   
   // Create folder structure
   await updateJobProgress(job.id, 15, "Creating folder structure...");
-  const folderMap = await createFolderStructure(targetFolderSlug, targetFolderName, dirPaths);
+  const folderMap = await createFolderStructure(targetFolderSlug, targetFolderName, dirPaths, parentFolderId);
   
   // Extract files
   const totalFiles = fileEntries.length;

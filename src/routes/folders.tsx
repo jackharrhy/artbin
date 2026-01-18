@@ -1,5 +1,6 @@
-import { useLoaderData, redirect, useFetcher } from "react-router";
+import { useLoaderData, redirect, useFetcher, useRevalidator } from "react-router";
 import { useState, useCallback, useEffect } from "react";
+import { UploadModal } from "~/components/UploadModal";
 import type { Route } from "./+types/folders";
 import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
 import { db, folders, files, tags } from "~/db";
@@ -162,10 +163,13 @@ export default function Folders() {
 
   const isTextureView = view === "textures";
   const isSoundsView = view === "sounds";
+  
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const revalidator = useRevalidator();
 
   return (
     <div>
-      <Header user={user} />
+      <Header user={user} onUploadClick={() => setShowUploadModal(true)} />
       <main className="main-content">
         <div
           style={{
@@ -178,9 +182,13 @@ export default function Folders() {
           <h1 className="page-title" style={{ marginBottom: 0, borderBottom: "none" }}>
             Browse
           </h1>
-          <a href="/upload" className="btn btn-primary">
-            Upload
-          </a>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => setShowUploadModal(true)}
+          >
+            Add
+          </button>
         </div>
 
         <BrowseTabs
@@ -214,7 +222,14 @@ export default function Folders() {
               <div className="empty-state">
                 <p>No folders yet</p>
                 <p style={{ marginTop: "1rem" }}>
-                  <a href="/upload">Upload an archive</a> to create a folder
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => setShowUploadModal(true)}
+                  >
+                    Import an archive
+                  </button>{" "}
+                  to create a folder
                 </p>
               </div>
             ) : (
@@ -272,6 +287,13 @@ export default function Folders() {
           />
         )}
       </main>
+
+      <UploadModal
+        isOpen={showUploadModal}
+        onClose={() => setShowUploadModal(false)}
+        currentFolder={null}
+        onSuccess={() => revalidator.revalidate()}
+      />
     </div>
   );
 }

@@ -1,13 +1,13 @@
-import { Form } from "react-router";
-
 interface HeaderProps {
   user?: {
     username: string;
     isAdmin?: boolean | null;
   } | null;
+  /** Optional callback when upload button is clicked (instead of navigating) */
+  onUploadClick?: () => void;
 }
 
-export function Header({ user }: HeaderProps) {
+export function Header({ user, onUploadClick }: HeaderProps) {
   return (
     <header className="header">
       <a href={user ? "/folders" : "/"} className="header-logo">
@@ -17,7 +17,17 @@ export function Header({ user }: HeaderProps) {
         {user ? (
           <>
             <a href="/folders" className="header-link">folders</a>
-            <a href="/upload" className="btn btn-sm">upload</a>
+            {onUploadClick ? (
+              <button
+                type="button"
+                className="btn btn-sm"
+                onClick={onUploadClick}
+              >
+                upload
+              </button>
+            ) : (
+              <a href="/folders" className="btn btn-sm">upload</a>
+            )}
             <a href="/settings" className="header-link">@{user.username}</a>
             {user.isAdmin && <span className="badge-admin">admin</span>}
           </>
