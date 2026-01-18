@@ -64,6 +64,24 @@ function formatBytes(bytes: number): string {
   return (bytes / (1024 * 1024)).toFixed(1) + " MB";
 }
 
+function gcd(a: number, b: number): number {
+  return b === 0 ? a : gcd(b, a % b);
+}
+
+function formatAspectRatio(width: number, height: number): string {
+  const divisor = gcd(width, height);
+  const w = width / divisor;
+  const h = height / divisor;
+  
+  // For very large ratios, show decimal instead
+  if (w > 50 || h > 50) {
+    const ratio = width / height;
+    return ratio.toFixed(2) + ":1";
+  }
+  
+  return `${w}:${h}`;
+}
+
 export default function TextureDetail() {
   const { user, texture, uploader, folder, tags } = useLoaderData<typeof loader>();
 
@@ -145,8 +163,11 @@ export default function TextureDetail() {
                 
                 {texture.width && texture.height && (
                   <>
-                    <dt>Dimensions</dt>
-                    <dd>{texture.width} x {texture.height}</dd>
+                    <dt>Resolution</dt>
+                    <dd>{texture.width} × {texture.height}</dd>
+                    
+                    <dt>Aspect Ratio</dt>
+                    <dd>{formatAspectRatio(texture.width, texture.height)}</dd>
                   </>
                 )}
                 
