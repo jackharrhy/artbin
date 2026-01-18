@@ -199,6 +199,7 @@ export default function Settings() {
             <h2 className="section-title">Admin</h2>
             <div className="card" style={{ display: "flex", gap: "0.5rem" }}>
               <a href="/admin/jobs" className="btn btn-sm">View Jobs</a>
+              <a href="/admin/import" className="btn btn-sm">Import Textures</a>
             </div>
           </section>
         )}

@@ -7,6 +7,7 @@ import { startJobRunner, isJobRunnerActive } from "~/lib/jobs.server";
 
 // Register job handlers
 import "~/lib/extract-job.server";
+import "~/lib/texturetown-job.server";
 
 // Start the job runner (only once)
 if (!isJobRunnerActive()) {

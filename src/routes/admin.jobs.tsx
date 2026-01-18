@@ -173,6 +173,7 @@ export default function AdminJobs() {
         )}
 
         <p style={{ marginTop: "2rem", fontSize: "0.875rem" }}>
+          <a href="/admin/import">Import</a> |{" "}
           <a href="/upload">Upload</a> |{" "}
           <a href="/folders">Folders</a> |{" "}
           <a href="/settings">Settings</a>
