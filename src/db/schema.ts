@@ -65,9 +65,31 @@ export const textureTags = sqliteTable("texture_tags", {
   tagId: text("tag_id").notNull().references(() => tags.id),
 });
 
+// Moodboards
+export const moodboards = sqliteTable("moodboards", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  ownerId: text("owner_id").notNull().references(() => users.id),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn((): Date => new Date()),
+});
+
+// Moodboard Items
+export const moodboardItems = sqliteTable("moodboard_items", {
+  id: text("id").primaryKey(),
+  moodboardId: text("moodboard_id").notNull().references(() => moodboards.id),
+  type: text("type", { enum: ["text", "image", "texture", "link"] }).notNull(),
+  content: text("content").notNull(), // JSON content based on type
+  positionX: integer("position_x").default(0),
+  positionY: integer("position_y").default(0),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn((): Date => new Date()),
+});
+
 export type User = typeof users.$inferSelect;
 export type Session = typeof sessions.$inferSelect;
 export type InviteCode = typeof inviteCodes.$inferSelect;
 export type Collection = typeof collections.$inferSelect;
 export type Texture = typeof textures.$inferSelect;
 export type Tag = typeof tags.$inferSelect;
+export type Moodboard = typeof moodboards.$inferSelect;
+export type MoodboardItem = typeof moodboardItems.$inferSelect;
