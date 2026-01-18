@@ -277,7 +277,7 @@ export default function AdminImport() {
         ))}
 
         <p style={{ marginTop: "2rem", fontSize: "0.875rem" }}>
-          <a href="/settings">Settings</a> | <a href="/folders">Folders</a>
+          <a href="/admin/extract">Extract Game Files</a> | <a href="/settings">Settings</a> | <a href="/folders">Folders</a>
         </p>
       </main>
     </div>

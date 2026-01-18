@@ -15,4 +15,5 @@ export default [
   route("moodboards", "routes/moodboards.tsx"),
   route("moodboard/:id", "routes/moodboard.$id.tsx"),
   route("admin/import", "routes/admin.import.tsx"),
+  route("admin/extract", "routes/admin.extract.tsx"),
 ] satisfies RouteConfig;
