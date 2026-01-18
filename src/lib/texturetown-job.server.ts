@@ -67,11 +67,40 @@ async function fetchManifest(): Promise<TextureTownManifest> {
   return res.json();
 }
 
+const TEXTURETOWN_PARENT_SLUG = "texturetown";
+const TEXTURETOWN_PARENT_NAME = "TextureTown";
+
 /**
- * Create slug from category name
+ * Create slug from category name (nested under parent)
  */
 function categoryToSlug(categoryName: string): string {
-  return `texturetown-${categoryName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")}`;
+  const catSlug = categoryName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  return `${TEXTURETOWN_PARENT_SLUG}/${catSlug}`;
+}
+
+/**
+ * Get or create the parent TextureTown folder
+ */
+async function getOrCreateParentFolder(): Promise<string> {
+  const existing = await db.query.folders.findFirst({
+    where: eq(folders.slug, TEXTURETOWN_PARENT_SLUG),
+  });
+
+  if (existing) {
+    return existing.id;
+  }
+
+  const id = nanoid();
+  await db.insert(folders).values({
+    id,
+    name: TEXTURETOWN_PARENT_NAME,
+    slug: TEXTURETOWN_PARENT_SLUG,
+    description: "Textures imported from textures.neocities.org",
+  });
+
+  await ensureDir(slugToPath(TEXTURETOWN_PARENT_SLUG));
+
+  return id;
 }
 
 /**
@@ -79,7 +108,8 @@ function categoryToSlug(categoryName: string): string {
  */
 async function getOrCreateCategoryFolder(
   slug: string,
-  name: string
+  name: string,
+  parentId: string
 ): Promise<string> {
   const existing = await db.query.folders.findFirst({
     where: eq(folders.slug, slug),
@@ -92,9 +122,10 @@ async function getOrCreateCategoryFolder(
   const id = nanoid();
   await db.insert(folders).values({
     id,
-    name: `TextureTown: ${name}`,
+    name,
     slug,
-    description: `Imported from textures.neocities.org - ${name} category`,
+    parentId,
+    description: `${name} textures from TextureTown`,
   });
 
   await ensureDir(slugToPath(slug));
@@ -162,9 +193,12 @@ async function handleTextureTownImport(
     `Found ${totalFiles} textures in ${categoriesToImport.length} categories`
   );
 
+  // Create parent TextureTown folder
+  const parentFolderId = await getOrCreateParentFolder();
+
   for (const category of categoriesToImport) {
     const folderSlug = categoryToSlug(category.name);
-    const folderId = await getOrCreateCategoryFolder(folderSlug, category.niceName);
+    const folderId = await getOrCreateCategoryFolder(folderSlug, category.niceName, parentFolderId);
     categoriesImported.push(category.niceName);
 
     for (const fileName of category.files) {
