@@ -1,6 +1,7 @@
 import type { EntryContext } from "react-router";
 import { ServerRouter } from "react-router";
-import { renderToString } from "react-dom/server";
+import { renderToPipeableStream } from "react-dom/server";
+import { PassThrough } from "node:stream";
 
 // Import and start the job runner
 import { startJobRunner, isJobRunnerActive } from "~/lib/jobs.server";
@@ -18,20 +19,47 @@ if (!isJobRunnerActive()) {
   console.log("[Server] Job runner started");
 }
 
+const ABORT_DELAY = 5_000;
+
 export default function handleRequest(
   request: Request,
   responseStatusCode: number,
   responseHeaders: Headers,
   routerContext: EntryContext
 ) {
-  const html = renderToString(
-    <ServerRouter context={routerContext} url={request.url} />
-  );
+  return new Promise((resolve, reject) => {
+    let shellRendered = false;
 
-  responseHeaders.set("Content-Type", "text/html");
+    const { pipe, abort } = renderToPipeableStream(
+      <ServerRouter context={routerContext} url={request.url} />,
+      {
+        onShellReady() {
+          shellRendered = true;
+          const body = new PassThrough();
 
-  return new Response(`<!DOCTYPE html>${html}`, {
-    status: responseStatusCode,
-    headers: responseHeaders,
+          responseHeaders.set("Content-Type", "text/html");
+
+          resolve(
+            new Response(body as unknown as BodyInit, {
+              headers: responseHeaders,
+              status: responseStatusCode,
+            })
+          );
+
+          pipe(body);
+        },
+        onShellError(error: unknown) {
+          reject(error);
+        },
+        onError(error: unknown) {
+          responseStatusCode = 500;
+          if (shellRendered) {
+            console.error(error);
+          }
+        },
+      }
+    );
+
+    setTimeout(abort, ABORT_DELAY);
   });
 }
