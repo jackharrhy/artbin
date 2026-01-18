@@ -61,9 +61,9 @@ export const textures = sqliteTable("textures", {
   height: integer("height"),
   previewFilename: text("preview_filename"), // PNG preview for legacy formats (TGA, PCX, BMP)
   isSeamless: integer("is_seamless", { mode: "boolean" }).default(false),
-  folderId: text("folder_id").references(() => folders.id),
-  collectionId: text("collection_id").references(() => collections.id), // legacy
-  uploaderId: text("uploader_id").references(() => users.id), // null for external imports
+  folderId: text("folder_id").references(() => folders.id, { onDelete: "cascade" }),
+  collectionId: text("collection_id").references(() => collections.id, { onDelete: "cascade" }),
+  uploaderId: text("uploader_id").references(() => users.id, { onDelete: "set null" }),
   source: text("source"), // e.g. "texturetown" - external source name
   sourceUrl: text("source_url"), // original URL if imported
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn((): Date => new Date()),
@@ -78,8 +78,8 @@ export const tags = sqliteTable("tags", {
 
 // Texture-Tag junction
 export const textureTags = sqliteTable("texture_tags", {
-  textureId: text("texture_id").notNull().references(() => textures.id),
-  tagId: text("tag_id").notNull().references(() => tags.id),
+  textureId: text("texture_id").notNull().references(() => textures.id, { onDelete: "cascade" }),
+  tagId: text("tag_id").notNull().references(() => tags.id, { onDelete: "cascade" }),
 });
 
 // 3D Models
@@ -89,8 +89,8 @@ export const models = sqliteTable("models", {
   originalName: text("original_name").notNull(),
   mimeType: text("mime_type").notNull(), // model/gltf-binary, model/gltf+json
   size: integer("size").notNull(),
-  folderId: text("folder_id").references(() => folders.id),
-  uploaderId: text("uploader_id").references(() => users.id),
+  folderId: text("folder_id").references(() => folders.id, { onDelete: "cascade" }),
+  uploaderId: text("uploader_id").references(() => users.id, { onDelete: "set null" }),
   source: text("source"),
   sourceUrl: text("source_url"),
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn((): Date => new Date()),
