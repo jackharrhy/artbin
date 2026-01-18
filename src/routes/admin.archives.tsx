@@ -291,28 +291,23 @@ function TreeNodeView({
   const isAllSelected = selectedCount === allPaths.length && allPaths.length > 0;
   const isPartiallySelected = selectedCount > 0 && selectedCount < allPaths.length;
 
-  const handleFolderCheckbox = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onToggleFolder(allPaths, !isAllSelected);
-  };
-
   return (
-    <details className="tree-folder" open>
-      <summary className="tree-folder-header">
-        <input
-          type="checkbox"
-          className="tree-checkbox"
-          checked={isAllSelected}
-          ref={(el) => {
-            if (el) el.indeterminate = isPartiallySelected;
-          }}
-          onChange={() => {}}
-          onClick={handleFolderCheckbox}
-        />
-        <span className="tree-folder-icon">{hasChildren || hasArchives ? "📁" : "📂"}</span>
-        <span className="tree-folder-name">{displayPath}</span>
-        <span className="tree-folder-count">{archiveCount} archive{archiveCount !== 1 ? "s" : ""}</span>
-      </summary>
+    <div className="tree-folder-wrapper">
+      <input
+        type="checkbox"
+        className="tree-checkbox"
+        checked={isAllSelected}
+        ref={(el) => {
+          if (el) el.indeterminate = isPartiallySelected;
+        }}
+        onChange={() => onToggleFolder(allPaths, !isAllSelected)}
+      />
+      <details className="tree-folder" open>
+        <summary className="tree-folder-header">
+          <span className="tree-folder-icon">{hasChildren || hasArchives ? "📁" : "📂"}</span>
+          <span className="tree-folder-name">{displayPath}</span>
+          <span className="tree-folder-count">{archiveCount} archive{archiveCount !== 1 ? "s" : ""}</span>
+        </summary>
       
       <div className="tree-folder-content">
         {/* Child folders */}
@@ -338,6 +333,7 @@ function TreeNodeView({
         ))}
       </div>
     </details>
+    </div>
   );
 }
 
@@ -354,73 +350,69 @@ function ArchiveItem({
     ? `${archive.gameDir} - ${archive.name.replace(/\.[^.]+$/, "")}`
     : archive.name.replace(/\.[^.]+$/, "");
 
-  const handleCheckbox = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onToggle();
-  };
-
   return (
-    <details className={`tree-archive ${isSelected ? "tree-archive-selected" : ""}`}>
-      <summary className="tree-archive-header">
-        <input
-          type="checkbox"
-          className="tree-checkbox"
-          checked={isSelected}
-          onChange={() => {}}
-          onClick={handleCheckbox}
-        />
-        <span className="tree-archive-icon">
-          {archive.type === "pak" && "📦"}
-          {archive.type === "pk3" && "📦"}
-          {archive.type === "wad" && "🎮"}
-          {archive.type === "zip" && "🗜️"}
-        </span>
-        <span className="tree-archive-name">{archive.name}</span>
-        <span className="tree-archive-meta">
-          <span className="archive-type">{archive.type.toUpperCase()}</span>
-          <span className="archive-size">{formatSize(archive.size)}</span>
-          {archive.gameDir && <span className="archive-gamedir">{archive.gameDir}</span>}
-        </span>
-      </summary>
+    <div className={`tree-archive-wrapper ${isSelected ? "tree-archive-selected" : ""}`}>
+      <input
+        type="checkbox"
+        className="tree-checkbox"
+        checked={isSelected}
+        onChange={onToggle}
+      />
+      <details className="tree-archive">
+        <summary className="tree-archive-header">
+          <span className="tree-archive-icon">
+            {archive.type === "pak" && "📦"}
+            {archive.type === "pk3" && "📦"}
+            {archive.type === "wad" && "🎮"}
+            {archive.type === "zip" && "🗜️"}
+          </span>
+          <span className="tree-archive-name">{archive.name}</span>
+          <span className="tree-archive-meta">
+            <span className="archive-type">{archive.type.toUpperCase()}</span>
+            <span className="archive-size">{formatSize(archive.size)}</span>
+            {archive.gameDir && <span className="archive-gamedir">{archive.gameDir}</span>}
+          </span>
+        </summary>
 
-      <div className="tree-archive-details">
-        <Form method="post" className="archive-form">
-          <input type="hidden" name="intent" value="import-archive" />
-          <input type="hidden" name="archivePath" value={archive.path} />
+        <div className="tree-archive-details">
+          <Form method="post" className="archive-form">
+            <input type="hidden" name="intent" value="import-archive" />
+            <input type="hidden" name="archivePath" value={archive.path} />
 
-          <div className="form-row">
-            <div className="form-group" style={{ flex: 1 }}>
-              <label className="form-label">Folder Name</label>
-              <input
-                type="text"
-                name="folderName"
-                className="input"
-                style={{ width: "100%" }}
-                defaultValue={defaultName}
-                required
-              />
+            <div className="form-row">
+              <div className="form-group" style={{ flex: 1 }}>
+                <label className="form-label">Folder Name</label>
+                <input
+                  type="text"
+                  name="folderName"
+                  className="input"
+                  style={{ width: "100%" }}
+                  defaultValue={defaultName}
+                  required
+                />
+              </div>
+
+              <div className="form-group" style={{ flex: 1 }}>
+                <label className="form-label">Slug</label>
+                <input
+                  type="text"
+                  name="folderSlug"
+                  className="input"
+                  style={{ width: "100%" }}
+                  defaultValue={slugify(defaultName)}
+                  pattern="[a-z0-9-]+"
+                  required
+                />
+              </div>
+
+              <button type="submit" className="btn btn-primary btn-sm" style={{ alignSelf: "flex-end" }}>
+                Import
+              </button>
             </div>
-
-            <div className="form-group" style={{ flex: 1 }}>
-              <label className="form-label">Slug</label>
-              <input
-                type="text"
-                name="folderSlug"
-                className="input"
-                style={{ width: "100%" }}
-                defaultValue={slugify(defaultName)}
-                pattern="[a-z0-9-]+"
-                required
-              />
-            </div>
-
-            <button type="submit" className="btn btn-primary btn-sm" style={{ alignSelf: "flex-end" }}>
-              Import
-            </button>
-          </div>
-        </Form>
-      </div>
-    </details>
+          </Form>
+        </div>
+      </details>
+    </div>
   );
 }
 

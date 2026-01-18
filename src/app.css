@@ -900,10 +900,7 @@ details.archive-item > summary:hover {
 
 /* Tree archive item (details element) */
 .tree-archive {
-  margin-left: 1.25rem;
-  border-left: 1px solid var(--color-border-light);
-  padding-left: 0.75rem;
-  margin-bottom: 0.25rem;
+  /* Positioning handled by .tree-archive-wrapper */
 }
 
 .tree-archive-header {
@@ -996,13 +993,50 @@ details.archive-item > summary:hover {
   margin: 0;
   cursor: pointer;
   accent-color: var(--color-text);
+  flex-shrink: 0;
+}
+
+/* Tree folder wrapper - checkbox + details side by side */
+.tree-folder-wrapper {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.tree-folder-wrapper > .tree-checkbox {
+  margin-top: 0.5rem;
+}
+
+.tree-folder-wrapper > .tree-folder {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Tree archive wrapper - checkbox + details side by side */
+.tree-archive-wrapper {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-left: 1.25rem;
+  border-left: 1px solid var(--color-border-light);
+  padding-left: 0.75rem;
+  margin-bottom: 0.25rem;
+}
+
+.tree-archive-wrapper > .tree-checkbox {
+  margin-top: 0.375rem;
+}
+
+.tree-archive-wrapper > .tree-archive {
+  flex: 1;
+  min-width: 0;
 }
 
 .tree-archive-selected {
   background: #f0f7ff;
 }
 
-.tree-archive-selected > .tree-archive-header {
+.tree-archive-selected > .tree-archive > .tree-archive-header {
   background: #f0f7ff;
 }
 
