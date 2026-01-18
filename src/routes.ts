@@ -14,7 +14,7 @@ export default [
   route("models", "routes/models.tsx"),
   route("model/:id", "routes/model.$id.tsx"),
   route("folders", "routes/folders.tsx"),
-  route("folder/:slug*", "routes/folder.$slug.tsx"),
+  route("folder/:slug/*", "routes/folder.$slug.tsx"),
   route("moodboards", "routes/moodboards.tsx"),
   route("moodboard/:id", "routes/moodboard.$id.tsx"),
   route("admin/import", "routes/admin.import.tsx"),
