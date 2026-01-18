@@ -16,7 +16,8 @@ export function Header({ user }: HeaderProps) {
       <nav className="header-nav">
         {user ? (
           <>
-            <a href="/textures" className="header-link">browse</a>
+            <a href="/textures" className="header-link">textures</a>
+            <a href="/models" className="header-link">models</a>
             <a href="/folders" className="header-link">folders</a>
             <a href="/upload" className="btn btn-sm">upload</a>
             <a href="/settings" className="header-link">@{user.username}</a>

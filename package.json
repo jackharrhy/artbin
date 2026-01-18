@@ -12,6 +12,7 @@
     "create-admin": "tsx scripts/create-admin.ts"
   },
   "dependencies": {
+    "@google/model-viewer": "^4.1.0",
     "@react-router/node": "7.12.0",
     "@react-router/serve": "7.12.0",
     "bcrypt": "^6.0.0",

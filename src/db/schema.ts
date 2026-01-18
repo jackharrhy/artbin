@@ -81,6 +81,20 @@ export const textureTags = sqliteTable("texture_tags", {
   tagId: text("tag_id").notNull().references(() => tags.id),
 });
 
+// 3D Models
+export const models = sqliteTable("models", {
+  id: text("id").primaryKey(),
+  filename: text("filename").notNull(),
+  originalName: text("original_name").notNull(),
+  mimeType: text("mime_type").notNull(), // model/gltf-binary, model/gltf+json
+  size: integer("size").notNull(),
+  folderId: text("folder_id").references(() => folders.id),
+  uploaderId: text("uploader_id").references(() => users.id),
+  source: text("source"),
+  sourceUrl: text("source_url"),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn((): Date => new Date()),
+});
+
 // Moodboards
 export const moodboards = sqliteTable("moodboards", {
   id: text("id").primaryKey(),
@@ -107,6 +121,7 @@ export type InviteCode = typeof inviteCodes.$inferSelect;
 export type Folder = typeof folders.$inferSelect;
 export type Collection = typeof collections.$inferSelect;
 export type Texture = typeof textures.$inferSelect;
+export type Model = typeof models.$inferSelect;
 export type Tag = typeof tags.$inferSelect;
 export type Moodboard = typeof moodboards.$inferSelect;
 export type MoodboardItem = typeof moodboardItems.$inferSelect;
