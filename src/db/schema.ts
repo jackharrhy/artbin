@@ -40,6 +40,7 @@ export const folders = sqliteTable("folders", {
   name: text("name").notNull(),                    // Display name: "Thirty Flights"
   slug: text("slug").notNull().unique(),           // Path: "thirty-flights/maps" (unique!)
   description: text("description"),
+  previewPath: text("preview_path"),               // Path to 3x3 preview image (relative to uploads)
   parentId: text("parent_id").references((): any => folders.id, { onDelete: "cascade" }),
   ownerId: text("owner_id").references(() => users.id, { onDelete: "set null" }),
   visibility: text("visibility", { enum: ["public", "private", "unlisted"] }).default("public"),

@@ -387,9 +387,24 @@ export default function FolderView() {
                     <a
                       key={child.id}
                       href={`/folder/${child.slug}`}
-                      className="folder-card"
+                      className="folder-card folder-card-with-preview"
                     >
-                      <div className="folder-name">{child.name}</div>
+                      {child.previewPath ? (
+                        <div className="folder-preview">
+                          <img
+                            src={`/uploads/${child.previewPath}`}
+                            alt=""
+                            loading="lazy"
+                          />
+                        </div>
+                      ) : (
+                        <div className="folder-preview folder-preview-empty">
+                          <span>📁</span>
+                        </div>
+                      )}
+                      <div className="folder-info">
+                        <div className="folder-name">{child.name}</div>
+                      </div>
                     </a>
                   ))}
                 </div>

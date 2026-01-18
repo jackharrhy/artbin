@@ -30,6 +30,7 @@ import {
   ensureDir,
   slugToPath,
 } from "./files.server";
+import { generateFolderPreview } from "./folder-preview.server";
 
 // ============================================================================
 // Types
@@ -236,11 +237,22 @@ async function handleExtractJob(
   
   // Clean up temp file (unless it's a local import)
   if (!skipTempCleanup) {
-    await updateJobProgress(job.id, 98, "Cleaning up...");
+    await updateJobProgress(job.id, 95, "Cleaning up...");
     try {
       await unlink(tempFile);
     } catch {
       // Ignore cleanup errors
+    }
+  }
+  
+  // Generate folder previews for all created folders
+  await updateJobProgress(job.id, 97, "Generating folder previews...");
+  for (const [, folderId] of folderMap) {
+    try {
+      await generateFolderPreview(folderId);
+    } catch (err) {
+      console.error(`Failed to generate preview for folder ${folderId}:`, err);
+      // Continue with other folders
     }
   }
   

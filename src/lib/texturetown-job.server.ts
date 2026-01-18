@@ -19,6 +19,7 @@ import {
   ensureDir,
   slugToPath,
 } from "./files.server";
+import { generateFolderPreview } from "./folder-preview.server";
 
 // ============================================================================
 // Types
@@ -195,10 +196,12 @@ async function handleTextureTownImport(
 
   // Create parent TextureTown folder
   const parentFolderId = await getOrCreateParentFolder();
+  const createdFolderIds: string[] = [parentFolderId];
 
   for (const category of categoriesToImport) {
     const folderSlug = categoryToSlug(category.name);
     const folderId = await getOrCreateCategoryFolder(folderSlug, category.niceName, parentFolderId);
+    createdFolderIds.push(folderId);
     categoriesImported.push(category.niceName);
 
     for (const fileName of category.files) {
@@ -281,6 +284,16 @@ async function handleTextureTownImport(
           `Imported ${importedFiles}/${processedFiles} textures (${category.niceName})...`
         );
       }
+    }
+  }
+
+  // Generate folder previews
+  await updateJobProgress(job.id, 96, "Generating folder previews...");
+  for (const folderId of createdFolderIds) {
+    try {
+      await generateFolderPreview(folderId);
+    } catch (err) {
+      console.error(`[TextureTown] Failed to generate preview for folder ${folderId}:`, err);
     }
   }
 

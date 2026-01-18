@@ -223,11 +223,26 @@ export default function Folders() {
                   <a
                     key={folder.id}
                     href={`/folder/${folder.slug}`}
-                    className="folder-card"
+                    className="folder-card folder-card-with-preview"
                   >
-                    <div className="folder-name">{folder.name}</div>
-                    <div className="folder-meta">
-                      {folderCounts[folder.id] || 0} files
+                    {folder.previewPath ? (
+                      <div className="folder-preview">
+                        <img 
+                          src={`/uploads/${folder.previewPath}`} 
+                          alt="" 
+                          loading="lazy"
+                        />
+                      </div>
+                    ) : (
+                      <div className="folder-preview folder-preview-empty">
+                        <span>📁</span>
+                      </div>
+                    )}
+                    <div className="folder-info">
+                      <div className="folder-name">{folder.name}</div>
+                      <div className="folder-meta">
+                        {folderCounts[folder.id] || 0} files
+                      </div>
                     </div>
                   </a>
                 ))}
