@@ -84,48 +84,46 @@ export async function action({ request, params }: Route.ActionArgs) {
   }
 
   if (actionType === "delete") {
-    // Get all textures in this folder
-    const folderTextures = await db.query.textures.findMany({
-      where: eq(textures.folderId, folder.id),
-    });
+    // Recursively delete a folder and all its contents
+    async function deleteFolderRecursive(folderId: string) {
+      // Get all textures in this folder
+      const folderTextures = await db.query.textures.findMany({
+        where: eq(textures.folderId, folderId),
+      });
 
-    // Delete texture files from disk
-    for (const texture of folderTextures) {
-      try {
-        await unlink(join(UPLOADS_DIR, texture.filename));
-      } catch {
-        // File may not exist, continue
-      }
-      // Also delete preview file if exists
-      if (texture.previewFilename) {
+      // Delete texture files from disk
+      for (const texture of folderTextures) {
         try {
-          await unlink(join(UPLOADS_DIR, texture.previewFilename));
+          await unlink(join(UPLOADS_DIR, texture.filename));
         } catch {
           // File may not exist, continue
         }
+        if (texture.previewFilename) {
+          try {
+            await unlink(join(UPLOADS_DIR, texture.previewFilename));
+          } catch {
+            // File may not exist, continue
+          }
+        }
       }
-    }
 
-    // Delete texture records
-    await db.delete(textures).where(eq(textures.folderId, folder.id));
+      // Delete texture records
+      await db.delete(textures).where(eq(textures.folderId, folderId));
 
-    // Check for child folders
-    const childFolders = await db.query.folders.findMany({
-      where: eq(folders.parentId, folder.id),
-    });
+      // Recursively delete child folders
+      const childFolders = await db.query.folders.findMany({
+        where: eq(folders.parentId, folderId),
+      });
 
-    if (childFolders.length > 0) {
-      // Update child folders to have no parent (move to root)
       for (const child of childFolders) {
-        await db
-          .update(folders)
-          .set({ parentId: null })
-          .where(eq(folders.id, child.id));
+        await deleteFolderRecursive(child.id);
       }
+
+      // Delete the folder itself
+      await db.delete(folders).where(eq(folders.id, folderId));
     }
 
-    // Delete the folder
-    await db.delete(folders).where(eq(folders.id, folder.id));
+    await deleteFolderRecursive(folder.id);
 
     return redirect("/folders");
   }
