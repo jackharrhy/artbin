@@ -14,7 +14,7 @@
 import { createReadStream } from "fs";
 import { open, readFile } from "fs/promises";
 import { Readable } from "stream";
-import { createInflateRaw } from "zlib";
+import { createInflateRaw, deflateSync } from "zlib";
 
 // ============================================================================
 // Types
@@ -649,12 +649,7 @@ function createSimplePng(rgba: Buffer, width: number, height: number): Buffer {
 
   const ihdrChunk = createPngChunk("IHDR", ihdrData);
 
-  // IDAT chunk (raw uncompressed - this is a simplified version)
-  // For proper PNG we'd need zlib compression
-  // For now, just store as raw which won't be valid PNG but could work for testing
-  // TODO: Use zlib to compress properly
-
-  const { deflateSync } = require("zlib");
+  // IDAT chunk - compress with zlib
 
   // PNG filter byte (0 = none) before each row
   const filtered = Buffer.alloc(height * (1 + width * 4));

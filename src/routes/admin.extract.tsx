@@ -23,6 +23,7 @@ import {
   filterWalEntries,
   type ParsedBspFile,
 } from "~/lib/gamefiles.server";
+import { convertToPng, getImageDimensions } from "~/lib/images.server";
 
 const TEMP_DIR = join(process.cwd(), "tmp", "uploads");
 const UPLOADS_DIR = join(process.cwd(), "public", "uploads");
@@ -185,14 +186,19 @@ async function handleImport(formData: FormData): Promise<ExtractResult> {
     await mkdir(UPLOADS_DIR, { recursive: true });
 
     let importedCount = 0;
+    
+    // Legacy formats that need conversion to PNG
+    const LEGACY_FORMATS = ["tga", "pcx", "bmp"];
 
-    // Helper to save a texture
+    // Helper to save a texture with optional conversion
     async function saveTexture(
       imageBuffer: Buffer,
       filename: string,
       originalName: string,
       mimeType: string,
-      source: string
+      source: string,
+      width?: number | null,
+      height?: number | null
     ) {
       await writeFile(join(UPLOADS_DIR, filename), imageBuffer);
       await db.insert(textures).values({
@@ -201,11 +207,59 @@ async function handleImport(formData: FormData): Promise<ExtractResult> {
         originalName,
         mimeType,
         size: imageBuffer.length,
+        width: width ?? null,
+        height: height ?? null,
         folderId,
         uploaderId: null,
         source,
       });
       importedCount++;
+    }
+    
+    // Helper to convert legacy format to PNG
+    async function convertLegacyFormat(
+      imageBuffer: Buffer,
+      entryExt: string
+    ): Promise<{ buffer: Buffer; filename: string; mimeType: string; width: number | null; height: number | null }> {
+      // Save original to temp file
+      const tempId = nanoid();
+      const tempOriginal = join(TEMP_DIR, `${tempId}.${entryExt}`);
+      const tempPng = join(TEMP_DIR, `${tempId}.png`);
+      
+      await writeFile(tempOriginal, imageBuffer);
+      
+      // Convert to PNG using ImageMagick
+      const success = await convertToPng(tempOriginal, tempPng);
+      
+      if (success) {
+        const { readFile: fsReadFile } = await import("fs/promises");
+        const pngBuffer = await fsReadFile(tempPng);
+        const dims = await getImageDimensions(tempPng);
+        
+        // Clean up temp files
+        try {
+          await unlink(tempOriginal);
+          await unlink(tempPng);
+        } catch { /* ignore cleanup errors */ }
+        
+        return {
+          buffer: pngBuffer,
+          filename: `${nanoid()}.png`,
+          mimeType: "image/png",
+          width: dims?.width ?? null,
+          height: dims?.height ?? null,
+        };
+      }
+      
+      // Fallback: keep original if conversion fails
+      try { await unlink(tempOriginal); } catch { /* ignore */ }
+      return {
+        buffer: imageBuffer,
+        filename: `${nanoid()}.${entryExt}`,
+        mimeType: getMimeType(entryExt),
+        width: null,
+        height: null,
+      };
     }
 
     // Get texture entries to import
@@ -222,6 +276,8 @@ async function handleImport(formData: FormData): Promise<ExtractResult> {
         let imageBuffer: Buffer;
         let filename: string;
         let mimeType: string;
+        let width: number | null = null;
+        let height: number | null = null;
 
         if (parsed.type === "bsp") {
           // Extract BSP texture and convert from MIPTEX
@@ -229,16 +285,36 @@ async function handleImport(formData: FormData): Promise<ExtractResult> {
           imageBuffer = await miptexToPng(texture);
           filename = `${nanoid()}.png`;
           mimeType = "image/png";
-        } else if (parsed.type === "pak") {
-          imageBuffer = await extractPakEntry(tempPath, entry);
+          width = texture.width;
+          height = texture.height;
+        } else if (parsed.type === "pak" || parsed.type === "pk3") {
+          // Extract from PAK or PK3
+          imageBuffer = parsed.type === "pak" 
+            ? await extractPakEntry(tempPath, entry)
+            : await extractPk3Entry(tempPath, entry);
           const entryExt = entry.name.split(".").pop()?.toLowerCase() || "bin";
-          filename = `${nanoid()}.${entryExt}`;
-          mimeType = getMimeType(entryExt);
-        } else if (parsed.type === "pk3") {
-          imageBuffer = await extractPk3Entry(tempPath, entry);
-          const entryExt = entry.name.split(".").pop()?.toLowerCase() || "bin";
-          filename = `${nanoid()}.${entryExt}`;
-          mimeType = getMimeType(entryExt);
+          
+          // Convert legacy formats (TGA, PCX, BMP) to PNG
+          if (LEGACY_FORMATS.includes(entryExt)) {
+            const converted = await convertLegacyFormat(imageBuffer, entryExt);
+            imageBuffer = converted.buffer;
+            filename = converted.filename;
+            mimeType = converted.mimeType;
+            width = converted.width;
+            height = converted.height;
+          } else {
+            filename = `${nanoid()}.${entryExt}`;
+            mimeType = getMimeType(entryExt);
+            // Get dimensions for native web formats
+            if (["png", "jpg", "jpeg", "gif", "webp"].includes(entryExt)) {
+              const tempFile = join(TEMP_DIR, filename);
+              await writeFile(tempFile, imageBuffer);
+              const dims = await getImageDimensions(tempFile);
+              width = dims?.width ?? null;
+              height = dims?.height ?? null;
+              try { await unlink(tempFile); } catch { /* ignore */ }
+            }
+          }
         } else {
           continue;
         }
@@ -246,7 +322,7 @@ async function handleImport(formData: FormData): Promise<ExtractResult> {
         const originalName =
           entry.name.split("/").pop() || entry.name.split("\\").pop() || entry.name;
 
-        await saveTexture(imageBuffer, filename, originalName, mimeType, `extracted-${parsed.type}`);
+        await saveTexture(imageBuffer, filename, originalName, mimeType, `extracted-${parsed.type}`, width, height);
       } catch (err) {
         console.error(`Failed to extract ${entry.name}:`, err);
       }
@@ -274,11 +350,67 @@ async function handleImport(formData: FormData): Promise<ExtractResult> {
           continue;
         }
 
-        const bspName = bspEntry.name.split("/").pop() || bspEntry.name;
+        const bspFilename = bspEntry.name.split("/").pop() || bspEntry.name;
+        const bspBaseName = bspFilename.replace(/\.bsp$/i, "");
+        
+        // Create a subfolder for this BSP's textures
+        const bspFolderSlug = `${folderSlug}/${bspBaseName}`
+          .toLowerCase()
+          .replace(/[^a-z0-9/]+/g, "-")
+          .replace(/^-|-$/g, "");
+        
+        let bspFolder = await db.query.folders.findFirst({
+          where: eq(folders.slug, bspFolderSlug),
+        });
+        
+        if (!bspFolder) {
+          const [newBspFolder] = await db
+            .insert(folders)
+            .values({
+              id: nanoid(),
+              name: bspBaseName,
+              slug: bspFolderSlug,
+              description: `Textures from ${bspFilename}`,
+              parentId: folderId, // Child of main folder
+              ownerId: null,
+              visibility: "public",
+              source: `extracted-${parsed.type}-bsp`,
+            })
+            .returning();
+          bspFolder = newBspFolder;
+        }
+        
+        const bspFolderId = bspFolder.id;
+        
+        // Helper to save texture to BSP subfolder
+        async function saveBspTexture(
+          imageBuffer: Buffer,
+          filename: string,
+          originalName: string,
+          mimeType: string,
+          source: string,
+          width?: number | null,
+          height?: number | null
+        ) {
+          await writeFile(join(UPLOADS_DIR, filename), imageBuffer);
+          await db.insert(textures).values({
+            id: nanoid(),
+            filename,
+            originalName,
+            mimeType,
+            size: imageBuffer.length,
+            width: width ?? null,
+            height: height ?? null,
+            folderId: bspFolderId, // Use BSP subfolder
+            uploaderId: null,
+            source,
+          });
+          importedCount++;
+        }
 
         if (bspParsed.bspType === "q1") {
           // Quake 1 BSP - textures are embedded as MIPTEX
-          console.log(`Extracting ${bspParsed.entries.length} embedded textures from Q1 BSP: ${bspName}`);
+          console.log(`Extracting ${bspParsed.entries.length} embedded textures from Q1 BSP: ${bspFilename} -> folder ${bspFolderSlug}`);
 
           for (const texEntry of bspParsed.entries) {
             try {
@@ -287,22 +419,24 @@ async function handleImport(formData: FormData): Promise<ExtractResult> {
               const filename = `${nanoid()}.png`;
               const originalName = `${texEntry.name}.png`;
 
-              await saveTexture(
+              await saveBspTexture(
                 imageBuffer,
                 filename,
                 originalName,
                 "image/png",
-                `extracted-${parsed.type}-bsp-q1`
+                `extracted-${parsed.type}-bsp-q1`,
+                texture.width,
+                texture.height
               );
             } catch (err) {
-              console.error(`Failed to extract ${texEntry.name} from BSP ${bspName}:`, err);
+              console.error(`Failed to extract ${texEntry.name} from BSP ${bspFilename}:`, err);
             }
           }
         } else if (bspParsed.bspType === "q2") {
           // Quake 2 BSP - textures are external WAL files
           // The BSP entries contain paths like "textures/e1u1/floor1.wal"
           // We need to find these WAL files in the PAK/PK3
-          console.log(`Q2 BSP ${bspName} references ${bspParsed.entries.length} external textures`);
+          console.log(`Q2 BSP ${bspFilename} references ${bspParsed.entries.length} external textures -> folder ${bspFolderSlug}`);
 
           for (const texRef of bspParsed.entries) {
             try {
@@ -348,15 +482,17 @@ async function handleImport(formData: FormData): Promise<ExtractResult> {
               const walName = targetEntry.name.split("/").pop() || targetEntry.name;
               const originalName = walName.replace(/\.wal$/i, ".png");
 
-              await saveTexture(
+              await saveBspTexture(
                 imageBuffer,
                 filename,
                 originalName,
                 "image/png",
-                `extracted-${parsed.type}-bsp-q2`
+                `extracted-${parsed.type}-bsp-q2`,
+                texture.width,
+                texture.height
               );
             } catch (err) {
-              console.error(`Failed to extract ${texRef.name} for BSP ${bspName}:`, err);
+              console.error(`Failed to extract ${texRef.name} for BSP ${bspFilename}:`, err);
             }
           }
         }
