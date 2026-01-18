@@ -2,10 +2,10 @@
 .env
 /node_modules/
 
-# React Router
 /.react-router/
 /build/
 
-# Database
+/public/
+
 *.db
 *.db-journal

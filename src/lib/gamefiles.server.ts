@@ -239,122 +239,113 @@ interface MiptexHeader {
 }
 
 export async function parseBspFile(filePath: string): Promise<ParsedGameFile> {
-  const handle = await open(filePath, "r");
+  const data = await readFile(filePath);
+  return parseBspBuffer(data);
+}
 
-  try {
-    // Read first 8 bytes to detect format
-    const headerBuf = Buffer.alloc(160); // Enough for both Q1 and Q2 headers
-    await handle.read(headerBuf, 0, 160, 0);
+/**
+ * Parse BSP from a buffer (for embedded BSPs in PAK/PK3 files)
+ */
+export function parseBspBuffer(data: Buffer): ParsedGameFile {
+  const firstInt = data.readInt32LE(0);
 
-    const firstInt = headerBuf.readInt32LE(0);
-
-    // Check for Quake 2 format (IBSP magic)
-    if (firstInt === BSP_MAGIC_Q2) {
-      const q2Version = headerBuf.readInt32LE(4);
-      throw new Error(
-        `Quake 2/3 BSP format (IBSP v${q2Version}) not yet supported. ` +
-        `Quake 2+ BSPs store textures externally in WAL files, not embedded in the BSP.`
-      );
-    }
-
-    // Check for Quake 1 format (version number directly)
-    if (firstInt !== BSP_VERSION_Q1) {
-      throw new Error(
-        `Unsupported BSP version: ${firstInt}. ` +
-        `Only Quake 1 BSP (version 29) with embedded textures is currently supported.`
-      );
-    }
-
-    const version = firstInt;
-
-    // Get texture lump info (lump 2)
-    const texLumpOffset = headerBuf.readInt32LE(4 + LUMP_TEXTURES * 8);
-    const texLumpLength = headerBuf.readInt32LE(4 + LUMP_TEXTURES * 8 + 4);
-
-    // Read texture lump header
-    const texHeaderBuf = Buffer.alloc(4);
-    await handle.read(texHeaderBuf, 0, 4, texLumpOffset);
-    const numTextures = texHeaderBuf.readInt32LE(0);
-
-    // Read texture offsets
-    const offsetsBuf = Buffer.alloc(numTextures * 4);
-    await handle.read(offsetsBuf, 0, numTextures * 4, texLumpOffset + 4);
-
-    const entries: GameFileEntry[] = [];
-
-    for (let i = 0; i < numTextures; i++) {
-      const texOffset = offsetsBuf.readInt32LE(i * 4);
-
-      // Skip unused entries (high bit set)
-      if (texOffset < 0 || texOffset === 0x80000000) {
-        continue;
-      }
-
-      // Read miptex header
-      const miptexBuf = Buffer.alloc(MIPTEX_HEADER_SIZE);
-      await handle.read(miptexBuf, 0, MIPTEX_HEADER_SIZE, texLumpOffset + texOffset);
-
-      // Parse name (16 bytes, null-terminated)
-      let nameEnd = 16;
-      for (let j = 0; j < 16; j++) {
-        if (miptexBuf[j] === 0) {
-          nameEnd = j;
-          break;
-        }
-      }
-      const name = miptexBuf.toString("ascii", 0, nameEnd);
-
-      const width = miptexBuf.readUInt32LE(16);
-      const height = miptexBuf.readUInt32LE(20);
-
-      // Calculate total size including all mip levels
-      // Mip sizes: w*h + (w/2)*(h/2) + (w/4)*(h/4) + (w/8)*(h/8) = w*h * 85/64
-      const totalPixels = Math.floor((width * height * 85) / 64);
-      const size = MIPTEX_HEADER_SIZE + totalPixels;
-
-      entries.push({
-        name,
-        offset: texLumpOffset + texOffset,
-        size,
-      });
-    }
-
-    return { type: "bsp", entries, textureCount: numTextures };
-  } finally {
-    await handle.close();
+  // Check for Quake 2 format (IBSP magic)
+  if (firstInt === BSP_MAGIC_Q2) {
+    const q2Version = data.readInt32LE(4);
+    throw new Error(
+      `Quake 2/3 BSP format (IBSP v${q2Version}) not yet supported. ` +
+      `Quake 2+ BSPs store textures externally in WAL files, not embedded in the BSP.`
+    );
   }
+
+  // Check for Quake 1 format (version number directly)
+  if (firstInt !== BSP_VERSION_Q1) {
+    throw new Error(
+      `Unsupported BSP version: ${firstInt}. ` +
+      `Only Quake 1 BSP (version 29) with embedded textures is currently supported.`
+    );
+  }
+
+  // Get texture lump info (lump 2)
+  const texLumpOffset = data.readInt32LE(4 + LUMP_TEXTURES * 8);
+  const texLumpLength = data.readInt32LE(4 + LUMP_TEXTURES * 8 + 4);
+
+  // Read texture lump header
+  const numTextures = data.readInt32LE(texLumpOffset);
+
+  const entries: GameFileEntry[] = [];
+
+  for (let i = 0; i < numTextures; i++) {
+    const texOffset = data.readInt32LE(texLumpOffset + 4 + i * 4);
+
+    // Skip unused entries (high bit set)
+    if (texOffset < 0 || texOffset === 0x80000000) {
+      continue;
+    }
+
+    const miptexOffset = texLumpOffset + texOffset;
+
+    // Parse name (16 bytes, null-terminated)
+    let nameEnd = 16;
+    for (let j = 0; j < 16; j++) {
+      if (data[miptexOffset + j] === 0) {
+        nameEnd = j;
+        break;
+      }
+    }
+    const name = data.toString("ascii", miptexOffset, miptexOffset + nameEnd);
+
+    const width = data.readUInt32LE(miptexOffset + 16);
+    const height = data.readUInt32LE(miptexOffset + 20);
+
+    // Calculate total size including all mip levels
+    // Mip sizes: w*h + (w/2)*(h/2) + (w/4)*(h/4) + (w/8)*(h/8) = w*h * 85/64
+    const totalPixels = Math.floor((width * height * 85) / 64);
+    const size = MIPTEX_HEADER_SIZE + totalPixels;
+
+    entries.push({
+      name,
+      offset: miptexOffset,
+      size,
+    });
+  }
+
+  return { type: "bsp", entries, textureCount: numTextures };
 }
 
 export async function extractBspTexture(
   filePath: string,
   entry: GameFileEntry
 ): Promise<ExtractedTexture> {
-  const handle = await open(filePath, "r");
+  const data = await readFile(filePath);
+  return extractBspTextureFromBuffer(data, entry);
+}
 
-  try {
-    // Read miptex header
-    const headerBuf = Buffer.alloc(MIPTEX_HEADER_SIZE);
-    await handle.read(headerBuf, 0, MIPTEX_HEADER_SIZE, entry.offset);
+/**
+ * Extract BSP texture from a buffer (for embedded BSPs in PAK/PK3 files)
+ */
+export function extractBspTextureFromBuffer(
+  data: Buffer,
+  entry: GameFileEntry
+): ExtractedTexture {
+  const width = data.readUInt32LE(entry.offset + 16);
+  const height = data.readUInt32LE(entry.offset + 20);
+  const mip0Offset = data.readUInt32LE(entry.offset + 24); // First mip level offset
 
-    const width = headerBuf.readUInt32LE(16);
-    const height = headerBuf.readUInt32LE(20);
-    const mip0Offset = headerBuf.readUInt32LE(24); // First mip level offset
+  // Read only mip level 0 (full resolution)
+  const pixelCount = width * height;
+  const pixelData = data.subarray(
+    entry.offset + mip0Offset,
+    entry.offset + mip0Offset + pixelCount
+  );
 
-    // Read only mip level 0 (full resolution)
-    const pixelCount = width * height;
-    const pixelData = Buffer.alloc(pixelCount);
-    await handle.read(pixelData, 0, pixelCount, entry.offset + mip0Offset);
-
-    return {
-      name: entry.name,
-      width,
-      height,
-      data: pixelData,
-      format: "miptex",
-    };
-  } finally {
-    await handle.close();
-  }
+  return {
+    name: entry.name,
+    width,
+    height,
+    data: Buffer.from(pixelData), // Copy to avoid issues with subarray
+    format: "miptex",
+  };
 }
 
 // ============================================================================
@@ -582,4 +573,18 @@ export function isTextureEntry(entry: GameFileEntry): boolean {
 
   const textureExts = [".tga", ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".pcx", ".wal"];
   return textureExts.some((ext) => lower.endsWith(ext));
+}
+
+/**
+ * Check if an entry is a BSP file
+ */
+export function isBspEntry(entry: GameFileEntry): boolean {
+  return entry.name.toLowerCase().endsWith(".bsp");
+}
+
+/**
+ * Filter entries to only BSP files
+ */
+export function filterBspEntries(entries: GameFileEntry[]): GameFileEntry[] {
+  return entries.filter((e) => !e.isDirectory && isBspEntry(e));
 }

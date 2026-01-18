@@ -14,6 +14,10 @@ import {
   miptexToPng,
   filterTextureEntries,
   isTextureEntry,
+  isBspEntry,
+  filterBspEntries,
+  parseBspBuffer,
+  extractBspTextureFromBuffer,
 } from "~/lib/gamefiles.server";
 
 const TEMP_DIR = join(process.cwd(), "tmp", "uploads");
@@ -39,9 +43,10 @@ interface ExtractResult {
   parsed?: {
     type: string;
     tempFile: string; // Filename of temp file for import step
-    entries: Array<{ name: string; size: number; isTexture: boolean }>;
+    entries: Array<{ name: string; size: number; isTexture: boolean; isBsp: boolean }>;
     totalEntries: number;
     textureEntries: number;
+    bspEntries: number; // BSP files inside PAK/PK3
   };
   imported?: {
     count: number;
@@ -99,6 +104,10 @@ async function handleUpload(formData: FormData): Promise<ExtractResult> {
       parsed.type === "bsp"
         ? parsed.entries // BSP entries are all textures
         : filterTextureEntries(parsed.entries);
+    
+    // Get BSP entries (only for PAK/PK3)
+    const bspEntries =
+      parsed.type === "bsp" ? [] : filterBspEntries(parsed.entries);
 
     // Return parsed info for preview
     return {
@@ -109,9 +118,11 @@ async function handleUpload(formData: FormData): Promise<ExtractResult> {
           name: e.name,
           size: e.size,
           isTexture: parsed.type === "bsp" || isTextureEntry(e),
+          isBsp: isBspEntry(e),
         })),
         totalEntries: parsed.entries.length,
         textureEntries: textureEntries.length,
+        bspEntries: bspEntries.length,
       },
     };
   } catch (err) {
@@ -165,15 +176,44 @@ async function handleImport(formData: FormData): Promise<ExtractResult> {
       folder = newFolder;
     }
 
+    const folderId = folder.id; // Capture for closure
+
     await mkdir(UPLOADS_DIR, { recursive: true });
 
     let importedCount = 0;
 
-    // Get entries to import
-    const entries =
+    // Helper to save a texture
+    async function saveTexture(
+      imageBuffer: Buffer,
+      filename: string,
+      originalName: string,
+      mimeType: string,
+      source: string
+    ) {
+      await writeFile(join(UPLOADS_DIR, filename), imageBuffer);
+      await db.insert(textures).values({
+        id: nanoid(),
+        filename,
+        originalName,
+        mimeType,
+        size: imageBuffer.length,
+        folderId,
+        uploaderId: null,
+        source,
+      });
+      importedCount++;
+    }
+
+    // Get texture entries to import
+    const textureEntries =
       parsed.type === "bsp" ? parsed.entries : filterTextureEntries(parsed.entries);
 
-    for (const entry of entries) {
+    // Get BSP entries (for PAK/PK3 only)
+    const bspEntries =
+      parsed.type === "bsp" ? [] : filterBspEntries(parsed.entries);
+
+    // Import direct texture entries
+    for (const entry of textureEntries) {
       try {
         let imageBuffer: Buffer;
         let filename: string;
@@ -199,27 +239,62 @@ async function handleImport(formData: FormData): Promise<ExtractResult> {
           continue;
         }
 
-        // Save file
-        await writeFile(join(UPLOADS_DIR, filename), imageBuffer);
-
-        // Create texture record
         const originalName =
           entry.name.split("/").pop() || entry.name.split("\\").pop() || entry.name;
 
-        await db.insert(textures).values({
-          id: nanoid(),
-          filename,
-          originalName,
-          mimeType,
-          size: imageBuffer.length,
-          folderId: folder.id,
-          uploaderId: null,
-          source: `extracted-${parsed.type}`,
-        });
-
-        importedCount++;
+        await saveTexture(imageBuffer, filename, originalName, mimeType, `extracted-${parsed.type}`);
       } catch (err) {
         console.error(`Failed to extract ${entry.name}:`, err);
+      }
+    }
+
+    // Import textures from embedded BSP files (PAK/PK3 only)
+    for (const bspEntry of bspEntries) {
+      try {
+        // Extract the BSP file
+        let bspBuffer: Buffer;
+        if (parsed.type === "pak") {
+          bspBuffer = await extractPakEntry(tempPath, bspEntry);
+        } else if (parsed.type === "pk3") {
+          bspBuffer = await extractPk3Entry(tempPath, bspEntry);
+        } else {
+          continue;
+        }
+
+        // Parse the BSP to get its textures
+        let bspParsed;
+        try {
+          bspParsed = parseBspBuffer(bspBuffer);
+        } catch (err) {
+          // BSP might be Q2/Q3 format without embedded textures, skip
+          console.log(`Skipping BSP ${bspEntry.name}: ${err}`);
+          continue;
+        }
+
+        const bspName = bspEntry.name.split("/").pop() || bspEntry.name;
+        console.log(`Extracting ${bspParsed.entries.length} textures from BSP: ${bspName}`);
+
+        // Extract each texture from the BSP
+        for (const texEntry of bspParsed.entries) {
+          try {
+            const texture = extractBspTextureFromBuffer(bspBuffer, texEntry);
+            const imageBuffer = await miptexToPng(texture);
+            const filename = `${nanoid()}.png`;
+            const originalName = `${texEntry.name}.png`;
+
+            await saveTexture(
+              imageBuffer,
+              filename,
+              originalName,
+              "image/png",
+              `extracted-${parsed.type}-bsp`
+            );
+          } catch (err) {
+            console.error(`Failed to extract ${texEntry.name} from BSP ${bspName}:`, err);
+          }
+        }
+      } catch (err) {
+        console.error(`Failed to process BSP ${bspEntry.name}:`, err);
       }
     }
 
@@ -336,6 +411,12 @@ export default function AdminExtract() {
                 <dd>{actionData.parsed.totalEntries}</dd>
                 <dt>Texture Entries</dt>
                 <dd>{actionData.parsed.textureEntries}</dd>
+                {actionData.parsed.bspEntries > 0 && (
+                  <>
+                    <dt>BSP Maps</dt>
+                    <dd>{actionData.parsed.bspEntries} (textures will be extracted)</dd>
+                  </>
+                )}
               </dl>
 
               <details style={{ marginTop: "1rem" }}>
@@ -356,13 +437,18 @@ export default function AdminExtract() {
                       key={i}
                       style={{
                         padding: "0.25rem",
-                        background: e.isTexture ? "#f0fff0" : "transparent",
+                        background: e.isBsp
+                          ? "#f0f0ff"
+                          : e.isTexture
+                          ? "#f0fff0"
+                          : "transparent",
                         borderBottom: "1px solid #eee",
                       }}
                     >
                       {e.name}{" "}
                       <span style={{ color: "#999" }}>
                         ({(e.size / 1024).toFixed(1)}KB)
+                        {e.isBsp && " [BSP]"}
                       </span>
                     </div>
                   ))}
