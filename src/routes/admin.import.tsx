@@ -2,10 +2,27 @@ import { Form, redirect, useLoaderData, useActionData } from "react-router";
 import type { Route } from "./+types/admin.import";
 import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
 import { db, textures, collections, tags, textureTags } from "~/db";
-import { eq } from "drizzle-orm";
+import { eq, count } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
+
+// Import sources configuration
+const IMPORT_SOURCES = [
+  {
+    id: "texturetown",
+    name: "TextureTown",
+    description: "textures.neocities.org - 3800+ retro textures",
+    url: "https://textures.neocities.org/",
+  },
+  // Future sources can be added here
+  // {
+  //   id: "opengameart",
+  //   name: "OpenGameArt",
+  //   description: "opengameart.org - Free game assets",
+  //   url: "https://opengameart.org/",
+  // },
+];
 
 interface TextureTownManifest {
   info: {
@@ -32,11 +49,10 @@ export async function loader({ request }: Route.LoaderArgs) {
     return redirect("/dashboard");
   }
 
-  // Fetch TextureTown manifest
-  const res = await fetch("https://textures.neocities.org/manifest.json");
-  const manifest: TextureTownManifest = await res.json();
+  // Get current texture count
+  const [{ total }] = await db.select({ total: count() }).from(textures);
 
-  return { user, manifest };
+  return { user, sources: IMPORT_SOURCES, textureCount: total };
 }
 
 export async function action({ request }: Route.ActionArgs) {
@@ -48,133 +64,145 @@ export async function action({ request }: Route.ActionArgs) {
   }
 
   const formData = await request.formData();
-  const category = formData.get("category") as string;
-  const limit = parseInt(formData.get("limit") as string) || 10;
+  const source = formData.get("source") as string;
 
-  if (!category) {
-    return { error: "Select a category" };
+  if (source === "texturetown") {
+    return await importTextureTown(user.id);
   }
 
+  return { error: "Unknown import source" };
+}
+
+async function importTextureTown(userId: string) {
   // Fetch manifest
   const res = await fetch("https://textures.neocities.org/manifest.json");
   const manifest: TextureTownManifest = await res.json();
 
-  const cat = manifest.catalogue.find((c) => c.name === category);
-  if (!cat) {
-    return { error: "Category not found" };
-  }
-
-  // Create or find collection for this category
-  let collection = await db.query.collections.findFirst({
-    where: eq(collections.name, `TextureTown: ${cat.niceName}`),
-  });
-
-  if (!collection) {
-    const [newCollection] = await db
-      .insert(collections)
-      .values({
-        id: nanoid(),
-        name: `TextureTown: ${cat.niceName}`,
-        description: `Imported from TextureTown - ${cat.niceName}`,
-        ownerId: user.id,
-        visibility: "public",
-      })
-      .returning();
-    collection = newCollection;
-  }
-
-  // Create tag for this category
-  const tagSlug = cat.name;
-  let tag = await db.query.tags.findFirst({
-    where: eq(tags.slug, tagSlug),
-  });
-
-  if (!tag) {
-    const [newTag] = await db
-      .insert(tags)
-      .values({
-        id: nanoid(),
-        name: cat.niceName,
-        slug: tagSlug,
-      })
-      .returning();
-    tag = newTag;
-  }
-
-  // Import textures
   const uploadsDir = join(process.cwd(), "public", "uploads");
   await mkdir(uploadsDir, { recursive: true });
 
-  let imported = 0;
-  const files = cat.files.slice(0, limit);
+  let totalImported = 0;
+  let totalSkipped = 0;
+  const errors: string[] = [];
 
-  for (const file of files) {
-    try {
-      const url = `${manifest.info.base_url}/${manifest.info.textures_folder}/${cat.name}/${file}`;
-      
-      // Check if already imported
-      const existing = await db.query.textures.findFirst({
-        where: eq(textures.sourceUrl, url),
-      });
+  // Import ALL categories
+  for (const cat of manifest.catalogue) {
+    // Create or find collection for this category
+    let collection = await db.query.collections.findFirst({
+      where: eq(collections.name, `TextureTown: ${cat.niceName}`),
+    });
 
-      if (existing) {
-        continue;
-      }
-
-      // Download the texture
-      const imgRes = await fetch(url);
-      if (!imgRes.ok) continue;
-
-      const buffer = Buffer.from(await imgRes.arrayBuffer());
-      const ext = file.split(".").pop()?.toLowerCase() || "jpg";
-      const filename = `${nanoid()}.${ext}`;
-
-      await writeFile(join(uploadsDir, filename), buffer);
-
-      // Determine mime type
-      const mimeMap: Record<string, string> = {
-        jpg: "image/jpeg",
-        jpeg: "image/jpeg",
-        gif: "image/gif",
-        png: "image/png",
-        webp: "image/webp",
-      };
-
-      const [texture] = await db
-        .insert(textures)
+    if (!collection) {
+      const [newCollection] = await db
+        .insert(collections)
         .values({
           id: nanoid(),
-          filename,
-          originalName: file,
-          mimeType: mimeMap[ext] || "image/jpeg",
-          size: buffer.length,
-          collectionId: collection.id,
-          uploaderId: user.id,
-          sourceUrl: url,
+          name: `TextureTown: ${cat.niceName}`,
+          description: `Imported from TextureTown - ${cat.niceName}`,
+          ownerId: userId,
+          visibility: "public",
         })
         .returning();
+      collection = newCollection;
+    }
 
-      // Add tag
-      await db.insert(textureTags).values({
-        textureId: texture.id,
-        tagId: tag.id,
-      }).onConflictDoNothing();
+    // Create tag for this category
+    const tagSlug = cat.name;
+    let tag = await db.query.tags.findFirst({
+      where: eq(tags.slug, tagSlug),
+    });
 
-      imported++;
-    } catch (e) {
-      console.error(`Failed to import ${file}:`, e);
+    if (!tag) {
+      const [newTag] = await db
+        .insert(tags)
+        .values({
+          id: nanoid(),
+          name: cat.niceName,
+          slug: tagSlug,
+        })
+        .returning();
+      tag = newTag;
+    }
+
+    // Import ALL files in this category
+    for (const file of cat.files) {
+      try {
+        const url = `${manifest.info.base_url}/${manifest.info.textures_folder}/${cat.name}/${file}`;
+
+        // Check if already imported
+        const existing = await db.query.textures.findFirst({
+          where: eq(textures.sourceUrl, url),
+        });
+
+        if (existing) {
+          totalSkipped++;
+          continue;
+        }
+
+        // Download the texture
+        const imgRes = await fetch(url);
+        if (!imgRes.ok) {
+          errors.push(`Failed to fetch ${file}`);
+          continue;
+        }
+
+        const buffer = Buffer.from(await imgRes.arrayBuffer());
+        const ext = file.split(".").pop()?.toLowerCase() || "jpg";
+        const filename = `${nanoid()}.${ext}`;
+
+        await writeFile(join(uploadsDir, filename), buffer);
+
+        // Determine mime type
+        const mimeMap: Record<string, string> = {
+          jpg: "image/jpeg",
+          jpeg: "image/jpeg",
+          gif: "image/gif",
+          png: "image/png",
+          webp: "image/webp",
+        };
+
+        const [texture] = await db
+          .insert(textures)
+          .values({
+            id: nanoid(),
+            filename,
+            originalName: file,
+            mimeType: mimeMap[ext] || "image/jpeg",
+            size: buffer.length,
+            collectionId: collection.id,
+            uploaderId: userId,
+            sourceUrl: url,
+          })
+          .returning();
+
+        // Add tag
+        await db
+          .insert(textureTags)
+          .values({
+            textureId: texture.id,
+            tagId: tag.id,
+          })
+          .onConflictDoNothing();
+
+        totalImported++;
+      } catch (e) {
+        errors.push(`Error importing ${file}: ${e}`);
+      }
     }
   }
 
-  return { success: `Imported ${imported} textures from ${cat.niceName}` };
+  return {
+    success: `Imported ${totalImported} textures from TextureTown (${totalSkipped} already existed)`,
+    errors: errors.length > 0 ? errors.slice(0, 10) : undefined,
+  };
 }
 
 export function meta() {
-  return [{ title: "Import Textures - Admin - artbin" }];
+  return [{ title: "Import - Admin - artbin" }];
 }
 
 export default function AdminImport() {
-  const { user, manifest } = useLoaderData<typeof loader>();
+  const { sources, textureCount } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
 
   return (
@@ -197,75 +225,84 @@ export default function AdminImport() {
 
       <main className="max-w-4xl mx-auto p-8">
         <h2 className="text-3xl font-bold text-center text-yellow mb-2">
-          :: Import from TextureTown ::
+          :: Import Textures ::
         </h2>
         <p className="text-center text-sm mb-4">
-          Total available: {manifest.info.texture_count} textures
+          Current library: {textureCount} textures
         </p>
         <hr className="hr-rainbow my-4" />
 
-        {actionData?.error && (
-          <div className="box-warning mb-4 text-center">
-            {actionData.error}
+        {"error" in (actionData || {}) && (
+          <div className="box-warning mb-4 text-center">{(actionData as { error: string }).error}</div>
+        )}
+
+        {"success" in (actionData || {}) && (
+          <div className="box-highlight mb-4">
+            <p className="text-center font-bold">{(actionData as { success: string; errors?: string[] }).success}</p>
+            {(actionData as { success: string; errors?: string[] }).errors && (actionData as { success: string; errors?: string[] }).errors!.length > 0 && (
+              <div className="mt-2 text-sm text-yellow">
+                <p>Some errors occurred:</p>
+                <ul className="list-disc list-inside">
+                  {(actionData as { success: string; errors?: string[] }).errors!.map((err: string, i: number) => (
+                    <li key={i}>{err}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         )}
 
-        {actionData?.success && (
-          <div className="box-highlight mb-4 text-center">
-            {actionData.success}
-          </div>
-        )}
-
-        <div className="box-retro">
-          <Form method="post" className="space-y-4">
-            <div>
-              <label htmlFor="category" className="block text-lime mb-1">
-                Category:
-              </label>
-              <select
-                id="category"
-                name="category"
-                required
-                className="input-retro w-full"
-              >
-                <option value="">-- Select Category --</option>
-                {manifest.catalogue.map((cat) => (
-                  <option key={cat.name} value={cat.name}>
-                    {cat.niceName} ({cat.files.length} textures)
-                  </option>
-                ))}
-              </select>
+        {/* Import Sources */}
+        <div className="space-y-4">
+          {sources.map((source) => (
+            <div key={source.id} className="box-retro">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h3 className="text-xl font-bold text-lime">{source.name}</h3>
+                  <p className="text-sm text-gray mb-2">{source.description}</p>
+                  <a
+                    href={source.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs"
+                  >
+                    {source.url}
+                  </a>
+                </div>
+                <Form method="post">
+                  <input type="hidden" name="source" value={source.id} />
+                  <button
+                    type="submit"
+                    className="btn btn-danger"
+                    onClick={(e) => {
+                      if (
+                        !confirm(
+                          `Import ALL textures from ${source.name}? This may take a while.`
+                        )
+                      ) {
+                        e.preventDefault();
+                      }
+                    }}
+                  >
+                    Import All
+                  </button>
+                </Form>
+              </div>
             </div>
-
-            <div>
-              <label htmlFor="limit" className="block text-lime mb-1">
-                Import Limit:
-              </label>
-              <select id="limit" name="limit" className="input-retro w-full">
-                <option value="5">5 textures</option>
-                <option value="10">10 textures</option>
-                <option value="25">25 textures</option>
-                <option value="50">50 textures</option>
-                <option value="100">100 textures</option>
-              </select>
-            </div>
-
-            <button type="submit" className="btn btn-danger w-full">
-              Import Textures
-            </button>
-          </Form>
+          ))}
         </div>
 
-        <div className="mt-8">
-          <h3 className="text-xl font-bold text-fuchsia mb-4">Categories:</h3>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-            {manifest.catalogue.map((cat) => (
-              <div key={cat.name} className="p-2 border-2 border-fuchsia text-sm">
-                <span className="text-lime">{cat.niceName}</span>
-                <span className="text-gray ml-2">({cat.files.length})</span>
-              </div>
-            ))}
-          </div>
+        <hr className="hr-dashed my-8" />
+
+        <div className="box-inset">
+          <h3 className="text-lg font-bold mb-2">How Import Works</h3>
+          <ul className="list-disc list-inside text-sm space-y-1">
+            <li>Downloads all textures from the source</li>
+            <li>Creates collections for each category</li>
+            <li>Auto-tags textures by category</li>
+            <li>Skips textures already imported (by URL)</li>
+            <li>May take several minutes for large sources</li>
+          </ul>
         </div>
 
         <hr className="hr-dashed my-8" />
