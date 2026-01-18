@@ -10,15 +10,14 @@ interface HeaderProps {
 export function Header({ user }: HeaderProps) {
   return (
     <header className="header">
-      <a href={user ? "/textures" : "/"} className="header-logo">
+      <a href={user ? "/folders" : "/"} className="header-logo">
         artbin
       </a>
       <nav className="header-nav">
         {user ? (
           <>
-            <a href="/textures" className="header-link">textures</a>
-            <a href="/models" className="header-link">models</a>
             <a href="/folders" className="header-link">folders</a>
+            <a href="/moodboards" className="header-link">moodboards</a>
             <a href="/upload" className="btn btn-sm">upload</a>
             <a href="/settings" className="header-link">@{user.username}</a>
             {user.isAdmin && <span className="badge-admin">admin</span>}

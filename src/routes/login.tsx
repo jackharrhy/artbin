@@ -7,7 +7,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   const sessionId = parseSessionCookie(request.headers.get("Cookie"));
   const user = await getUserFromSession(sessionId);
   if (user) {
-    return redirect("/textures");
+    return redirect("/folders");
   }
   return null;
 }
@@ -23,7 +23,7 @@ export async function action({ request }: Route.ActionArgs) {
     return { error: result.error };
   }
 
-  return redirect("/textures", {
+  return redirect("/folders", {
     headers: {
       "Set-Cookie": getSessionCookie(result.session!.id),
     },

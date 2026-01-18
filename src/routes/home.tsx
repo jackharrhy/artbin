@@ -7,9 +7,9 @@ export async function loader({ request }: Route.LoaderArgs) {
   const sessionId = parseSessionCookie(request.headers.get("Cookie"));
   const user = await getUserFromSession(sessionId);
   
-  // If logged in, go straight to textures
+  // If logged in, go straight to folders
   if (user) {
-    return redirect("/textures");
+    return redirect("/folders");
   }
   
   return null;
