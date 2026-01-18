@@ -6,6 +6,14 @@ import { eq } from "drizzle-orm";
 import { Header } from "~/components/Header";
 import { basename, dirname, extname } from "path";
 
+// Audio formats that browsers can play natively
+const WEB_PLAYABLE_AUDIO = ["mp3", "ogg", "wav", "m4a", "webm", "aac"];
+
+function isWebPlayableAudio(filename: string): boolean {
+  const ext = extname(filename).toLowerCase().slice(1);
+  return WEB_PLAYABLE_AUDIO.includes(ext);
+}
+
 export async function loader({ request, params }: Route.LoaderArgs) {
   const sessionId = parseSessionCookie(request.headers.get("Cookie"));
   const user = await getUserFromSession(sessionId);
@@ -167,11 +175,36 @@ export default function FileView() {
               </div>
             )}
 
-            {isAudio && (
-              <div style={{ padding: "2rem" }}>
-                <audio controls src={downloadUrl} style={{ width: "100%" }}>
+            {isAudio && isWebPlayableAudio(file.name) && (
+              <div style={{ padding: "2rem", textAlign: "center" }}>
+                <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>🔊</div>
+                <audio controls src={downloadUrl} style={{ width: "100%", maxWidth: "400px" }}>
                   Your browser does not support the audio element.
                 </audio>
+                <div style={{ marginTop: "1rem" }}>
+                  <a href={downloadUrl} className="btn" download>
+                    Download
+                  </a>
+                </div>
+              </div>
+            )}
+
+            {isAudio && !isWebPlayableAudio(file.name) && (
+              <div
+                style={{
+                  padding: "3rem",
+                  textAlign: "center",
+                  background: "#f5f5f5",
+                }}
+              >
+                <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>🔊</div>
+                <div style={{ marginBottom: "0.5rem" }}>{extname(file.name).slice(1).toUpperCase()} Audio</div>
+                <div style={{ fontSize: "0.875rem", color: "#666", marginBottom: "1rem" }}>
+                  This format cannot be played in the browser
+                </div>
+                <a href={downloadUrl} className="btn btn-primary" download>
+                  Download
+                </a>
               </div>
             )}
 
