@@ -18,6 +18,10 @@ import {
   filterBspEntries,
   parseBspBuffer,
   extractBspTextureFromBuffer,
+  parseWalBuffer,
+  isWalEntry,
+  filterWalEntries,
+  type ParsedBspFile,
 } from "~/lib/gamefiles.server";
 
 const TEMP_DIR = join(process.cwd(), "tmp", "uploads");
@@ -262,39 +266,133 @@ async function handleImport(formData: FormData): Promise<ExtractResult> {
         }
 
         // Parse the BSP to get its textures
-        let bspParsed;
+        let bspParsed: ParsedBspFile;
         try {
           bspParsed = parseBspBuffer(bspBuffer);
         } catch (err) {
-          // BSP might be Q2/Q3 format without embedded textures, skip
           console.log(`Skipping BSP ${bspEntry.name}: ${err}`);
           continue;
         }
 
         const bspName = bspEntry.name.split("/").pop() || bspEntry.name;
-        console.log(`Extracting ${bspParsed.entries.length} textures from BSP: ${bspName}`);
 
-        // Extract each texture from the BSP
-        for (const texEntry of bspParsed.entries) {
-          try {
-            const texture = extractBspTextureFromBuffer(bspBuffer, texEntry);
-            const imageBuffer = await miptexToPng(texture);
-            const filename = `${nanoid()}.png`;
-            const originalName = `${texEntry.name}.png`;
+        if (bspParsed.bspType === "q1") {
+          // Quake 1 BSP - textures are embedded as MIPTEX
+          console.log(`Extracting ${bspParsed.entries.length} embedded textures from Q1 BSP: ${bspName}`);
 
-            await saveTexture(
-              imageBuffer,
-              filename,
-              originalName,
-              "image/png",
-              `extracted-${parsed.type}-bsp`
-            );
-          } catch (err) {
-            console.error(`Failed to extract ${texEntry.name} from BSP ${bspName}:`, err);
+          for (const texEntry of bspParsed.entries) {
+            try {
+              const texture = extractBspTextureFromBuffer(bspBuffer, texEntry);
+              const imageBuffer = await miptexToPng(texture, false); // Q1 palette
+              const filename = `${nanoid()}.png`;
+              const originalName = `${texEntry.name}.png`;
+
+              await saveTexture(
+                imageBuffer,
+                filename,
+                originalName,
+                "image/png",
+                `extracted-${parsed.type}-bsp-q1`
+              );
+            } catch (err) {
+              console.error(`Failed to extract ${texEntry.name} from BSP ${bspName}:`, err);
+            }
+          }
+        } else if (bspParsed.bspType === "q2") {
+          // Quake 2 BSP - textures are external WAL files
+          // The BSP entries contain paths like "textures/e1u1/floor1.wal"
+          // We need to find these WAL files in the PAK/PK3
+          console.log(`Q2 BSP ${bspName} references ${bspParsed.entries.length} external textures`);
+
+          for (const texRef of bspParsed.entries) {
+            try {
+              // Find the WAL file in the archive
+              const walPath = texRef.name.toLowerCase();
+              const walEntry = parsed.entries.find(
+                (e) => e.name.toLowerCase() === walPath
+              );
+
+              if (!walEntry) {
+                // Try without textures/ prefix or with different casing
+                const altPaths = [
+                  walPath,
+                  walPath.replace("textures/", ""),
+                  `textures/${walPath}`,
+                ];
+                const found = parsed.entries.find((e) =>
+                  altPaths.some((p) => e.name.toLowerCase() === p || e.name.toLowerCase().endsWith(p))
+                );
+                if (!found) {
+                  continue; // WAL not found in archive
+                }
+              }
+
+              const targetEntry = walEntry || parsed.entries.find((e) =>
+                e.name.toLowerCase().includes(walPath.replace("textures/", ""))
+              );
+
+              if (!targetEntry) continue;
+
+              // Extract the WAL file
+              let walBuffer: Buffer;
+              if (parsed.type === "pak") {
+                walBuffer = await extractPakEntry(tempPath, targetEntry);
+              } else {
+                walBuffer = await extractPk3Entry(tempPath, targetEntry);
+              }
+
+              // Parse and convert WAL to PNG
+              const texture = parseWalBuffer(walBuffer);
+              const imageBuffer = await miptexToPng(texture, true); // Q2 palette
+              const filename = `${nanoid()}.png`;
+              const walName = targetEntry.name.split("/").pop() || targetEntry.name;
+              const originalName = walName.replace(/\.wal$/i, ".png");
+
+              await saveTexture(
+                imageBuffer,
+                filename,
+                originalName,
+                "image/png",
+                `extracted-${parsed.type}-bsp-q2`
+              );
+            } catch (err) {
+              console.error(`Failed to extract ${texRef.name} for BSP ${bspName}:`, err);
+            }
           }
         }
       } catch (err) {
         console.error(`Failed to process BSP ${bspEntry.name}:`, err);
+      }
+    }
+
+    // Also extract standalone WAL files from PAK (Quake 2 texture packs)
+    const walEntries = filterWalEntries(parsed.entries);
+    for (const walEntry of walEntries) {
+      try {
+        let walBuffer: Buffer;
+        if (parsed.type === "pak") {
+          walBuffer = await extractPakEntry(tempPath, walEntry);
+        } else if (parsed.type === "pk3") {
+          walBuffer = await extractPk3Entry(tempPath, walEntry);
+        } else {
+          continue;
+        }
+
+        const texture = parseWalBuffer(walBuffer);
+        const imageBuffer = await miptexToPng(texture, true); // Q2 palette
+        const filename = `${nanoid()}.png`;
+        const walName = walEntry.name.split("/").pop() || walEntry.name;
+        const originalName = walName.replace(/\.wal$/i, ".png");
+
+        await saveTexture(
+          imageBuffer,
+          filename,
+          originalName,
+          "image/png",
+          `extracted-${parsed.type}-wal`
+        );
+      } catch (err) {
+        console.error(`Failed to extract WAL ${walEntry.name}:`, err);
       }
     }
 

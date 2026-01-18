@@ -222,9 +222,18 @@ export async function extractPk3Entry(
 const BSP_VERSION_Q1 = 29; // 0x1D - Quake 1
 const BSP_MAGIC_Q2 = 0x50534249; // "IBSP" - Quake 2/3
 const BSP_VERSION_Q2 = 38; // Quake 2 version
-const LUMP_TEXTURES = 2;
+const BSP_VERSION_Q3 = 46; // Quake 3 version
+
+// Quake 1 lump indices
+const Q1_LUMP_TEXTURES = 2;
+
+// Quake 2 lump indices
+const Q2_LUMP_TEXINFO = 5;
+
 const MIPTEX_HEADER_SIZE = 40;
-const MIP_LEVELS = 4;
+
+// Quake 2 texinfo structure size (76 bytes)
+const Q2_TEXINFO_SIZE = 76;
 
 interface BspLump {
   offset: number;
@@ -238,6 +247,11 @@ interface MiptexHeader {
   offsets: number[]; // 4 mip level offsets
 }
 
+export interface ParsedBspFile extends ParsedGameFile {
+  bspType: "q1" | "q2" | "q3";
+  textureNames?: string[]; // For Q2/Q3 - external texture references
+}
+
 export async function parseBspFile(filePath: string): Promise<ParsedGameFile> {
   const data = await readFile(filePath);
   return parseBspBuffer(data);
@@ -246,29 +260,42 @@ export async function parseBspFile(filePath: string): Promise<ParsedGameFile> {
 /**
  * Parse BSP from a buffer (for embedded BSPs in PAK/PK3 files)
  */
-export function parseBspBuffer(data: Buffer): ParsedGameFile {
+export function parseBspBuffer(data: Buffer): ParsedBspFile {
   const firstInt = data.readInt32LE(0);
 
-  // Check for Quake 2 format (IBSP magic)
+  // Check for Quake 2/3 format (IBSP magic)
   if (firstInt === BSP_MAGIC_Q2) {
-    const q2Version = data.readInt32LE(4);
-    throw new Error(
-      `Quake 2/3 BSP format (IBSP v${q2Version}) not yet supported. ` +
-      `Quake 2+ BSPs store textures externally in WAL files, not embedded in the BSP.`
-    );
+    const version = data.readInt32LE(4);
+    if (version === BSP_VERSION_Q2) {
+      return parseQ2BspBuffer(data);
+    } else if (version === BSP_VERSION_Q3) {
+      throw new Error(
+        `Quake 3 BSP format (IBSP v${version}) not yet supported. ` +
+        `Q3 BSPs use shader references, not direct textures.`
+      );
+    } else {
+      throw new Error(`Unknown IBSP version: ${version}`);
+    }
   }
 
   // Check for Quake 1 format (version number directly)
-  if (firstInt !== BSP_VERSION_Q1) {
-    throw new Error(
-      `Unsupported BSP version: ${firstInt}. ` +
-      `Only Quake 1 BSP (version 29) with embedded textures is currently supported.`
-    );
+  if (firstInt === BSP_VERSION_Q1) {
+    return parseQ1BspBuffer(data);
   }
 
+  throw new Error(
+    `Unsupported BSP format. First bytes: 0x${firstInt.toString(16)}. ` +
+    `Supported: Quake 1 (v29), Quake 2 (IBSP v38).`
+  );
+}
+
+/**
+ * Parse Quake 1 BSP (version 29) with embedded MIPTEX textures
+ */
+function parseQ1BspBuffer(data: Buffer): ParsedBspFile {
   // Get texture lump info (lump 2)
-  const texLumpOffset = data.readInt32LE(4 + LUMP_TEXTURES * 8);
-  const texLumpLength = data.readInt32LE(4 + LUMP_TEXTURES * 8 + 4);
+  const texLumpOffset = data.readInt32LE(4 + Q1_LUMP_TEXTURES * 8);
+  const texLumpLength = data.readInt32LE(4 + Q1_LUMP_TEXTURES * 8 + 4);
 
   // Read texture lump header
   const numTextures = data.readInt32LE(texLumpOffset);
@@ -310,7 +337,72 @@ export function parseBspBuffer(data: Buffer): ParsedGameFile {
     });
   }
 
-  return { type: "bsp", entries, textureCount: numTextures };
+  return { type: "bsp", bspType: "q1", entries, textureCount: numTextures };
+}
+
+/**
+ * Parse Quake 2 BSP (IBSP v38) - textures are external WAL files
+ * Returns texture name references that need to be resolved from PAK/filesystem
+ */
+function parseQ2BspBuffer(data: Buffer): ParsedBspFile {
+  // Q2 BSP header: magic (4) + version (4) + 19 lumps (8 bytes each)
+  // Lump format: offset (4) + length (4)
+  const headerSize = 8 + 19 * 8;
+
+  // Get texinfo lump (lump 5)
+  const texinfoOffset = data.readInt32LE(8 + Q2_LUMP_TEXINFO * 8);
+  const texinfoLength = data.readInt32LE(8 + Q2_LUMP_TEXINFO * 8 + 4);
+
+  const numTexinfos = Math.floor(texinfoLength / Q2_TEXINFO_SIZE);
+
+  // Extract unique texture names from texinfo entries
+  const textureNames = new Set<string>();
+  const entries: GameFileEntry[] = [];
+
+  for (let i = 0; i < numTexinfos; i++) {
+    const entryOffset = texinfoOffset + i * Q2_TEXINFO_SIZE;
+
+    // texinfo_t structure:
+    // float vecs[2][4] - 32 bytes (texture vectors)
+    // int flags - 4 bytes
+    // int value - 4 bytes
+    // char texture[32] - 32 bytes (texture name, null-terminated)
+    // int nexttexinfo - 4 bytes
+    // Total: 76 bytes
+
+    const textureNameOffset = entryOffset + 32 + 4 + 4; // After vecs, flags, value
+
+    // Parse texture name (32 bytes, null-terminated)
+    let nameEnd = 32;
+    for (let j = 0; j < 32; j++) {
+      if (data[textureNameOffset + j] === 0) {
+        nameEnd = j;
+        break;
+      }
+    }
+    const name = data.toString("ascii", textureNameOffset, textureNameOffset + nameEnd);
+
+    // Skip empty names or duplicates
+    if (name && !textureNames.has(name)) {
+      textureNames.add(name);
+
+      // Create an entry for each unique texture
+      // Note: offset/size are not meaningful for Q2 since textures are external
+      entries.push({
+        name: `textures/${name}.wal`, // Q2 textures are in textures/ folder as .wal files
+        offset: 0,
+        size: 0,
+      });
+    }
+  }
+
+  return {
+    type: "bsp",
+    bspType: "q2",
+    entries,
+    textureCount: entries.length,
+    textureNames: Array.from(textureNames),
+  };
 }
 
 export async function extractBspTexture(
@@ -322,7 +414,8 @@ export async function extractBspTexture(
 }
 
 /**
- * Extract BSP texture from a buffer (for embedded BSPs in PAK/PK3 files)
+ * Extract Q1 BSP texture from a buffer (for embedded BSPs in PAK/PK3 files)
+ * Only works for Quake 1 BSPs with embedded MIPTEX
  */
 export function extractBspTextureFromBuffer(
   data: Buffer,
@@ -349,12 +442,77 @@ export function extractBspTextureFromBuffer(
 }
 
 // ============================================================================
-// Quake Palette for MIPTEX conversion
+// WAL Format Parser (Quake 2 textures)
+// ============================================================================
+
+/**
+ * WAL file header structure (100 bytes):
+ * char name[32]      - texture name
+ * uint32 width       - texture width
+ * uint32 height      - texture height
+ * uint32 offsets[4]  - mipmap offsets
+ * char animname[32]  - next frame in animation (or empty)
+ * int32 flags        - surface flags
+ * int32 contents     - content flags
+ * int32 value        - light value
+ */
+const WAL_HEADER_SIZE = 100;
+
+/**
+ * Parse a WAL texture file (Quake 2 format)
+ */
+export function parseWalBuffer(data: Buffer): ExtractedTexture {
+  if (data.length < WAL_HEADER_SIZE) {
+    throw new Error("WAL file too small");
+  }
+
+  // Parse name (32 bytes, null-terminated)
+  let nameEnd = 32;
+  for (let j = 0; j < 32; j++) {
+    if (data[j] === 0) {
+      nameEnd = j;
+      break;
+    }
+  }
+  const name = data.toString("ascii", 0, nameEnd);
+
+  const width = data.readUInt32LE(32);
+  const height = data.readUInt32LE(36);
+  const mip0Offset = data.readUInt32LE(40); // First mipmap offset
+
+  // Read mip level 0 (full resolution)
+  const pixelCount = width * height;
+  const pixelData = data.subarray(mip0Offset, mip0Offset + pixelCount);
+
+  return {
+    name,
+    width,
+    height,
+    data: Buffer.from(pixelData),
+    format: "miptex", // Uses same palette-indexed format, but with Q2 palette
+  };
+}
+
+/**
+ * Check if an entry is a WAL texture file
+ */
+export function isWalEntry(entry: GameFileEntry): boolean {
+  return entry.name.toLowerCase().endsWith(".wal");
+}
+
+/**
+ * Filter entries to only WAL texture files
+ */
+export function filterWalEntries(entries: GameFileEntry[]): GameFileEntry[] {
+  return entries.filter((e) => !e.isDirectory && isWalEntry(e));
+}
+
+// ============================================================================
+// Quake Palettes for MIPTEX/WAL conversion
 // ============================================================================
 
 // Standard Quake 1 palette (256 RGB triplets)
-// This is the default quake palette - textures use indices into this
-const QUAKE_PALETTE: number[] = [
+const QUAKE1_PALETTE: number[] = [
   0, 0, 0, 15, 15, 15, 31, 31, 31, 47, 47, 47, 63, 63, 63, 75, 75, 75, 91, 91, 91,
   107, 107, 107, 123, 123, 123, 139, 139, 139, 155, 155, 155, 171, 171, 171, 187,
   187, 187, 203, 203, 203, 219, 219, 219, 235, 235, 235, 15, 11, 7, 23, 15, 11,
@@ -398,22 +556,69 @@ const QUAKE_PALETTE: number[] = [
   247, 199, 255, 255, 255, 159, 91, 83,
 ];
 
-/**
- * Convert MIPTEX palette-indexed pixels to PNG buffer
- */
-export async function miptexToPng(texture: ExtractedTexture): Promise<Buffer> {
-  // We'll create a simple PNG manually or use a library
-  // For now, let's create raw RGBA data and use sharp if available
-  // Fallback: create a BMP or raw buffer
+// Quake 2 palette (256 RGB triplets) - from colormap.pcx
+const QUAKE2_PALETTE: number[] = [
+  0, 0, 0, 15, 15, 15, 31, 31, 31, 47, 47, 47, 63, 63, 63, 75, 75, 75, 91, 91, 91,
+  107, 107, 107, 123, 123, 123, 139, 139, 139, 155, 155, 155, 171, 171, 171, 187,
+  187, 187, 203, 203, 203, 219, 219, 219, 235, 235, 235, 99, 75, 35, 91, 67, 31,
+  83, 63, 31, 79, 59, 27, 71, 55, 27, 63, 47, 23, 59, 43, 23, 51, 39, 19, 47, 35,
+  19, 43, 31, 19, 39, 27, 15, 35, 23, 15, 27, 19, 11, 23, 15, 11, 19, 15, 7, 15,
+  11, 7, 95, 95, 111, 91, 91, 103, 91, 83, 95, 87, 79, 91, 83, 75, 83, 79, 71, 75,
+  71, 63, 67, 63, 59, 59, 59, 55, 55, 51, 47, 47, 47, 43, 43, 39, 39, 39, 35, 35,
+  35, 27, 27, 27, 23, 23, 23, 19, 19, 19, 143, 119, 83, 123, 99, 67, 115, 91, 59,
+  103, 79, 47, 207, 151, 75, 167, 123, 59, 139, 103, 47, 111, 83, 39, 235, 159,
+  39, 203, 139, 35, 175, 119, 31, 147, 99, 27, 119, 79, 23, 91, 59, 15, 63, 39,
+  11, 35, 23, 7, 167, 59, 43, 159, 47, 35, 151, 43, 27, 139, 39, 19, 127, 31, 15,
+  115, 23, 11, 103, 23, 7, 87, 19, 0, 75, 15, 0, 67, 15, 0, 59, 15, 0, 51, 11, 0,
+  43, 11, 0, 35, 11, 0, 27, 7, 0, 19, 7, 0, 123, 95, 75, 115, 87, 67, 107, 83, 63,
+  103, 79, 59, 95, 71, 55, 87, 67, 51, 83, 63, 47, 75, 55, 43, 67, 51, 39, 63, 47,
+  35, 55, 39, 27, 47, 35, 23, 39, 27, 19, 31, 23, 15, 23, 15, 11, 15, 11, 7, 111,
+  59, 23, 95, 55, 23, 83, 47, 23, 67, 43, 23, 55, 35, 19, 39, 27, 15, 27, 19, 11,
+  15, 11, 7, 179, 91, 79, 191, 123, 111, 203, 155, 147, 215, 187, 183, 203, 215,
+  223, 179, 199, 211, 159, 183, 195, 135, 167, 183, 115, 151, 167, 91, 135, 155,
+  71, 119, 139, 47, 103, 127, 23, 83, 111, 19, 75, 103, 15, 67, 91, 11, 63, 83, 7,
+  55, 75, 7, 47, 63, 7, 39, 51, 0, 31, 43, 0, 23, 31, 0, 15, 19, 0, 7, 11, 0, 0,
+  0, 139, 87, 87, 131, 79, 79, 123, 71, 71, 115, 67, 67, 107, 59, 59, 99, 51, 51,
+  91, 47, 47, 83, 39, 39, 75, 35, 35, 67, 27, 27, 59, 23, 23, 51, 19, 19, 43, 15,
+  15, 35, 11, 11, 27, 7, 7, 19, 0, 0, 0, 151, 159, 123, 143, 151, 115, 135, 139,
+  107, 127, 131, 99, 119, 123, 95, 115, 115, 87, 107, 107, 79, 99, 99, 71, 91, 91,
+  67, 79, 79, 59, 67, 67, 51, 55, 55, 43, 47, 47, 35, 35, 35, 27, 23, 23, 19, 15,
+  15, 11, 159, 75, 63, 147, 67, 55, 139, 59, 47, 127, 55, 39, 119, 47, 35, 107,
+  43, 27, 99, 35, 23, 87, 31, 19, 79, 27, 15, 67, 23, 11, 55, 19, 11, 43, 15, 7,
+  31, 11, 7, 23, 7, 0, 11, 0, 0, 0, 0, 0, 119, 123, 207, 111, 115, 195, 103, 107,
+  183, 99, 99, 167, 91, 91, 155, 83, 87, 143, 75, 79, 127, 71, 71, 115, 63, 63,
+  103, 55, 55, 87, 47, 47, 75, 39, 39, 63, 35, 31, 47, 27, 23, 35, 19, 15, 23, 11,
+  7, 7, 155, 171, 123, 143, 159, 111, 135, 151, 99, 123, 139, 87, 115, 131, 75,
+  103, 119, 67, 95, 111, 59, 87, 103, 51, 75, 91, 39, 63, 79, 27, 55, 67, 19, 47,
+  59, 11, 35, 47, 7, 27, 35, 0, 19, 23, 0, 11, 15, 0, 0, 255, 0, 35, 231, 15, 63,
+  211, 27, 83, 187, 39, 95, 167, 47, 95, 143, 51, 95, 123, 51, 255, 255, 255, 255,
+  255, 211, 255, 255, 167, 255, 255, 127, 255, 255, 83, 255, 255, 39, 255, 235, 31,
+  255, 215, 23, 255, 191, 15, 255, 171, 7, 255, 147, 0, 239, 127, 0, 227, 107, 0,
+  211, 87, 0, 199, 71, 0, 183, 59, 0, 171, 43, 0, 155, 31, 0, 143, 23, 0, 127, 15,
+  0, 115, 7, 0, 95, 0, 0, 71, 0, 0, 47, 0, 0, 27, 0, 0, 239, 0, 0, 55, 55, 255,
+  255, 0, 0, 0, 0, 255, 43, 43, 35, 27, 27, 23, 19, 19, 15, 235, 151, 127, 195,
+  115, 83, 159, 87, 51, 123, 63, 27, 235, 211, 199, 199, 171, 155, 167, 139, 119,
+  135, 107, 87, 159, 91, 83,
+];
 
+/**
+ * Convert MIPTEX/WAL palette-indexed pixels to PNG buffer
+ * @param texture - The extracted texture with palette indices
+ * @param useQ2Palette - If true, use Quake 2 palette; otherwise use Quake 1 palette
+ */
+export async function miptexToPng(
+  texture: ExtractedTexture,
+  useQ2Palette: boolean = false
+): Promise<Buffer> {
   const { width, height, data } = texture;
   const rgba = Buffer.alloc(width * height * 4);
+  const palette = useQ2Palette ? QUAKE2_PALETTE : QUAKE1_PALETTE;
 
   for (let i = 0; i < data.length; i++) {
     const paletteIdx = data[i];
-    const r = QUAKE_PALETTE[paletteIdx * 3];
-    const g = QUAKE_PALETTE[paletteIdx * 3 + 1];
-    const b = QUAKE_PALETTE[paletteIdx * 3 + 2];
+    const r = palette[paletteIdx * 3];
+    const g = palette[paletteIdx * 3 + 1];
+    const b = palette[paletteIdx * 3 + 2];
 
     rgba[i * 4] = r;
     rgba[i * 4 + 1] = g;
@@ -509,18 +714,19 @@ export async function detectGameFileType(
 ): Promise<"pak" | "pk3" | "bsp" | "wad2" | "unknown"> {
   const handle = await open(filePath, "r");
   try {
-    const buf = Buffer.alloc(4);
-    await handle.read(buf, 0, 4, 0);
+    const buf = Buffer.alloc(8);
+    await handle.read(buf, 0, 8, 0);
 
     const magic = buf.toString("ascii", 0, 4);
 
     if (magic === "PACK") return "pak";
     if (magic === "WAD2") return "wad2";
+    if (magic === "IBSP") return "bsp"; // Quake 2/3 BSP
 
     // Check for ZIP (PK3)
     if (buf[0] === 0x50 && buf[1] === 0x4b) return "pk3";
 
-    // Check for BSP (version number)
+    // Check for Quake 1 BSP (version number directly)
     const version = buf.readInt32LE(0);
     if (version === 29 || version === 30) return "bsp";
 
