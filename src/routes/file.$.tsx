@@ -409,16 +409,17 @@ export default function FileView() {
           width: 100%;
           max-height: 600px;
           overflow: auto;
-          background: #1e1e1e;
+          background: #fff;
+          margin: 1rem;
         }
 
         .text-preview {
           margin: 0;
-          padding: 1rem;
+          padding: 0.5rem;
           font-family: var(--font-mono);
           font-size: 0.8125rem;
           line-height: 1.5;
-          color: #d4d4d4;
+          color: #111;
           white-space: pre-wrap;
           word-wrap: break-word;
         }
