@@ -176,9 +176,9 @@ export default function FileView() {
             )}
 
             {isAudio && isWebPlayableAudio(file.name) && (
-              <div style={{ padding: "2rem", textAlign: "center" }}>
+              <div style={{ padding: "2rem", textAlign: "center", width: "100%" }}>
                 <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>🔊</div>
-                <audio controls src={downloadUrl} style={{ width: "100%", maxWidth: "400px" }}>
+                <audio controls src={downloadUrl} style={{ width: "100%", minWidth: "300px" }}>
                   Your browser does not support the audio element.
                 </audio>
                 <div style={{ marginTop: "1rem" }}>
