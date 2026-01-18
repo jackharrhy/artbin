@@ -9,6 +9,7 @@ import { startJobRunner, isJobRunnerActive } from "~/lib/jobs.server";
 import "~/lib/extract-job.server";
 import "~/lib/texturetown-job.server";
 import "~/lib/thejang-job.server";
+import "~/lib/sadgrl-job.server";
 import "~/lib/scan-archives-job.server";
 
 // Start the job runner (only once)

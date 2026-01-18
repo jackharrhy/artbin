@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import type { Route } from "./+types/admin.import";
 import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
 import { db, files, folders, jobs } from "~/db";
-import { count, like, eq, desc } from "drizzle-orm";
+import { count, eq, desc } from "drizzle-orm";
 import { Header } from "~/components/Header";
 import { createJob } from "~/lib/jobs.server";
 
@@ -30,6 +30,12 @@ const IMPORT_SOURCES = [
     description: "thejang.com/textures - 392 classic tiling backgrounds from 1996",
     url: "https://thejang.com/textures/",
   },
+  {
+    id: "sadgrl",
+    name: "Sadgrl Tiled Backgrounds",
+    description: "sadgrl.online archive - 500+ tiled backgrounds organized by color",
+    url: "https://sadgrlonline.github.io/archived-sadgrl.online/webmastery/downloads/tiledbgs.html",
+  },
 ];
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -47,18 +53,6 @@ export async function loader({ request }: Route.LoaderArgs) {
   // Get current counts
   const [{ total: fileCount }] = await db.select({ total: count() }).from(files);
   const [{ total: folderCount }] = await db.select({ total: count() }).from(folders);
-
-  // Check how many TextureTown files we already have
-  const [{ total: textureTownCount }] = await db
-    .select({ total: count() })
-    .from(files)
-    .where(like(files.source, "texturetown%"));
-
-  // Check how many Texture Station files we already have
-  const [{ total: textureStationCount }] = await db
-    .select({ total: count() })
-    .from(files)
-    .where(like(files.source, "texture-station%"));
 
   // Check for most recent scan job
   const recentScanJob = await db.query.jobs.findFirst({
@@ -93,8 +87,6 @@ export async function loader({ request }: Route.LoaderArgs) {
     stats: {
       fileCount,
       folderCount,
-      textureTownCount,
-      textureStationCount,
     },
     scanResults,
     scanJobStatus,
@@ -132,6 +124,16 @@ export async function action({ request }: Route.ActionArgs) {
       userId: user.id,
     });
     return { success: true, jobId: job.id, action: "texture-station" };
+  }
+
+  // Sadgrl import
+  if (intent === "sadgrl") {
+    const job = await createJob({
+      type: "sadgrl-import",
+      input: { userId: user.id },
+      userId: user.id,
+    });
+    return { success: true, jobId: job.id, action: "sadgrl" };
   }
 
   // Start local archive scan
@@ -434,6 +436,13 @@ export default function AdminImport() {
           </div>
         )}
 
+        {actionData?.success && actionData.action === "sadgrl" && (
+          <div className="alert alert-success">
+            <p><strong>Sadgrl Tiled Backgrounds import started!</strong></p>
+            <p><a href="/admin/jobs">View job progress</a></p>
+          </div>
+        )}
+
         {actionData?.success && actionData.action === "import-archive" && (
           <div className="alert alert-success">
             <p><strong>Archive extraction started!</strong></p>
@@ -449,10 +458,6 @@ export default function AdminImport() {
             <dd>{stats.fileCount.toLocaleString()}</dd>
             <dt>Total Folders</dt>
             <dd>{stats.folderCount.toLocaleString()}</dd>
-            <dt>TextureTown Imports</dt>
-            <dd>{stats.textureTownCount.toLocaleString()}</dd>
-            <dt>Texture Station Imports</dt>
-            <dd>{stats.textureStationCount.toLocaleString()}</dd>
           </dl>
         </div>
 
@@ -559,18 +564,7 @@ export default function AdminImport() {
                 </Form>
               </div>
 
-              {source.id === "texturetown" && stats.textureTownCount > 0 && (
-                <p style={{ fontSize: "0.75rem", color: "#666", marginTop: "0.75rem", marginBottom: 0 }}>
-                  Already imported {stats.textureTownCount.toLocaleString()} textures from TextureTown.
-                  Running import again will skip existing files.
-                </p>
-              )}
-              {source.id === "texture-station" && stats.textureStationCount > 0 && (
-                <p style={{ fontSize: "0.75rem", color: "#666", marginTop: "0.75rem", marginBottom: 0 }}>
-                  Already imported {stats.textureStationCount.toLocaleString()} textures from Texture Station.
-                  Running import again will skip existing files.
-                </p>
-              )}
+
             </div>
           ))}
         </section>
