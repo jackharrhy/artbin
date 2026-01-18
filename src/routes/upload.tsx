@@ -1,13 +1,17 @@
 import { Form, redirect, useLoaderData, useActionData } from "react-router";
 import type { Route } from "./+types/upload";
 import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
-import { db, folders, textures } from "~/db";
-import { eq, desc, isNull } from "drizzle-orm";
+import { db, folders, files } from "~/db";
+import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
-import { writeFile, mkdir } from "fs/promises";
-import { join } from "path";
 import { Header } from "~/components/Header";
-import { getMimeType, processTextureUpload } from "~/lib/images.server";
+import {
+  saveFile,
+  getMimeType,
+  detectKind,
+  processImage,
+  isImageKind,
+} from "~/lib/files.server";
 
 export async function loader({ request }: Route.LoaderArgs) {
   const sessionId = parseSessionCookie(request.headers.get("Cookie"));
@@ -17,65 +21,107 @@ export async function loader({ request }: Route.LoaderArgs) {
     return redirect("/login");
   }
 
-  // Get folders for selection
+  // Get all folders for dropdown
   const allFolders = await db.query.folders.findMany({
-    orderBy: [folders.name],
+    orderBy: [folders.slug],
   });
 
   return { user, folders: allFolders };
 }
 
-export async function action({ request }: Route.ActionArgs) {
+interface ActionResult {
+  error?: string;
+  success?: {
+    fileId: string;
+    filePath: string;
+    fileName: string;
+  };
+}
+
+export async function action({ request }: Route.ActionArgs): Promise<ActionResult> {
   const sessionId = parseSessionCookie(request.headers.get("Cookie"));
   const user = await getUserFromSession(sessionId);
 
   if (!user) {
-    return redirect("/login");
+    return { error: "Not authenticated" };
   }
 
   const formData = await request.formData();
-  const file = formData.get("file") as File;
+  const file = formData.get("file") as File | null;
   const folderId = formData.get("folderId") as string | null;
-  const isSeamless = formData.get("isSeamless") === "on";
 
   if (!file || file.size === 0) {
-    return { error: "Please select a file" };
+    return { error: "No file selected" };
   }
 
-  // Check file extension for allowed formats
-  const ext = file.name.split(".").pop()?.toLowerCase();
-  const allowedExts = ["png", "jpg", "jpeg", "gif", "webp", "tga", "pcx", "bmp"];
-  if (!ext || !allowedExts.includes(ext)) {
-    return { error: "Only PNG, JPEG, GIF, WebP, TGA, PCX, and BMP files are allowed" };
+  if (!folderId) {
+    return { error: "Please select a folder" };
   }
 
-  const filename = `${nanoid()}.${ext}`;
-  const mimeType = getMimeType(file.name);
+  // Get folder
+  const folder = await db.query.folders.findFirst({
+    where: eq(folders.id, folderId),
+  });
 
-  const uploadsDir = join(process.cwd(), "public", "uploads");
-  await mkdir(uploadsDir, { recursive: true });
+  if (!folder) {
+    return { error: "Folder not found" };
+  }
 
-  const buffer = Buffer.from(await file.arrayBuffer());
-  await writeFile(join(uploadsDir, filename), buffer);
+  try {
+    const buffer = Buffer.from(await file.arrayBuffer());
+    
+    // Save file to disk
+    const { path: filePath, name: savedName } = await saveFile(
+      buffer,
+      folder.slug,
+      file.name,
+      true // overwrite
+    );
 
-  // Process the upload (convert legacy formats, get dimensions)
-  const { previewFilename, width, height } = await processTextureUpload(uploadsDir, filename);
+    // Detect kind and mime type
+    const kind = detectKind(savedName);
+    const mimeType = await getMimeType(savedName, buffer);
 
-  const [newTexture] = await db.insert(textures).values({
-    id: nanoid(),
-    filename,
-    originalName: file.name,
-    mimeType,
-    size: file.size,
-    width,
-    height,
-    previewFilename,
-    isSeamless,
-    folderId: folderId || null,
-    uploaderId: user.id,
-  }).returning();
+    // Process images
+    let width: number | null = null;
+    let height: number | null = null;
+    let hasPreview = false;
 
-  return redirect(`/texture/${newTexture.id}`);
+    if (isImageKind(kind)) {
+      const imageInfo = await processImage(filePath);
+      width = imageInfo.width;
+      height = imageInfo.height;
+      hasPreview = imageInfo.hasPreview;
+    }
+
+    // Create file record
+    const fileId = nanoid();
+    await db.insert(files).values({
+      id: fileId,
+      path: filePath,
+      name: savedName,
+      mimeType,
+      size: buffer.length,
+      kind,
+      width,
+      height,
+      hasPreview,
+      folderId: folder.id,
+      uploaderId: user.id,
+      source: "upload",
+    });
+
+    return {
+      success: {
+        fileId,
+        filePath,
+        fileName: savedName,
+      },
+    };
+  } catch (err) {
+    console.error("Upload error:", err);
+    return { error: `Upload failed: ${err}` };
+  }
 }
 
 export function meta() {
@@ -89,58 +135,58 @@ export default function Upload() {
   return (
     <div>
       <Header user={user} />
-      <main className="main-content" style={{ maxWidth: "480px" }}>
-        <h1 className="page-title">Upload</h1>
+      <main className="main-content" style={{ maxWidth: "600px" }}>
+        <h1 className="page-title">Upload File</h1>
 
         {actionData?.error && (
           <div className="alert alert-error">{actionData.error}</div>
         )}
 
+        {actionData?.success && (
+          <div className="alert alert-success">
+            <p>
+              <strong>File uploaded!</strong>
+            </p>
+            <p>{actionData.success.fileName}</p>
+            <p>
+              <a href={`/file/${actionData.success.filePath}`}>View file</a>
+            </p>
+          </div>
+        )}
+
         <Form method="post" encType="multipart/form-data">
-          <div className="form-group">
-            <label htmlFor="file" className="form-label">File</label>
-            <input
-              type="file"
-              id="file"
-              name="file"
-              accept="image/png,image/jpeg,image/gif,image/webp,.tga,.pcx,.bmp"
-              required
-              className="input"
-              style={{ width: "100%" }}
-            />
-            <div className="form-help">PNG, JPEG, GIF, WebP, TGA, PCX, or BMP</div>
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="folderId" className="form-label">Folder (optional)</label>
-            <select
-              id="folderId"
-              name="folderId"
-              className="input"
-              style={{ width: "100%" }}
-            >
-              <option value="">None</option>
-              {folders.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.slug}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="form-group">
-            <label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <div className="card">
+            <div className="form-group">
+              <label className="form-label">File</label>
               <input
-                type="checkbox"
-                name="isSeamless"
+                type="file"
+                name="file"
+                className="input"
+                style={{ width: "100%" }}
+                required
               />
-              <span>Seamless / Tileable</span>
-            </label>
-          </div>
+            </div>
 
-          <button type="submit" className="btn btn-primary">
-            Upload
-          </button>
+            <div className="form-group">
+              <label className="form-label">Folder</label>
+              <select name="folderId" className="input" style={{ width: "100%" }} required>
+                <option value="">Select a folder...</option>
+                {folders.map((folder) => (
+                  <option key={folder.id} value={folder.id}>
+                    {folder.slug}
+                  </option>
+                ))}
+              </select>
+              <p className="form-help">
+                Don't see your folder?{" "}
+                <a href="/admin/extract">Create one by extracting an archive</a>
+              </p>
+            </div>
+
+            <button type="submit" className="btn btn-primary">
+              Upload
+            </button>
+          </div>
         </Form>
       </main>
     </div>

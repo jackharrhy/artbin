@@ -1,7 +1,7 @@
 import { useLoaderData, redirect } from "react-router";
 import type { Route } from "./+types/folders";
 import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
-import { db, folders, textures } from "~/db";
+import { db, folders, files } from "~/db";
 import { eq, isNull, count, desc } from "drizzle-orm";
 import { Header } from "~/components/Header";
 
@@ -19,25 +19,31 @@ export async function loader({ request }: Route.LoaderArgs) {
     orderBy: [desc(folders.createdAt)],
   });
 
-  // Get texture counts for each folder
+  // Get file counts for each folder (including descendants)
   const folderCounts: Record<string, number> = {};
-  for (const folder of rootFolders) {
+  
+  async function countFilesRecursive(folderId: string): Promise<number> {
+    // Count files in this folder
+    const [{ c }] = await db
+      .select({ c: count() })
+      .from(files)
+      .where(eq(files.folderId, folderId));
+    
+    // Count files in child folders
     const childFolders = await db.query.folders.findMany({
-      where: eq(folders.parentId, folder.id),
+      where: eq(folders.parentId, folderId),
     });
     
-    const folderIds = [folder.id, ...childFolders.map(f => f.id)];
-    let totalCount = 0;
-    
-    for (const fid of folderIds) {
-      const [{ c }] = await db
-        .select({ c: count() })
-        .from(textures)
-        .where(eq(textures.folderId, fid));
-      totalCount += c;
+    let total = c;
+    for (const child of childFolders) {
+      total += await countFilesRecursive(child.id);
     }
     
-    folderCounts[folder.id] = totalCount;
+    return total;
+  }
+  
+  for (const folder of rootFolders) {
+    folderCounts[folder.id] = await countFilesRecursive(folder.id);
   }
 
   return { user, folders: rootFolders, folderCounts };
@@ -54,11 +60,23 @@ export default function Folders() {
     <div>
       <Header user={user} />
       <main className="main-content">
-        <h1 className="page-title">Folders</h1>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+          <h1 className="page-title" style={{ marginBottom: 0 }}>Folders</h1>
+          {user.isAdmin && (
+            <a href="/admin/extract" className="btn btn-primary">
+              Extract Archive
+            </a>
+          )}
+        </div>
 
         {folders.length === 0 ? (
           <div className="empty-state">
-            No folders yet
+            <p>No folders yet</p>
+            {user.isAdmin && (
+              <p style={{ marginTop: "1rem" }}>
+                <a href="/admin/extract">Extract an archive</a> to create folders
+              </p>
+            )}
           </div>
         ) : (
           <div className="folder-grid">
@@ -70,7 +88,7 @@ export default function Folders() {
               >
                 <div className="folder-name">{folder.name}</div>
                 <div className="folder-meta">
-                  {folderCounts[folder.id] || 0} textures
+                  {folderCounts[folder.id] || 0} files
                 </div>
               </a>
             ))}

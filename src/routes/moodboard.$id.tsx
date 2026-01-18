@@ -1,15 +1,14 @@
 import { Form, redirect, useLoaderData, useActionData } from "react-router";
 import type { Route } from "./+types/moodboard.$id";
 import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
-import { db, moodboards, moodboardItems, textures } from "~/db";
+import { db, moodboards, moodboardItems, files } from "~/db";
 import { eq, desc } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { Header } from "~/components/Header";
 
-interface TextItem { text: string; }
-interface ImageItem { url: string; caption?: string; }
-interface TextureItem { textureId: string; filename: string; }
-interface LinkItem { url: string; title?: string; }
+interface TextContent { text: string; }
+interface LinkContent { url: string; title?: string; }
+interface ColorContent { color: string; }
 
 export async function loader({ request, params }: Route.LoaderArgs) {
   const sessionId = parseSessionCookie(request.headers.get("Cookie"));
@@ -36,11 +35,15 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     orderBy: [desc(moodboardItems.createdAt)],
   });
 
-  const userTextures = await db.query.textures.findMany({
-    where: eq(textures.uploaderId, user.id),
-    orderBy: [desc(textures.createdAt)],
+  // Get user's uploaded texture files for the dropdown
+  const userFiles = await db.query.files.findMany({
+    where: eq(files.uploaderId, user.id),
+    orderBy: [desc(files.createdAt)],
     limit: 50,
   });
+
+  // Filter to only textures
+  const userTextures = userFiles.filter(f => f.kind === "texture");
 
   return { user, board, items, userTextures };
 }
@@ -72,36 +75,24 @@ export async function action({ request, params }: Route.ActionArgs) {
       id: nanoid(),
       moodboardId: params.id!,
       type: "text",
-      content: JSON.stringify({ text } as TextItem),
+      content: JSON.stringify({ text } as TextContent),
     });
     return { success: true };
   }
 
-  if (intent === "addImage") {
-    const url = formData.get("url") as string;
-    if (!url) return { error: "URL required" };
+  if (intent === "addFile") {
+    const fileId = formData.get("fileId") as string;
+    const file = await db.query.files.findFirst({
+      where: eq(files.id, fileId),
+    });
+    if (!file) return { error: "File not found" };
 
     await db.insert(moodboardItems).values({
       id: nanoid(),
       moodboardId: params.id!,
-      type: "image",
-      content: JSON.stringify({ url, caption: formData.get("caption") } as ImageItem),
-    });
-    return { success: true };
-  }
-
-  if (intent === "addTexture") {
-    const textureId = formData.get("textureId") as string;
-    const texture = await db.query.textures.findFirst({
-      where: eq(textures.id, textureId),
-    });
-    if (!texture) return { error: "Texture not found" };
-
-    await db.insert(moodboardItems).values({
-      id: nanoid(),
-      moodboardId: params.id!,
-      type: "texture",
-      content: JSON.stringify({ textureId: texture.id, filename: texture.filename } as TextureItem),
+      type: "file",
+      fileId: file.id,
+      content: null,
     });
     return { success: true };
   }
@@ -114,7 +105,20 @@ export async function action({ request, params }: Route.ActionArgs) {
       id: nanoid(),
       moodboardId: params.id!,
       type: "link",
-      content: JSON.stringify({ url, title: formData.get("title") } as LinkItem),
+      content: JSON.stringify({ url, title: formData.get("title") } as LinkContent),
+    });
+    return { success: true };
+  }
+
+  if (intent === "addColor") {
+    const color = formData.get("color") as string;
+    if (!color) return { error: "Color required" };
+
+    await db.insert(moodboardItems).values({
+      id: nanoid(),
+      moodboardId: params.id!,
+      type: "color",
+      content: JSON.stringify({ color } as ColorContent),
     });
     return { success: true };
   }
@@ -163,24 +167,15 @@ export default function MoodboardView() {
               <button type="submit" className="btn btn-sm">Add</button>
             </Form>
 
-            {/* Image */}
-            <Form method="post" className="card">
-              <input type="hidden" name="intent" value="addImage" />
-              <div className="section-title">Add Image</div>
-              <input type="url" name="url" placeholder="URL" className="input" style={{ width: "100%", marginBottom: "0.5rem" }} required />
-              <input type="text" name="caption" placeholder="Caption" className="input" style={{ width: "100%", marginBottom: "0.5rem" }} />
-              <button type="submit" className="btn btn-sm">Add</button>
-            </Form>
-
-            {/* Texture */}
+            {/* File/Texture */}
             {userTextures.length > 0 && (
               <Form method="post" className="card">
-                <input type="hidden" name="intent" value="addTexture" />
+                <input type="hidden" name="intent" value="addFile" />
                 <div className="section-title">Add Texture</div>
-                <select name="textureId" className="input" style={{ width: "100%", marginBottom: "0.5rem" }} required>
+                <select name="fileId" className="input" style={{ width: "100%", marginBottom: "0.5rem" }} required>
                   <option value="">Select...</option>
-                  {userTextures.map((t) => (
-                    <option key={t.id} value={t.id}>{t.originalName}</option>
+                  {userTextures.map((f) => (
+                    <option key={f.id} value={f.id}>{f.name}</option>
                   ))}
                 </select>
                 <button type="submit" className="btn btn-sm">Add</button>
@@ -195,31 +190,39 @@ export default function MoodboardView() {
               <input type="text" name="title" placeholder="Title" className="input" style={{ width: "100%", marginBottom: "0.5rem" }} />
               <button type="submit" className="btn btn-sm">Add</button>
             </Form>
+
+            {/* Color */}
+            <Form method="post" className="card">
+              <input type="hidden" name="intent" value="addColor" />
+              <div className="section-title">Add Color</div>
+              <input type="color" name="color" className="input" style={{ width: "100%", height: "40px", marginBottom: "0.5rem" }} required />
+              <button type="submit" className="btn btn-sm">Add</button>
+            </Form>
           </div>
 
           {/* Board */}
           <div>
             {items.length === 0 ? (
-              <div className="empty-state">Empty board</div>
+              <div className="empty-state">Empty board - add items from the left panel</div>
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "0.5rem" }}>
                 {items.map((item) => {
-                  const content = JSON.parse(item.content);
+                  const content = item.content ? JSON.parse(item.content) : null;
                   return (
                     <div key={item.id} className="card" style={{ position: "relative", padding: "0.5rem" }}>
-                      {item.type === "text" && (
+                      {item.type === "text" && content && (
                         <p style={{ fontSize: "0.875rem", whiteSpace: "pre-wrap" }}>{content.text}</p>
                       )}
-                      {item.type === "image" && (
-                        <img src={content.url} alt={content.caption || ""} style={{ width: "100%" }} loading="lazy" />
+                      {item.type === "file" && item.fileId && (
+                        <FilePreview fileId={item.fileId} />
                       )}
-                      {item.type === "texture" && (
-                        <img src={`/uploads/${content.filename}`} alt="" style={{ width: "100%" }} loading="lazy" />
-                      )}
-                      {item.type === "link" && (
+                      {item.type === "link" && content && (
                         <a href={content.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: "0.875rem", wordBreak: "break-all" }}>
                           {content.title || content.url}
                         </a>
+                      )}
+                      {item.type === "color" && content && (
+                        <div style={{ width: "100%", height: "80px", background: content.color, borderRadius: "4px" }} title={content.color} />
                       )}
                       <Form method="post" style={{ position: "absolute", top: "0.25rem", right: "0.25rem" }}>
                         <input type="hidden" name="intent" value="deleteItem" />
@@ -234,6 +237,17 @@ export default function MoodboardView() {
           </div>
         </div>
       </main>
+    </div>
+  );
+}
+
+// Simple component to render file preview - would need to be enhanced for real use
+function FilePreview({ fileId }: { fileId: string }) {
+  // In a real app, we'd fetch the file info or pass it down
+  // For now, just show a placeholder that links to the file
+  return (
+    <div style={{ textAlign: "center", padding: "1rem" }}>
+      <a href={`/file/${fileId}`}>View File</a>
     </div>
   );
 }

@@ -1,4 +1,8 @@
-import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, primaryKey } from "drizzle-orm/sqlite-core";
+
+// ============================================================================
+// Auth & Users
+// ============================================================================
 
 export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
@@ -12,7 +16,7 @@ export const users = sqliteTable("users", {
 
 export const sessions = sqliteTable("sessions", {
   id: text("id").primaryKey(),
-  userId: text("user_id").notNull().references(() => users.id),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });
@@ -27,102 +31,145 @@ export const inviteCodes = sqliteTable("invite_codes", {
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });
 
-// Folders (nested, like filesystem directories)
+// ============================================================================
+// Folders - Directory structure matching filesystem
+// ============================================================================
+
 export const folders = sqliteTable("folders", {
   id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  slug: text("slug").notNull(),
+  name: text("name").notNull(),                    // Display name: "Thirty Flights"
+  slug: text("slug").notNull().unique(),           // Path: "thirty-flights/maps" (unique!)
   description: text("description"),
-  parentId: text("parent_id"), // null = root folder
-  ownerId: text("owner_id").references(() => users.id), // null for external sources
-  visibility: text("visibility", { enum: ["public", "private", "friends"] }).default("public"),
-  source: text("source"), // e.g. "texturetown", "local", etc. - who owns it if no ownerId
+  parentId: text("parent_id").references((): any => folders.id, { onDelete: "cascade" }),
+  ownerId: text("owner_id").references(() => users.id, { onDelete: "set null" }),
+  visibility: text("visibility", { enum: ["public", "private", "unlisted"] }).default("public"),
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn((): Date => new Date()),
 });
 
-// Collections (legacy, keeping for backwards compat)
-export const collections = sqliteTable("collections", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  description: text("description"),
-  ownerId: text("owner_id").notNull().references(() => users.id),
-  visibility: text("visibility", { enum: ["public", "private", "friends"] }).default("public"),
-  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn((): Date => new Date()),
-});
+// ============================================================================
+// Files - Unified file storage
+// ============================================================================
 
-// Textures
-export const textures = sqliteTable("textures", {
+export const fileKinds = ["texture", "model", "audio", "map", "archive", "config", "other"] as const;
+export type FileKind = typeof fileKinds[number];
+
+export const files = sqliteTable("files", {
   id: text("id").primaryKey(),
-  filename: text("filename").notNull(),
-  originalName: text("original_name").notNull(),
+  
+  // Path & naming - path is relative to uploads/, e.g. "thirty-flights/maps/lob1.bsp"
+  path: text("path").notNull().unique(),
+  name: text("name").notNull(),                    // Just filename: "lob1.bsp"
+  
+  // File metadata
   mimeType: text("mime_type").notNull(),
   size: integer("size").notNull(),
+  
+  // Asset classification
+  kind: text("kind", { enum: fileKinds }).notNull().default("other"),
+  
+  // Image-specific (null for non-images)
   width: integer("width"),
   height: integer("height"),
-  previewFilename: text("preview_filename"), // PNG preview for legacy formats (TGA, PCX, BMP)
-  isSeamless: integer("is_seamless", { mode: "boolean" }).default(false),
+  hasPreview: integer("has_preview", { mode: "boolean" }).default(false), // true if .preview.png exists
+  
+  // Relationships
   folderId: text("folder_id").references(() => folders.id, { onDelete: "cascade" }),
-  collectionId: text("collection_id").references(() => collections.id, { onDelete: "cascade" }),
   uploaderId: text("uploader_id").references(() => users.id, { onDelete: "set null" }),
-  source: text("source"), // e.g. "texturetown" - external source name
-  sourceUrl: text("source_url"), // original URL if imported
+  
+  // Source tracking
+  source: text("source"),                          // "upload", "extracted-pk3", "extracted-pak", etc.
+  sourceArchive: text("source_archive"),           // Original archive filename if extracted
+  
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn((): Date => new Date()),
 });
 
-// Tags
+// ============================================================================
+// Tags - For categorizing files
+// ============================================================================
+
 export const tags = sqliteTable("tags", {
   id: text("id").primaryKey(),
-  name: text("name").notNull().unique(),
-  slug: text("slug").notNull().unique(),
+  name: text("name").notNull().unique(),           // Display: "Seamless"
+  slug: text("slug").notNull().unique(),           // URL-safe: "seamless"
+  category: text("category"),                      // Optional grouping: "material", "style", etc.
 });
 
-// Texture-Tag junction
-export const textureTags = sqliteTable("texture_tags", {
-  textureId: text("texture_id").notNull().references(() => textures.id, { onDelete: "cascade" }),
+export const fileTags = sqliteTable("file_tags", {
+  fileId: text("file_id").notNull().references(() => files.id, { onDelete: "cascade" }),
   tagId: text("tag_id").notNull().references(() => tags.id, { onDelete: "cascade" }),
-});
+}, (table) => ({
+  pk: primaryKey({ columns: [table.fileId, table.tagId] }),
+}));
 
-// 3D Models
-export const models = sqliteTable("models", {
+// ============================================================================
+// Jobs - Background processing queue
+// ============================================================================
+
+export const jobStatuses = ["pending", "running", "completed", "failed", "cancelled"] as const;
+export type JobStatus = typeof jobStatuses[number];
+
+export const jobs = sqliteTable("jobs", {
   id: text("id").primaryKey(),
-  filename: text("filename").notNull(),
-  originalName: text("original_name").notNull(),
-  mimeType: text("mime_type").notNull(), // model/gltf-binary, model/gltf+json
-  size: integer("size").notNull(),
-  folderId: text("folder_id").references(() => folders.id, { onDelete: "cascade" }),
-  uploaderId: text("uploader_id").references(() => users.id, { onDelete: "set null" }),
-  source: text("source"),
-  sourceUrl: text("source_url"),
+  type: text("type").notNull(),                    // "extract-archive", "generate-previews", etc.
+  status: text("status", { enum: jobStatuses }).notNull().default("pending"),
+  
+  // Job configuration (JSON)
+  input: text("input").notNull(),                  // JSON: { tempFile: "...", targetFolder: "..." }
+  
+  // Progress tracking
+  progress: integer("progress").default(0),        // 0-100
+  progressMessage: text("progress_message"),       // "Extracting file 50/100..."
+  
+  // Results
+  output: text("output"),                          // JSON result when completed
+  error: text("error"),                            // Error message if failed
+  
+  // Ownership
+  userId: text("user_id").references(() => users.id, { onDelete: "set null" }),
+  
+  // Timing
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn((): Date => new Date()),
+  startedAt: integer("started_at", { mode: "timestamp" }),
+  completedAt: integer("completed_at", { mode: "timestamp" }),
 });
 
-// Moodboards
+// ============================================================================
+// Moodboards - Visual collections
+// ============================================================================
+
 export const moodboards = sqliteTable("moodboards", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   description: text("description"),
-  ownerId: text("owner_id").notNull().references(() => users.id),
+  ownerId: text("owner_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  visibility: text("visibility", { enum: ["public", "private", "unlisted"] }).default("private"),
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn((): Date => new Date()),
 });
 
-// Moodboard Items
 export const moodboardItems = sqliteTable("moodboard_items", {
   id: text("id").primaryKey(),
-  moodboardId: text("moodboard_id").notNull().references(() => moodboards.id),
-  type: text("type", { enum: ["text", "image", "texture", "link"] }).notNull(),
-  content: text("content").notNull(), // JSON content based on type
+  moodboardId: text("moodboard_id").notNull().references(() => moodboards.id, { onDelete: "cascade" }),
+  fileId: text("file_id").references(() => files.id, { onDelete: "cascade" }), // null for non-file items
+  type: text("type", { enum: ["file", "text", "link", "color"] }).notNull(),
+  content: text("content"),                        // JSON for text/link/color items
   positionX: integer("position_x").default(0),
   positionY: integer("position_y").default(0),
+  width: integer("width").default(200),
+  height: integer("height").default(200),
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn((): Date => new Date()),
 });
+
+// ============================================================================
+// Type exports
+// ============================================================================
 
 export type User = typeof users.$inferSelect;
 export type Session = typeof sessions.$inferSelect;
 export type InviteCode = typeof inviteCodes.$inferSelect;
 export type Folder = typeof folders.$inferSelect;
-export type Collection = typeof collections.$inferSelect;
-export type Texture = typeof textures.$inferSelect;
-export type Model = typeof models.$inferSelect;
+export type File = typeof files.$inferSelect;
 export type Tag = typeof tags.$inferSelect;
+export type FileTag = typeof fileTags.$inferSelect;
+export type Job = typeof jobs.$inferSelect;
 export type Moodboard = typeof moodboards.$inferSelect;
 export type MoodboardItem = typeof moodboardItems.$inferSelect;

@@ -1,13 +1,10 @@
 import { useLoaderData, redirect, Form, useNavigation } from "react-router";
 import type { Route } from "./+types/folder.$slug";
 import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
-import { db, folders, textures, users } from "~/db";
+import { db, folders, files } from "~/db";
 import { eq, desc } from "drizzle-orm";
 import { Header } from "~/components/Header";
-import { unlink } from "fs/promises";
-import { join } from "path";
-
-const UPLOADS_DIR = join(process.cwd(), "public", "uploads");
+import { deleteFile, deleteFolder } from "~/lib/files.server";
 
 export async function loader({ request, params }: Route.LoaderArgs) {
   const sessionId = parseSessionCookie(request.headers.get("Cookie"));
@@ -18,7 +15,6 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   }
 
   // Combine slug and splat for nested folder paths
-  // Route is folder/:slug/* so /folder/parent/child gives slug="parent", *="child"
   const slug = params["*"] ? `${params.slug}/${params["*"]}` : params.slug!;
 
   const folder = await db.query.folders.findFirst({
@@ -43,22 +39,25 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     });
   }
 
-  // Get textures in this folder
-  const folderTextures = await db
+  // Get files in this folder
+  const folderFiles = await db
     .select({
-      id: textures.id,
-      filename: textures.filename,
-      previewFilename: textures.previewFilename,
-      originalName: textures.originalName,
-      isSeamless: textures.isSeamless,
+      id: files.id,
+      path: files.path,
+      name: files.name,
+      kind: files.kind,
+      mimeType: files.mimeType,
+      size: files.size,
+      width: files.width,
+      height: files.height,
+      hasPreview: files.hasPreview,
     })
-    .from(textures)
-    .leftJoin(users, eq(textures.uploaderId, users.id))
-    .where(eq(textures.folderId, folder.id))
-    .orderBy(desc(textures.createdAt))
+    .from(files)
+    .where(eq(files.folderId, folder.id))
+    .orderBy(desc(files.createdAt))
     .limit(500);
 
-  return { user, folder, childFolders, parentFolder, textures: folderTextures };
+  return { user, folder, childFolders, parentFolder, files: folderFiles };
 }
 
 export async function action({ request, params }: Route.ActionArgs) {
@@ -84,31 +83,18 @@ export async function action({ request, params }: Route.ActionArgs) {
   }
 
   if (actionType === "delete") {
-    // Recursively delete a folder and all its contents
-    async function deleteFolderRecursive(folderId: string) {
-      // Get all textures in this folder
-      const folderTextures = await db.query.textures.findMany({
-        where: eq(textures.folderId, folderId),
+    // Recursively delete folder, children, and files
+    async function deleteFolderRecursive(folderId: string, folderSlug: string) {
+      // Get all files in this folder
+      const folderFiles = await db.query.files.findMany({
+        where: eq(files.folderId, folderId),
       });
 
-      // Delete texture files from disk
-      for (const texture of folderTextures) {
-        try {
-          await unlink(join(UPLOADS_DIR, texture.filename));
-        } catch {
-          // File may not exist, continue
-        }
-        if (texture.previewFilename) {
-          try {
-            await unlink(join(UPLOADS_DIR, texture.previewFilename));
-          } catch {
-            // File may not exist, continue
-          }
-        }
+      // Delete file records and files from disk
+      for (const file of folderFiles) {
+        await deleteFile(file.path);
       }
-
-      // Delete texture records
-      await db.delete(textures).where(eq(textures.folderId, folderId));
+      await db.delete(files).where(eq(files.folderId, folderId));
 
       // Recursively delete child folders
       const childFolders = await db.query.folders.findMany({
@@ -116,14 +102,15 @@ export async function action({ request, params }: Route.ActionArgs) {
       });
 
       for (const child of childFolders) {
-        await deleteFolderRecursive(child.id);
+        await deleteFolderRecursive(child.id, child.slug);
       }
 
-      // Delete the folder itself
+      // Delete the folder record and directory
       await db.delete(folders).where(eq(folders.id, folderId));
+      await deleteFolder(folderSlug);
     }
 
-    await deleteFolderRecursive(folder.id);
+    await deleteFolderRecursive(folder.id, folder.slug);
 
     return redirect("/folders");
   }
@@ -135,11 +122,53 @@ export function meta({ data }: Route.MetaArgs) {
   return [{ title: `${data?.folder?.name || "Folder"} - artbin` }];
 }
 
+/**
+ * Get the display URL for a file (preview if available, otherwise original)
+ */
+function getFileDisplayUrl(file: {
+  path: string;
+  hasPreview: boolean | null;
+  kind: string | null;
+}): string | null {
+  if (file.kind !== "texture") return null;
+  
+  if (file.hasPreview) {
+    return `/uploads/${file.path}.preview.png`;
+  }
+  return `/uploads/${file.path}`;
+}
+
+/**
+ * Get icon for non-image file kinds
+ */
+function getFileIcon(kind: string | null): string {
+  switch (kind) {
+    case "model":
+      return "📦";
+    case "audio":
+      return "🔊";
+    case "map":
+      return "🗺️";
+    case "archive":
+      return "📁";
+    case "config":
+      return "📄";
+    default:
+      return "📎";
+  }
+}
+
 export default function FolderView() {
-  const { user, folder, childFolders, parentFolder, textures } = useLoaderData<typeof loader>();
+  const { user, folder, childFolders, parentFolder, files } =
+    useLoaderData<typeof loader>();
   const navigation = useNavigation();
-  const isDeleting = navigation.state === "submitting" && 
+  const isDeleting =
+    navigation.state === "submitting" &&
     navigation.formData?.get("_action") === "delete";
+
+  // Separate files by kind for display
+  const textures = files.filter((f) => f.kind === "texture");
+  const otherFiles = files.filter((f) => f.kind !== "texture");
 
   return (
     <div>
@@ -158,25 +187,36 @@ export default function FolderView() {
           <span>{folder.name}</span>
         </div>
 
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-          <h1 className="page-title" style={{ marginBottom: 0 }}>{folder.name}</h1>
-          
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: "1rem",
+          }}
+        >
+          <h1 className="page-title" style={{ marginBottom: 0 }}>
+            {folder.name}
+          </h1>
+
           {user.isAdmin && (
-            <Form 
-              method="post" 
+            <Form
+              method="post"
               onSubmit={(e) => {
-                const textureCount = textures.length;
-                const msg = textureCount > 0
-                  ? `Delete folder "${folder.name}" and ${textureCount} texture(s)? This will permanently delete all files.`
-                  : `Delete empty folder "${folder.name}"?`;
+                const fileCount = files.length;
+                const folderCount = childFolders.length;
+                let msg = `Delete folder "${folder.name}"?`;
+                if (fileCount > 0 || folderCount > 0) {
+                  msg = `Delete folder "${folder.name}" with ${fileCount} file(s) and ${folderCount} subfolder(s)? This will permanently delete all contents.`;
+                }
                 if (!confirm(msg)) {
                   e.preventDefault();
                 }
               }}
             >
               <input type="hidden" name="_action" value="delete" />
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 className="btn btn-danger"
                 disabled={isDeleting}
               >
@@ -185,6 +225,12 @@ export default function FolderView() {
             </Form>
           )}
         </div>
+
+        {folder.description && (
+          <p style={{ marginBottom: "1rem", color: "#666" }}>
+            {folder.description}
+          </p>
+        )}
 
         {/* Child Folders */}
         {childFolders.length > 0 && (
@@ -204,26 +250,61 @@ export default function FolderView() {
           </section>
         )}
 
-        {/* Textures */}
+        {/* Textures (image files) */}
         {textures.length > 0 && (
           <section className="section">
             <div className="grid-header">
               <span className="grid-count">{textures.length} textures</span>
             </div>
             <div className="texture-grid">
-              {textures.map((texture) => (
+              {textures.map((file) => (
                 <a
-                  key={texture.id}
-                  href={`/texture/${texture.id}`}
+                  key={file.id}
+                  href={`/file/${file.path}`}
                   className="texture-card"
                 >
                   <img
-                    src={`/uploads/${texture.previewFilename || texture.filename}`}
-                    alt={texture.originalName}
+                    src={getFileDisplayUrl(file) || ""}
+                    alt={file.name}
                     loading="lazy"
                   />
-                  <div className="texture-card-info">
-                    {texture.originalName}
+                  <div className="texture-card-info">{file.name}</div>
+                </a>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Other Files */}
+        {otherFiles.length > 0 && (
+          <section className="section">
+            <div className="grid-header">
+              <span className="grid-count">{otherFiles.length} other files</span>
+            </div>
+            <div className="file-list">
+              {otherFiles.map((file) => (
+                <a
+                  key={file.id}
+                  href={`/file/${file.path}`}
+                  className="file-item"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    padding: "0.5rem",
+                    borderBottom: "1px solid #eee",
+                    textDecoration: "none",
+                    color: "inherit",
+                  }}
+                >
+                  <span style={{ fontSize: "1.25rem" }}>
+                    {getFileIcon(file.kind)}
+                  </span>
+                  <div style={{ flex: 1 }}>
+                    <div>{file.name}</div>
+                    <div style={{ fontSize: "0.75rem", color: "#999" }}>
+                      {file.kind} • {(file.size / 1024).toFixed(1)} KB
+                    </div>
                   </div>
                 </a>
               ))}
@@ -231,10 +312,8 @@ export default function FolderView() {
           </section>
         )}
 
-        {childFolders.length === 0 && textures.length === 0 && (
-          <div className="empty-state">
-            This folder is empty
-          </div>
+        {childFolders.length === 0 && files.length === 0 && (
+          <div className="empty-state">This folder is empty</div>
         )}
       </main>
     </div>
