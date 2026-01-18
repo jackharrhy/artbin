@@ -180,28 +180,33 @@ function ArchiveImportForm({ archive }: { archive: FoundArchive }) {
     }
   }, [folderName, customSlug]);
 
+  const handleToggle = () => {
+    setExpanded((prev) => !prev);
+  };
+
   return (
     <div className="archive-item">
-      <div 
+      <button 
+        type="button"
         className="archive-header"
-        onClick={() => setExpanded(!expanded)}
-        style={{ cursor: "pointer" }}
+        onClick={handleToggle}
       >
         <div className="archive-info">
-          <span className="archive-type">{archive.type.toUpperCase()}</span>
-          <span className="archive-name">{archive.name}</span>
-          <span className="archive-size">{formatSize(archive.size)}</span>
-          {archive.gameDir && (
-            <span className="archive-gamedir">{archive.gameDir}</span>
-          )}
+          <div className="archive-info-top">
+            <span className="archive-type">{archive.type.toUpperCase()}</span>
+            <span className="archive-name">{archive.name}</span>
+            <span className="archive-size">{formatSize(archive.size)}</span>
+            {archive.gameDir && (
+              <span className="archive-gamedir">{archive.gameDir}</span>
+            )}
+          </div>
+          <div className="archive-path-preview">{archive.path}</div>
         </div>
         <span className="archive-expand">{expanded ? "−" : "+"}</span>
-      </div>
+      </button>
 
       {expanded && (
         <div className="archive-details">
-          <div className="archive-path">{archive.path}</div>
-          
           <Form method="post" className="archive-form">
             <input type="hidden" name="intent" value="import-archive" />
             <input type="hidden" name="archivePath" value={archive.path} />
@@ -262,8 +267,14 @@ function ArchiveImportForm({ archive }: { archive: FoundArchive }) {
         .archive-header {
           display: flex;
           justify-content: space-between;
-          align-items: center;
+          align-items: flex-start;
           padding: 0.5rem 0.75rem;
+          width: 100%;
+          border: none;
+          background: #fff;
+          cursor: pointer;
+          text-align: left;
+          font-family: inherit;
         }
 
         .archive-header:hover {
@@ -272,9 +283,25 @@ function ArchiveImportForm({ archive }: { archive: FoundArchive }) {
 
         .archive-info {
           display: flex;
+          flex-direction: column;
+          gap: 0.25rem;
+          flex: 1;
+          min-width: 0;
+        }
+
+        .archive-info-top {
+          display: flex;
           align-items: center;
           gap: 0.75rem;
           flex-wrap: wrap;
+        }
+
+        .archive-path-preview {
+          font-size: 0.7rem;
+          font-family: var(--font-mono);
+          color: var(--color-text-muted);
+          word-break: break-all;
+          line-height: 1.3;
         }
 
         .archive-type {
@@ -307,20 +334,14 @@ function ArchiveImportForm({ archive }: { archive: FoundArchive }) {
           color: var(--color-text-muted);
           width: 1.5rem;
           text-align: center;
+          flex-shrink: 0;
+          padding-top: 0.125rem;
         }
 
         .archive-details {
           padding: 0.75rem;
           border-top: 1px solid var(--color-border-light);
           background: #fafafa;
-        }
-
-        .archive-path {
-          font-size: 0.75rem;
-          font-family: var(--font-mono);
-          color: var(--color-text-muted);
-          margin-bottom: 1rem;
-          word-break: break-all;
         }
 
         .archive-form {
