@@ -146,6 +146,75 @@ export async function cancelJob(id: string): Promise<boolean> {
   return result.changes > 0;
 }
 
+/**
+ * Delete a job and clean up any associated temp files
+ */
+export async function deleteJob(id: string): Promise<boolean> {
+  const job = await getJob(id);
+  if (!job) return false;
+
+  // Try to clean up temp files if the job input contains a tempFile path
+  try {
+    const input = JSON.parse(job.input) as Record<string, unknown>;
+    if (typeof input.tempFile === "string" && input.tempFile.includes("/tmp/")) {
+      const { unlink } = await import("fs/promises");
+      try {
+        await unlink(input.tempFile);
+      } catch {
+        // File may already be deleted, ignore
+      }
+    }
+  } catch {
+    // Ignore JSON parse errors
+  }
+
+  const result = await db.delete(jobs).where(eq(jobs.id, id));
+  return result.changes > 0;
+}
+
+/**
+ * Reset a stuck running job back to pending
+ * Only works for jobs that have been running for more than the threshold
+ */
+export async function resetStuckJob(id: string, stuckThresholdMinutes = 30): Promise<boolean> {
+  const job = await getJob(id);
+  if (!job) return false;
+  if (job.status !== "running") return false;
+
+  // Check if the job has been running long enough to be considered stuck
+  if (job.startedAt) {
+    const runningTime = Date.now() - new Date(job.startedAt).getTime();
+    const thresholdMs = stuckThresholdMinutes * 60 * 1000;
+    if (runningTime < thresholdMs) {
+      return false; // Not stuck yet
+    }
+  }
+
+  const result = await db
+    .update(jobs)
+    .set({
+      status: "pending",
+      startedAt: null,
+      progress: 0,
+      progressMessage: "Reset after appearing stuck",
+    })
+    .where(eq(jobs.id, id));
+
+  return result.changes > 0;
+}
+
+/**
+ * Check if a job appears to be stuck (running for too long)
+ */
+export function isJobStuck(job: Job, thresholdMinutes = 30): boolean {
+  if (job.status !== "running") return false;
+  if (!job.startedAt) return false;
+
+  const runningTime = Date.now() - new Date(job.startedAt).getTime();
+  const thresholdMs = thresholdMinutes * 60 * 1000;
+  return runningTime > thresholdMs;
+}
+
 // ============================================================================
 // Job Processing
 // ============================================================================
