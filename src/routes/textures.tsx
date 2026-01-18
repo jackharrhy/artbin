@@ -73,6 +73,7 @@ export async function loader({ request }: Route.LoaderArgs) {
       isSeamless: textures.isSeamless,
       createdAt: textures.createdAt,
       uploaderUsername: users.username,
+      source: textures.source,
       collectionName: collections.name,
     })
     .from(textures)
@@ -250,7 +251,11 @@ export default function Textures() {
                     {texture.originalName}
                   </p>
                   <p className="text-gray">
-                    by @{texture.uploaderUsername}
+                    {texture.uploaderUsername 
+                      ? `by @${texture.uploaderUsername}`
+                      : texture.source 
+                        ? `from ${texture.source}`
+                        : ""}
                   </p>
                   {texture.isSeamless && (
                     <span className="tag tag-seamless text-xs">seamless</span>

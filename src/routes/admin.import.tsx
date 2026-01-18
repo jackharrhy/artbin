@@ -63,13 +63,13 @@ export async function action({ request }: Route.ActionArgs) {
   const source = formData.get("source") as string;
 
   if (source === "texturetown") {
-    return await importTextureTown(user.id);
+    return await importTextureTown();
   }
 
   return { error: "Unknown import source" };
 }
 
-async function importTextureTown(userId: string) {
+async function importTextureTown() {
   // Fetch manifest
   const res = await fetch("https://textures.neocities.org/manifest.json");
   const manifest: TextureTownManifest = await res.json();
@@ -95,7 +95,7 @@ async function importTextureTown(userId: string) {
         slug: "texturetown",
         description: `Imported from textures.neocities.org - ${manifest.info.texture_count} textures`,
         parentId: null,
-        ownerId: userId,
+        ownerId: null,
         visibility: "public",
         source: "texturetown",
       })
@@ -120,7 +120,7 @@ async function importTextureTown(userId: string) {
           slug: folderSlug,
           description: `${cat.files.length} textures`,
           parentId: parentFolder.id,
-          ownerId: userId,
+          ownerId: null,
           visibility: "public",
           source: "texturetown",
         })
@@ -192,7 +192,8 @@ async function importTextureTown(userId: string) {
             mimeType: mimeMap[ext] || "image/jpeg",
             size: buffer.length,
             folderId: categoryFolder.id,
-            uploaderId: userId,
+            uploaderId: null,
+            source: "texturetown",
             sourceUrl: url,
           })
           .returning();

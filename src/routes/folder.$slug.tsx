@@ -46,6 +46,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       isSeamless: textures.isSeamless,
       createdAt: textures.createdAt,
       uploaderUsername: users.username,
+      source: textures.source,
     })
     .from(textures)
     .leftJoin(users, eq(textures.uploaderId, users.id))

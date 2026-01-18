@@ -33,9 +33,9 @@ export const folders = sqliteTable("folders", {
   slug: text("slug").notNull(),
   description: text("description"),
   parentId: text("parent_id"), // null = root folder
-  ownerId: text("owner_id").notNull().references(() => users.id),
+  ownerId: text("owner_id").references(() => users.id), // null for external sources
   visibility: text("visibility", { enum: ["public", "private", "friends"] }).default("public"),
-  source: text("source"), // e.g. "texturetown", "local", etc.
+  source: text("source"), // e.g. "texturetown", "local", etc. - who owns it if no ownerId
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn((): Date => new Date()),
 });
 
@@ -61,8 +61,9 @@ export const textures = sqliteTable("textures", {
   isSeamless: integer("is_seamless", { mode: "boolean" }).default(false),
   folderId: text("folder_id").references(() => folders.id),
   collectionId: text("collection_id").references(() => collections.id), // legacy
-  uploaderId: text("uploader_id").notNull().references(() => users.id),
-  sourceUrl: text("source_url"),
+  uploaderId: text("uploader_id").references(() => users.id), // null for external imports
+  source: text("source"), // e.g. "texturetown" - external source name
+  sourceUrl: text("source_url"), // original URL if imported
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn((): Date => new Date()),
 });
 
