@@ -2,7 +2,7 @@ import { Form, redirect, useLoaderData, useActionData } from "react-router";
 import type { Route } from "./+types/admin.import";
 import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
 import { db, files, folders } from "~/db";
-import { count } from "drizzle-orm";
+import { count, sum, eq } from "drizzle-orm";
 import { Header } from "~/components/Header";
 import { createJob } from "~/lib/jobs.server";
 import { existsSync } from "fs";
@@ -43,9 +43,20 @@ export async function loader({ request }: Route.LoaderArgs) {
     return redirect("/folders");
   }
 
-  // Get current counts
+  // Get current counts and sizes
   const [{ total: fileCount }] = await db.select({ total: count() }).from(files);
   const [{ total: folderCount }] = await db.select({ total: count() }).from(folders);
+  const [{ total: totalSize }] = await db.select({ total: sum(files.size) }).from(files);
+  
+  // Get size by kind
+  const sizeByKind = await db
+    .select({
+      kind: files.kind,
+      size: sum(files.size),
+      count: count(),
+    })
+    .from(files)
+    .groupBy(files.kind);
 
   return {
     user,
@@ -53,6 +64,12 @@ export async function loader({ request }: Route.LoaderArgs) {
     stats: {
       fileCount,
       folderCount,
+      totalSize: Number(totalSize) || 0,
+      byKind: sizeByKind.map(k => ({
+        kind: k.kind,
+        size: Number(k.size) || 0,
+        count: k.count,
+      })),
     },
   };
 }
@@ -148,6 +165,33 @@ export function meta() {
   return [{ title: "Import - Admin - artbin" }];
 }
 
+/**
+ * Format bytes as human-readable string
+ */
+function formatSize(bytes: number): string {
+  if (bytes === 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  const size = bytes / Math.pow(1024, i);
+  return `${size.toFixed(i > 0 ? 1 : 0)} ${units[i]}`;
+}
+
+/**
+ * Get display name for file kind
+ */
+function kindLabel(kind: string): string {
+  const labels: Record<string, string> = {
+    texture: "Textures",
+    audio: "Audio",
+    model: "Models",
+    map: "Maps",
+    archive: "Archives",
+    config: "Configs",
+    other: "Other",
+  };
+  return labels[kind] || kind;
+}
+
 export default function AdminImport() {
   const { user, sources, stats } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
@@ -204,9 +248,30 @@ export default function AdminImport() {
           <dl className="detail-info">
             <dt>Total Files</dt>
             <dd>{stats.fileCount.toLocaleString()}</dd>
+            <dt>Total Size</dt>
+            <dd>{formatSize(stats.totalSize)}</dd>
             <dt>Total Folders</dt>
             <dd>{stats.folderCount.toLocaleString()}</dd>
           </dl>
+          
+          {stats.byKind.length > 0 && (
+            <div style={{ marginTop: "1rem", paddingTop: "1rem", borderTop: "1px solid #eee" }}>
+              <h3 style={{ fontWeight: 500, fontSize: "0.875rem", marginBottom: "0.5rem" }}>By Type</h3>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: "0.5rem" }}>
+                {stats.byKind
+                  .sort((a, b) => b.size - a.size)
+                  .map((k) => (
+                    <div key={k.kind} style={{ fontSize: "0.8125rem" }}>
+                      <span style={{ color: "#666" }}>{kindLabel(k.kind)}</span>
+                      <br />
+                      <span>{k.count.toLocaleString()} files</span>
+                      <br />
+                      <span style={{ color: "#888" }}>{formatSize(k.size)}</span>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Local Folder Import */}
