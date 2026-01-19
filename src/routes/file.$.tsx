@@ -58,12 +58,27 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     throw new Response("File not found", { status: 404 });
   }
 
-  // Get folder
+  // Get folder and build ancestor chain for breadcrumbs
   let folder = null;
+  const ancestors: { id: string; name: string; slug: string }[] = [];
+  
   if (file.folderId) {
     folder = await db.query.folders.findFirst({
       where: eq(folders.id, file.folderId),
     });
+    
+    // Build ancestor chain
+    if (folder) {
+      let currentParentId = folder.parentId;
+      while (currentParentId) {
+        const parent = await db.query.folders.findFirst({
+          where: eq(folders.id, currentParentId),
+        });
+        if (!parent) break;
+        ancestors.unshift(parent);
+        currentParentId = parent.parentId;
+      }
+    }
   }
 
   // Get tags
@@ -90,7 +105,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     textTruncated = true;
   }
 
-  return { user, file, folder, tags: fileTags_, textContent, textTruncated };
+  return { user, file, folder, ancestors, tags: fileTags_, textContent, textTruncated };
 }
 
 export function meta({ data }: Route.MetaArgs) {
@@ -145,7 +160,7 @@ function getAspectRatio(width: number, height: number): string {
 }
 
 export default function FileView() {
-  const { user, file, folder, tags, textContent, textTruncated } = useLoaderData<typeof loader>();
+  const { user, file, folder, ancestors, tags, textContent, textTruncated } = useLoaderData<typeof loader>();
 
   const isImage = file.kind === "texture";
   const isModel = file.kind === "model";
@@ -162,6 +177,12 @@ export default function FileView() {
         {/* Breadcrumb */}
         <div className="breadcrumb">
           <a href="/folders">Folders</a>
+          {ancestors.map((ancestor) => (
+            <span key={ancestor.id}>
+              <span className="breadcrumb-sep">/</span>
+              <a href={`/folder/${ancestor.slug}`}>{ancestor.name}</a>
+            </span>
+          ))}
           {folder && (
             <>
               <span className="breadcrumb-sep">/</span>
