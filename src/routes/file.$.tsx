@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useLoaderData, redirect } from "react-router";
 import type { Route } from "./+types/file.$";
 import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
@@ -36,6 +37,8 @@ function isTextMimeType(mimeType: string): boolean {
 // Model formats supported by our viewer
 const MODEL_FORMATS = {
   md2: "md2",
+  md5mesh: "md5mesh",
+  ase: "ase",
   obj: "obj",
   gltf: "gltf",
   glb: "glb",
@@ -129,24 +132,107 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   let modelMtl: string | null = null;
   
   if (file.kind === "model" && file.folderId) {
-    // Get the base name without extension
-    const baseName = file.name.replace(/\.[^.]+$/, "");
-    
-    // Look for texture files with matching name in same folder
     const textureExts = ["tga", "png", "jpg", "jpeg", "pcx", "bmp"];
+    
+    // Helper to get texture URL from a file record
+    const getTextureUrl = (textureFile: { path: string; hasPreview: boolean | null }) => {
+      if (textureFile.hasPreview) {
+        return `/uploads/${textureFile.path}.preview.png`;
+      }
+      return `/uploads/${textureFile.path}`;
+    };
+    
+    // Get all files in the same folder for smart matching
+    const siblingFiles = await db.query.files.findMany({
+      where: eq(files.folderId, file.folderId),
+    });
+    
+    const siblingTextures = siblingFiles.filter(f => f.kind === "texture");
+    const siblingConfigs = siblingFiles.filter(f => 
+      f.name.endsWith(".script") || f.name.endsWith(".skin") || f.name.endsWith(".mtr")
+    );
+    
+    // Strategy 1: Look for texture with same base name as model
+    const baseName = file.name.replace(/\.[^.]+$/, "").toLowerCase();
     for (const ext of textureExts) {
-      const texturePath = file.path.replace(/\.[^.]+$/, `.${ext}`);
-      const textureFile = await db.query.files.findFirst({
-        where: eq(files.path, texturePath),
-      });
-      if (textureFile) {
-        // Use preview for legacy formats, otherwise direct
-        if (textureFile.hasPreview) {
-          modelTexture = `/uploads/${textureFile.path}.preview.png`;
-        } else {
-          modelTexture = `/uploads/${textureFile.path}`;
-        }
+      const match = siblingTextures.find(f => 
+        f.name.toLowerCase() === `${baseName}.${ext}`
+      );
+      if (match) {
+        modelTexture = getTextureUrl(match);
         break;
+      }
+    }
+    
+    // Strategy 2: Look for common MD2 skin naming conventions
+    if (!modelTexture) {
+      const skinNames = ["skin", "skin1", "skin0", "default", baseName + "_skin"];
+      for (const skinName of skinNames) {
+        for (const ext of textureExts) {
+          const match = siblingTextures.find(f => 
+            f.name.toLowerCase() === `${skinName}.${ext}`
+          );
+          if (match) {
+            modelTexture = getTextureUrl(match);
+            break;
+          }
+        }
+        if (modelTexture) break;
+      }
+    }
+    
+    // Strategy 3: Parse .script/.skin/.mtr files for texture references
+    if (!modelTexture && siblingConfigs.length > 0) {
+      for (const configFile of siblingConfigs) {
+        try {
+          const configPath = getFilePath(configFile.path);
+          const content = await readFile(configPath, "utf-8");
+          
+          // Look for texture path references in the config
+          // Common patterns: "models/path/texture.jpg", map models/path/texture
+          const texturePatterns = [
+            /(?:map|diffusemap|bumpmap)\s+(\S+\.(?:tga|png|jpg|jpeg))/gi,
+            /["']([^"']+\.(?:tga|png|jpg|jpeg))["']/gi,
+            /\s(models\/[^\s]+\.(?:tga|png|jpg|jpeg))/gi,
+          ];
+          
+          for (const pattern of texturePatterns) {
+            const matches = content.matchAll(pattern);
+            for (const match of matches) {
+              const texPath = match[1];
+              // Try to find this texture - could be relative or absolute path
+              const texName = texPath.split("/").pop()?.toLowerCase();
+              if (texName) {
+                const foundTex = siblingTextures.find(f => 
+                  f.name.toLowerCase() === texName
+                );
+                if (foundTex) {
+                  modelTexture = getTextureUrl(foundTex);
+                  break;
+                }
+              }
+            }
+            if (modelTexture) break;
+          }
+        } catch {
+          // Failed to read config, continue
+        }
+        if (modelTexture) break;
+      }
+    }
+    
+    // Strategy 4: If there's only one texture in the folder, use it
+    if (!modelTexture && siblingTextures.length === 1) {
+      modelTexture = getTextureUrl(siblingTextures[0]);
+    }
+    
+    // Strategy 5: If there are few textures, prefer ones that look like diffuse maps
+    if (!modelTexture && siblingTextures.length > 0 && siblingTextures.length <= 5) {
+      // Avoid normal maps, glow maps, spec maps
+      const avoidPatterns = /_(?:normal|nrm|bump|spec|specular|glow|emit|ao|height|rough)/i;
+      const diffuseCandidate = siblingTextures.find(f => !avoidPatterns.test(f.name));
+      if (diffuseCandidate) {
+        modelTexture = getTextureUrl(diffuseCandidate);
       }
     }
     
@@ -160,9 +246,29 @@ export async function loader({ request, params }: Route.LoaderArgs) {
         modelMtl = `/uploads/${mtlFile.path}`;
       }
     }
+    
+    // For MD5 mesh files, find sibling animation files
+    let modelAnimations: { name: string; url: string }[] = [];
+    if (file.name.toLowerCase().endsWith(".md5mesh")) {
+      const siblingAnims = siblingFiles.filter(f => 
+        f.name.toLowerCase().endsWith(".md5anim")
+      );
+      modelAnimations = siblingAnims.map(f => ({
+        name: f.name.replace(/\.md5anim$/i, ""),
+        url: `/uploads/${f.path}`,
+      }));
+    }
+    
+    // Return available textures for manual selection
+    const availableTextures = siblingTextures.map(f => ({
+      name: f.name,
+      url: getTextureUrl(f),
+    }));
+    
+    return { user, file, folder, ancestors, tags: fileTags_, textContent, textTruncated, modelTexture, modelMtl, availableTextures, modelAnimations };
   }
 
-  return { user, file, folder, ancestors, tags: fileTags_, textContent, textTruncated, modelTexture, modelMtl };
+  return { user, file, folder, ancestors, tags: fileTags_, textContent, textTruncated, modelTexture, modelMtl, availableTextures: [], modelAnimations: [] };
 }
 
 export function meta({ data }: Route.MetaArgs) {
@@ -217,7 +323,8 @@ function getAspectRatio(width: number, height: number): string {
 }
 
 export default function FileView() {
-  const { user, file, folder, ancestors, tags, textContent, textTruncated, modelTexture, modelMtl } = useLoaderData<typeof loader>();
+  const { user, file, folder, ancestors, tags, textContent, textTruncated, modelTexture, modelMtl, availableTextures, modelAnimations } = useLoaderData<typeof loader>();
+  const [selectedTexture, setSelectedTexture] = useState<string | undefined>(modelTexture || undefined);
 
   const isImage = file.kind === "texture";
   const isModel = file.kind === "model";
@@ -270,13 +377,47 @@ export default function FileView() {
             )}
 
             {isModel && modelFormat && (
-              <ModelViewer
-                modelUrl={downloadUrl}
-                textureUrl={modelTexture || undefined}
-                mtlUrl={modelMtl || undefined}
-                format={modelFormat}
-                height={450}
-              />
+              <div style={{ width: "100%" }}>
+                <ModelViewer
+                  modelUrl={downloadUrl}
+                  textureUrl={selectedTexture}
+                  mtlUrl={modelMtl || undefined}
+                  animUrls={modelAnimations.length > 0 ? modelAnimations.map(a => a.url) : undefined}
+                  format={modelFormat}
+                  height={450}
+                />
+                {availableTextures.length > 1 && (
+                  <div style={{ 
+                    padding: "0.5rem", 
+                    background: "#fff",
+                    borderTop: "1px solid #eee",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    fontSize: "0.8125rem",
+                  }}>
+                    <label style={{ color: "#666" }}>Texture:</label>
+                    <select
+                      value={selectedTexture || ""}
+                      onChange={(e) => setSelectedTexture(e.target.value || undefined)}
+                      style={{
+                        flex: 1,
+                        padding: "0.25rem",
+                        border: "1px solid #ccc",
+                        borderRadius: "3px",
+                        fontSize: "0.8125rem",
+                      }}
+                    >
+                      <option value="">None</option>
+                      {availableTextures.map((tex) => (
+                        <option key={tex.url} value={tex.url}>
+                          {tex.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
             )}
 
             {isModel && !modelFormat && (

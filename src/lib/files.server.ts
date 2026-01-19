@@ -25,7 +25,7 @@ export const TEMP_DIR = join(process.cwd(), "tmp", "uploads");
 
 const KIND_EXTENSIONS: Record<FileKind, string[]> = {
   texture: ["png", "jpg", "jpeg", "gif", "webp", "tga", "bmp", "pcx", "wal", "vtf", "dds"],
-  model: ["gltf", "glb", "obj", "fbx", "md2", "md3", "mdl", "iqm", "blend"],
+  model: ["gltf", "glb", "obj", "fbx", "md2", "md3", "mdl", "md5mesh", "md5anim", "ase", "lwo", "iqm", "blend"],
   audio: ["wav", "mp3", "ogg", "flac", "m4a", "aiff"],
   map: ["bsp", "map", "vmf", "rmf"],
   archive: ["pk3", "pk4", "pak", "wad", "zip", "7z", "rar", "tar", "gz"],

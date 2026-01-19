@@ -1,288 +1,219 @@
 /**
  * Three.js-based 3D model viewer component
  * 
- * Supports MD2 (Quake 2), OBJ, and GLTF/GLB formats
- * Features: orbit controls, animation playback for MD2, auto-sizing
+ * Supports MD2 (Quake 2), MD5 (Doom 3), ASE (3ds Max), OBJ, and GLTF/GLB formats
+ * Features: orbit controls, animation playback, auto-sizing
  */
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { MD2Loader } from "three/addons/loaders/MD2Loader.js";
 import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
 import { MTLLoader } from "three/addons/loaders/MTLLoader.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { MD5Loader } from "~/lib/MD5Loader";
+import { ASELoader } from "~/lib/ASELoader";
 
-interface ModelViewerProps {
-  /** URL to the model file */
-  modelUrl: string;
-  /** Optional URL to texture file (for MD2/OBJ) */
-  textureUrl?: string;
-  /** Optional URL to MTL file (for OBJ) */
-  mtlUrl?: string;
-  /** File extension to determine loader */
-  format: "md2" | "obj" | "gltf" | "glb";
-  /** Height of the viewer */
-  height?: number;
-}
+type ModelFormat = "md2" | "md5mesh" | "ase" | "obj" | "gltf" | "glb";
 
-interface AnimationState {
+interface AnimationInfo {
   clips: THREE.AnimationClip[];
-  mixer: THREE.AnimationMixer | null;
-  currentAction: THREE.AnimationAction | null;
-  currentClipIndex: number;
+  currentIndex: number;
   isPlaying: boolean;
 }
 
-export function ModelViewer({
-  modelUrl,
-  textureUrl,
-  mtlUrl,
-  format,
-  height = 400,
-}: ModelViewerProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
-  const sceneRef = useRef<THREE.Scene | null>(null);
-  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
-  const controlsRef = useRef<OrbitControls | null>(null);
-  const animationFrameRef = useRef<number | null>(null);
-  const clockRef = useRef<THREE.Clock>(new THREE.Clock());
+/**
+ * Self-contained Three.js scene for model viewing
+ * Manages its own lifecycle independent of React
+ */
+class ModelScene {
+  private container: HTMLElement;
+  private height: number;
+  private renderer: THREE.WebGLRenderer;
+  private scene: THREE.Scene;
+  private camera: THREE.PerspectiveCamera;
+  private controls: OrbitControls;
+  private clock: THREE.Clock;
+  private animationFrameId: number | null = null;
+  private mixer: THREE.AnimationMixer | null = null;
+  private currentAction: THREE.AnimationAction | null = null;
+  private resizeObserver: ResizeObserver;
   
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [animation, setAnimation] = useState<AnimationState>({
-    clips: [],
-    mixer: null,
-    currentAction: null,
-    currentClipIndex: 0,
-    isPlaying: true,
-  });
+  public clips: THREE.AnimationClip[] = [];
+  public currentClipIndex = 0;
+  public isPlaying = true;
+  
+  public onAnimationChange?: (info: AnimationInfo) => void;
+  public onLoadStart?: () => void;
+  public onLoadComplete?: () => void;
+  public onLoadError?: (error: string) => void;
 
-  // Animation control functions
-  const playAnimation = useCallback((index: number) => {
-    if (!animation.mixer || animation.clips.length === 0) return;
-    
-    // Stop current action
-    if (animation.currentAction) {
-      animation.currentAction.stop();
-    }
-    
-    // Play new action
-    const clip = animation.clips[index];
-    const action = animation.mixer.clipAction(clip);
-    action.play();
-    
-    setAnimation(prev => ({
-      ...prev,
-      currentAction: action,
-      currentClipIndex: index,
-      isPlaying: true,
-    }));
-  }, [animation.mixer, animation.clips, animation.currentAction]);
-
-  const togglePlayPause = useCallback(() => {
-    if (!animation.currentAction) return;
-    
-    if (animation.isPlaying) {
-      animation.currentAction.paused = true;
-    } else {
-      animation.currentAction.paused = false;
-    }
-    
-    setAnimation(prev => ({
-      ...prev,
-      isPlaying: !prev.isPlaying,
-    }));
-  }, [animation.currentAction, animation.isPlaying]);
-
-  // Initialize Three.js scene
-  useEffect(() => {
-    if (!containerRef.current) return;
-
-    const container = containerRef.current;
-    const width = container.clientWidth;
+  constructor(container: HTMLElement, height: number) {
+    this.container = container;
+    this.height = height;
+    this.clock = new THREE.Clock();
 
     // Scene
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xf5f5f5);
-    sceneRef.current = scene;
+    this.scene = new THREE.Scene();
+    this.scene.background = new THREE.Color(0xf5f5f5);
 
-    // Camera
-    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
-    camera.position.set(0, 50, 100);
-    cameraRef.current = camera;
+    // Camera - use container width or fallback to reasonable default
+    const width = container.clientWidth || 800;
+    this.camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
+    this.camera.position.set(0, 50, 100);
 
     // Renderer
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(width, height);
-    renderer.setPixelRatio(window.devicePixelRatio);
-    container.appendChild(renderer.domElement);
-    rendererRef.current = renderer;
+    this.renderer = new THREE.WebGLRenderer({ antialias: true });
+    this.renderer.setSize(width, height);
+    this.renderer.setPixelRatio(window.devicePixelRatio);
+    container.appendChild(this.renderer.domElement);
 
     // Controls
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.05;
-    controls.screenSpacePanning = false;
-    controls.minDistance = 10;
-    controls.maxDistance = 500;
-    controlsRef.current = controls;
+    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+    this.controls.enableDamping = true;
+    this.controls.dampingFactor = 0.05;
+    this.controls.screenSpacePanning = false;
+    this.controls.minDistance = 10;
+    this.controls.maxDistance = 500;
 
     // Lighting
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-    scene.add(ambientLight);
+    this.scene.add(ambientLight);
 
     const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
     directionalLight.position.set(50, 100, 50);
-    scene.add(directionalLight);
+    this.scene.add(directionalLight);
 
     const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.4);
     directionalLight2.position.set(-50, 50, -50);
-    scene.add(directionalLight2);
+    this.scene.add(directionalLight2);
 
-    // Grid helper (subtle)
+    // Grid
     const gridHelper = new THREE.GridHelper(200, 20, 0xcccccc, 0xe0e0e0);
-    scene.add(gridHelper);
+    this.scene.add(gridHelper);
 
-    // Animation loop
-    const animate = () => {
-      animationFrameRef.current = requestAnimationFrame(animate);
-      
-      const delta = clockRef.current.getDelta();
-      
-      // Update animation mixer
-      if (animation.mixer) {
-        animation.mixer.update(delta);
+    // Handle resize via ResizeObserver
+    this.resizeObserver = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry) {
+        const newWidth = entry.contentRect.width;
+        if (newWidth > 0) {
+          this.camera.aspect = newWidth / this.height;
+          this.camera.updateProjectionMatrix();
+          this.renderer.setSize(newWidth, this.height);
+        }
       }
-      
-      controls.update();
-      renderer.render(scene, camera);
-    };
-    animate();
+    });
+    this.resizeObserver.observe(container);
 
-    // Handle resize
-    const handleResize = () => {
-      if (!containerRef.current) return;
-      const newWidth = containerRef.current.clientWidth;
-      camera.aspect = newWidth / height;
-      camera.updateProjectionMatrix();
-      renderer.setSize(newWidth, height);
-    };
-    window.addEventListener("resize", handleResize);
+    // Start render loop
+    this.animate();
+  }
 
-    // Cleanup
-    return () => {
-      window.removeEventListener("resize", handleResize);
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
-      controls.dispose();
-      renderer.dispose();
-      if (container.contains(renderer.domElement)) {
-        container.removeChild(renderer.domElement);
-      }
-    };
-  }, [height]);
+  private animate = () => {
+    this.animationFrameId = requestAnimationFrame(this.animate);
+    
+    const delta = this.clock.getDelta();
+    if (this.mixer) {
+      this.mixer.update(delta);
+    }
+    
+    this.controls.update();
+    this.renderer.render(this.scene, this.camera);
+  };
 
-  // Update animation mixer in animation loop
-  useEffect(() => {
-    // Re-trigger animation loop update when mixer changes
-  }, [animation.mixer]);
-
-  // Load model
-  useEffect(() => {
-    if (!sceneRef.current || !cameraRef.current || !controlsRef.current) return;
-
-    const scene = sceneRef.current;
-    const camera = cameraRef.current;
-    const controls = controlsRef.current;
-
-    setLoading(true);
-    setError(null);
-
-    // Helper to center and scale model
-    const fitModelToView = (object: THREE.Object3D) => {
-      const box = new THREE.Box3().setFromObject(object);
-      const center = box.getCenter(new THREE.Vector3());
-      const size = box.getSize(new THREE.Vector3());
-      
-      // Center the model
-      object.position.sub(center);
-      
-      // Scale to fit
-      const maxDim = Math.max(size.x, size.y, size.z);
+  private fitModelToView(object: THREE.Object3D) {
+    const box = new THREE.Box3().setFromObject(object);
+    const center = box.getCenter(new THREE.Vector3());
+    const size = box.getSize(new THREE.Vector3());
+    
+    // Center the model
+    object.position.sub(center);
+    
+    // Scale to fit
+    const maxDim = Math.max(size.x, size.y, size.z);
+    if (maxDim > 0) {
       const scale = 50 / maxDim;
       object.scale.multiplyScalar(scale);
-      
-      // Position camera
-      camera.position.set(0, 30, 80);
-      controls.target.set(0, 0, 0);
-      controls.update();
-    };
+    }
+    
+    // Position camera
+    this.camera.position.set(0, 30, 80);
+    this.controls.target.set(0, 0, 0);
+    this.controls.update();
+  }
 
-    // Load based on format
-    const loadModel = async () => {
-      try {
-        if (format === "md2") {
-          await loadMD2(scene, modelUrl, textureUrl, fitModelToView);
-        } else if (format === "obj") {
-          await loadOBJ(scene, modelUrl, textureUrl, mtlUrl, fitModelToView);
-        } else if (format === "gltf" || format === "glb") {
-          await loadGLTF(scene, modelUrl, fitModelToView);
-        }
-        setLoading(false);
-      } catch (err) {
-        console.error("Failed to load model:", err);
-        setError(err instanceof Error ? err.message : "Failed to load model");
-        setLoading(false);
+  private setupAnimations(clips: THREE.AnimationClip[], target: THREE.Object3D) {
+    if (clips.length === 0) return;
+    
+    this.clips = clips;
+    this.mixer = new THREE.AnimationMixer(target);
+    
+    // Play first animation
+    this.currentAction = this.mixer.clipAction(clips[0]);
+    this.currentAction.play();
+    this.currentClipIndex = 0;
+    this.isPlaying = true;
+    
+    this.notifyAnimationChange();
+  }
+
+  private notifyAnimationChange() {
+    this.onAnimationChange?.({
+      clips: this.clips,
+      currentIndex: this.currentClipIndex,
+      isPlaying: this.isPlaying,
+    });
+  }
+
+  async loadModel(url: string, format: ModelFormat, textureUrl?: string, mtlUrl?: string, animUrls?: string[]) {
+    this.onLoadStart?.();
+    
+    // Clear previous model
+    this.clearModel();
+    
+    try {
+      switch (format) {
+        case "md2":
+          await this.loadMD2(url, textureUrl);
+          break;
+        case "md5mesh":
+          await this.loadMD5(url, textureUrl, animUrls);
+          break;
+        case "ase":
+          await this.loadASE(url, textureUrl);
+          break;
+        case "obj":
+          await this.loadOBJ(url, textureUrl, mtlUrl);
+          break;
+        case "gltf":
+        case "glb":
+          await this.loadGLTF(url);
+          break;
       }
-    };
+      this.onLoadComplete?.();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to load model";
+      console.error("Model load error:", err);
+      this.onLoadError?.(message);
+    }
+  }
 
-    loadModel();
-
-    // Cleanup - remove model from scene
-    return () => {
-      // Remove all meshes except lights and grid
-      const toRemove: THREE.Object3D[] = [];
-      scene.traverse((child) => {
-        if (child instanceof THREE.Mesh || child instanceof THREE.Group) {
-          if (!(child instanceof THREE.GridHelper)) {
-            toRemove.push(child);
-          }
-        }
-      });
-      toRemove.forEach((obj) => {
-        if (obj.parent === scene) {
-          scene.remove(obj);
-        }
-      });
-    };
-  }, [modelUrl, textureUrl, mtlUrl, format]);
-
-  // MD2 Loader
-  const loadMD2 = async (
-    scene: THREE.Scene,
-    url: string,
-    textureUrl: string | undefined,
-    fitToView: (obj: THREE.Object3D) => void
-  ) => {
-    return new Promise<void>((resolve, reject) => {
+  private loadMD2(url: string, textureUrl?: string): Promise<void> {
+    return new Promise((resolve, reject) => {
       const loader = new MD2Loader();
       
       loader.load(
         url,
         (geometry) => {
-          // Load texture if provided
           let material: THREE.Material;
           
           if (textureUrl) {
-            const textureLoader = new THREE.TextureLoader();
-            const texture = textureLoader.load(textureUrl);
+            const texture = new THREE.TextureLoader().load(textureUrl);
             texture.colorSpace = THREE.SRGBColorSpace;
             material = new THREE.MeshLambertMaterial({ map: texture });
           } else {
-            // Default material with vertex colors or flat shading
             material = new THREE.MeshLambertMaterial({ 
               color: 0x888888,
               flatShading: true,
@@ -290,38 +221,13 @@ export function ModelViewer({
           }
           
           const mesh = new THREE.Mesh(geometry, material);
-          scene.add(mesh);
-          fitToView(mesh);
+          this.scene.add(mesh);
+          this.fitModelToView(mesh);
           
-          // Set up animations if available
-          // MD2Loader attaches animations to geometry
-          const geometryWithAnims = geometry as THREE.BufferGeometry & { animations?: THREE.AnimationClip[] };
-          if (geometryWithAnims.animations && geometryWithAnims.animations.length > 0) {
-            const mixer = new THREE.AnimationMixer(mesh);
-            const clips = geometryWithAnims.animations;
-            
-            // Play first animation by default
-            const action = mixer.clipAction(clips[0]);
-            action.play();
-            
-            setAnimation({
-              clips,
-              mixer,
-              currentAction: action,
-              currentClipIndex: 0,
-              isPlaying: true,
-            });
-            
-            // Update animation in render loop
-            const clock = clockRef.current;
-            const updateAnimation = () => {
-              const delta = clock.getDelta();
-              mixer.update(delta);
-            };
-            
-            // Store mixer for cleanup
-            (mesh as any)._mixer = mixer;
-            (mesh as any)._animationUpdate = updateAnimation;
+          // MD2 animations are attached to geometry
+          const geomWithAnims = geometry as THREE.BufferGeometry & { animations?: THREE.AnimationClip[] };
+          if (geomWithAnims.animations) {
+            this.setupAnimations(geomWithAnims.animations, mesh);
           }
           
           resolve();
@@ -330,17 +236,44 @@ export function ModelViewer({
         (err) => reject(err)
       );
     });
-  };
+  }
 
-  // OBJ Loader
-  const loadOBJ = async (
-    scene: THREE.Scene,
-    url: string,
-    textureUrl: string | undefined,
-    mtlUrl: string | undefined,
-    fitToView: (obj: THREE.Object3D) => void
-  ) => {
-    return new Promise<void>((resolve, reject) => {
+  private async loadMD5(url: string, textureUrl?: string, animUrls?: string[]): Promise<void> {
+    const loader = new MD5Loader();
+    
+    // Load mesh
+    const { mesh, skeleton } = await loader.loadMesh(url, textureUrl);
+    this.scene.add(mesh);
+    this.fitModelToView(mesh);
+    
+    // Load animations if provided
+    if (animUrls && animUrls.length > 0) {
+      const clips: THREE.AnimationClip[] = [];
+      
+      for (const animUrl of animUrls) {
+        try {
+          const clip = await loader.loadAnim(animUrl, skeleton);
+          clips.push(clip);
+        } catch (err) {
+          console.warn(`Failed to load animation ${animUrl}:`, err);
+        }
+      }
+      
+      if (clips.length > 0) {
+        this.setupAnimations(clips, mesh);
+      }
+    }
+  }
+
+  private async loadASE(url: string, textureUrl?: string): Promise<void> {
+    const loader = new ASELoader();
+    const group = await loader.load(url, textureUrl);
+    this.scene.add(group);
+    this.fitModelToView(group);
+  }
+
+  private loadOBJ(url: string, textureUrl?: string, mtlUrl?: string): Promise<void> {
+    return new Promise((resolve, reject) => {
       const objLoader = new OBJLoader();
       
       const loadWithMaterial = (materials?: MTLLoader.MaterialCreator) => {
@@ -354,8 +287,7 @@ export function ModelViewer({
           (object) => {
             // Apply texture if provided and no MTL
             if (textureUrl && !mtlUrl) {
-              const textureLoader = new THREE.TextureLoader();
-              const texture = textureLoader.load(textureUrl);
+              const texture = new THREE.TextureLoader().load(textureUrl);
               texture.colorSpace = THREE.SRGBColorSpace;
               
               object.traverse((child) => {
@@ -364,7 +296,6 @@ export function ModelViewer({
                 }
               });
             } else if (!mtlUrl) {
-              // Default material
               object.traverse((child) => {
                 if (child instanceof THREE.Mesh) {
                   child.material = new THREE.MeshLambertMaterial({ 
@@ -375,8 +306,8 @@ export function ModelViewer({
               });
             }
             
-            scene.add(object);
-            fitToView(object);
+            this.scene.add(object);
+            this.fitModelToView(object);
             resolve();
           },
           undefined,
@@ -384,10 +315,8 @@ export function ModelViewer({
         );
       };
       
-      // Load MTL if provided
       if (mtlUrl) {
         const mtlLoader = new MTLLoader();
-        // Set path for texture loading relative to MTL file
         const mtlPath = mtlUrl.substring(0, mtlUrl.lastIndexOf("/") + 1);
         mtlLoader.setPath(mtlPath);
         
@@ -396,8 +325,7 @@ export function ModelViewer({
           (materials) => loadWithMaterial(materials),
           undefined,
           () => {
-            // MTL failed to load, continue without it
-            console.warn("Failed to load MTL file, loading OBJ without materials");
+            console.warn("Failed to load MTL, continuing without materials");
             loadWithMaterial();
           }
         );
@@ -405,40 +333,21 @@ export function ModelViewer({
         loadWithMaterial();
       }
     });
-  };
+  }
 
-  // GLTF Loader
-  const loadGLTF = async (
-    scene: THREE.Scene,
-    url: string,
-    fitToView: (obj: THREE.Object3D) => void
-  ) => {
-    return new Promise<void>((resolve, reject) => {
+  private loadGLTF(url: string): Promise<void> {
+    return new Promise((resolve, reject) => {
       const loader = new GLTFLoader();
       
       loader.load(
         url,
         (gltf) => {
           const model = gltf.scene;
-          scene.add(model);
-          fitToView(model);
+          this.scene.add(model);
+          this.fitModelToView(model);
           
-          // Set up animations if available
           if (gltf.animations && gltf.animations.length > 0) {
-            const mixer = new THREE.AnimationMixer(model);
-            const clips = gltf.animations;
-            
-            // Play first animation by default
-            const action = mixer.clipAction(clips[0]);
-            action.play();
-            
-            setAnimation({
-              clips,
-              mixer,
-              currentAction: action,
-              currentClipIndex: 0,
-              isPlaying: true,
-            });
+            this.setupAnimations(gltf.animations, model);
           }
           
           resolve();
@@ -447,50 +356,148 @@ export function ModelViewer({
         (err) => reject(err)
       );
     });
-  };
+  }
 
-  // Update animation mixer in render loop
-  useEffect(() => {
-    if (!animation.mixer || !rendererRef.current || !sceneRef.current || !cameraRef.current) return;
+  private clearModel() {
+    // Stop animations
+    if (this.mixer) {
+      this.mixer.stopAllAction();
+      this.mixer = null;
+    }
+    this.currentAction = null;
+    this.clips = [];
+    this.currentClipIndex = 0;
     
-    const mixer = animation.mixer;
-    const clock = clockRef.current;
-    const renderer = rendererRef.current;
-    const scene = sceneRef.current;
-    const camera = cameraRef.current;
-    const controls = controlsRef.current;
-    
-    let frameId: number | null = null;
-    
-    const animate = () => {
-      frameId = requestAnimationFrame(animate);
-      
-      const delta = clock.getDelta();
-      mixer.update(delta);
-      
-      if (controls) {
-        controls.update();
+    // Remove meshes (keep lights and grid)
+    const toRemove: THREE.Object3D[] = [];
+    this.scene.traverse((child) => {
+      if (child instanceof THREE.Mesh && !(child instanceof THREE.GridHelper)) {
+        toRemove.push(child);
       }
-      
-      renderer.render(scene, camera);
+      if (child instanceof THREE.Group) {
+        toRemove.push(child);
+      }
+    });
+    toRemove.forEach((obj) => {
+      if (obj.parent === this.scene) {
+        this.scene.remove(obj);
+      }
+    });
+  }
+
+  playAnimation(index: number) {
+    if (!this.mixer || index < 0 || index >= this.clips.length) return;
+    
+    if (this.currentAction) {
+      this.currentAction.stop();
+    }
+    
+    this.currentAction = this.mixer.clipAction(this.clips[index]);
+    this.currentAction.play();
+    this.currentClipIndex = index;
+    this.isPlaying = true;
+    
+    this.notifyAnimationChange();
+  }
+
+  togglePlayPause() {
+    if (!this.currentAction) return;
+    
+    this.currentAction.paused = !this.currentAction.paused;
+    this.isPlaying = !this.currentAction.paused;
+    
+    this.notifyAnimationChange();
+  }
+
+  dispose() {
+    // Stop animation loop
+    if (this.animationFrameId !== null) {
+      cancelAnimationFrame(this.animationFrameId);
+    }
+    
+    // Clean up observers
+    this.resizeObserver.disconnect();
+    
+    // Dispose Three.js resources
+    this.controls.dispose();
+    this.renderer.dispose();
+    
+    // Remove canvas
+    if (this.container.contains(this.renderer.domElement)) {
+      this.container.removeChild(this.renderer.domElement);
+    }
+  }
+}
+
+// ============================================================================
+// React Component (thin wrapper)
+// ============================================================================
+
+interface ModelViewerProps {
+  modelUrl: string;
+  textureUrl?: string;
+  mtlUrl?: string;
+  /** Animation URLs for MD5 format */
+  animUrls?: string[];
+  format: ModelFormat;
+  height?: number;
+}
+
+export function ModelViewer({
+  modelUrl,
+  textureUrl,
+  mtlUrl,
+  animUrls,
+  format,
+  height = 400,
+}: ModelViewerProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const sceneRef = useRef<ModelScene | null>(null);
+  
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [animationInfo, setAnimationInfo] = useState<AnimationInfo | null>(null);
+
+  // Initialize scene
+  useEffect(() => {
+    if (!containerRef.current) return;
+    
+    const scene = new ModelScene(containerRef.current, height);
+    sceneRef.current = scene;
+    
+    // Wire up callbacks
+    scene.onLoadStart = () => {
+      setLoading(true);
+      setError(null);
     };
-    
-    // Cancel previous animation loop and start new one with mixer
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-    }
-    
-    animate();
-    if (frameId !== null) {
-      animationFrameRef.current = frameId;
-    }
+    scene.onLoadComplete = () => setLoading(false);
+    scene.onLoadError = (err) => {
+      setError(err);
+      setLoading(false);
+    };
+    scene.onAnimationChange = setAnimationInfo;
     
     return () => {
-      if (frameId !== null) {
-        cancelAnimationFrame(frameId);
-      }
+      scene.dispose();
+      sceneRef.current = null;
     };
-  }, [animation.mixer]);
+  }, [height]);
+
+  // Load model when URL/format changes
+  useEffect(() => {
+    const scene = sceneRef.current;
+    if (!scene) return;
+    
+    scene.loadModel(modelUrl, format, textureUrl, mtlUrl, animUrls);
+  }, [modelUrl, format, textureUrl, mtlUrl, animUrls]);
+
+  const handlePlayAnimation = (index: number) => {
+    sceneRef.current?.playAnimation(index);
+  };
+
+  const handleTogglePlayPause = () => {
+    sceneRef.current?.togglePlayPause();
+  };
 
   return (
     <div style={{ position: "relative" }}>
@@ -545,7 +552,7 @@ export function ModelViewer({
       )}
       
       {/* Animation controls */}
-      {!loading && !error && animation.clips.length > 0 && (
+      {!loading && !error && animationInfo && animationInfo.clips.length > 0 && (
         <div style={{
           position: "absolute",
           bottom: "10px",
@@ -560,7 +567,7 @@ export function ModelViewer({
           fontSize: "0.8125rem",
         }}>
           <button
-            onClick={togglePlayPause}
+            onClick={handleTogglePlayPause}
             style={{
               padding: "0.25rem 0.5rem",
               border: "1px solid #ccc",
@@ -570,12 +577,12 @@ export function ModelViewer({
               fontFamily: "monospace",
             }}
           >
-            {animation.isPlaying ? "||" : ">"}
+            {animationInfo.isPlaying ? "||" : ">"}
           </button>
           
           <select
-            value={animation.currentClipIndex}
-            onChange={(e) => playAnimation(parseInt(e.target.value))}
+            value={animationInfo.currentIndex}
+            onChange={(e) => handlePlayAnimation(parseInt(e.target.value))}
             style={{
               flex: 1,
               padding: "0.25rem",
@@ -584,7 +591,7 @@ export function ModelViewer({
               fontSize: "0.8125rem",
             }}
           >
-            {animation.clips.map((clip, index) => (
+            {animationInfo.clips.map((clip, index) => (
               <option key={index} value={index}>
                 {clip.name || `Animation ${index + 1}`}
               </option>
@@ -592,7 +599,7 @@ export function ModelViewer({
           </select>
           
           <span style={{ color: "#666", fontSize: "0.75rem" }}>
-            {animation.clips.length} animation{animation.clips.length !== 1 ? "s" : ""}
+            {animationInfo.clips.length} animation{animationInfo.clips.length !== 1 ? "s" : ""}
           </span>
         </div>
       )}
