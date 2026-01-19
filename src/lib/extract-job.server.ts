@@ -127,6 +127,16 @@ async function getOrCreateFolder(
 }
 
 /**
+ * Get folder slug by ID
+ */
+async function getFolderSlug(folderId: string): Promise<string | null> {
+  const folder = await db.query.folders.findFirst({
+    where: eq(folders.id, folderId),
+  });
+  return folder?.slug ?? null;
+}
+
+/**
  * Create nested folder structure from archive paths
  */
 async function createFolderStructure(
@@ -368,6 +378,9 @@ async function handleBatchExtractJob(
 
   // Create parent folder
   const parentFolderId = await getOrCreateFolder(parentFolderSlug, parentFolderName, null);
+  
+  // Get the actual parent folder slug (may differ from input if folder existed)
+  const actualParentSlug = await getFolderSlug(parentFolderId) || parentFolderSlug;
 
   const totalArchives = archives.length;
   let processedArchives = 0;
@@ -377,7 +390,7 @@ async function handleBatchExtractJob(
   for (const archiveInfo of archives) {
     const archiveName = basename(archiveInfo.path);
     const subfolderName = archiveInfo.path.split("/").pop()?.replace(/\.[^.]+$/, "") || archiveInfo.subfolderSlug;
-    const subfolderSlug = `${parentFolderSlug}/${archiveInfo.subfolderSlug}`;
+    const subfolderSlug = `${actualParentSlug}/${archiveInfo.subfolderSlug}`;
 
     await updateJobProgress(
       job.id,
@@ -729,6 +742,9 @@ async function handleBatchExtractBSPJob(
 
   // Create parent folder
   const parentFolderId = await getOrCreateFolder(parentFolderSlug, parentFolderName, null);
+  
+  // Get the actual parent folder slug (may differ from input if folder existed)
+  const actualParentSlug = await getFolderSlug(parentFolderId) || parentFolderSlug;
 
   const totalBSPs = bspFiles.length;
   let processedBSPs = 0;
@@ -738,7 +754,7 @@ async function handleBatchExtractBSPJob(
   for (const bspInfo of bspFiles) {
     const bspName = basename(bspInfo.path);
     const bspBaseName = bspName.replace(/\.bsp$/i, "");
-    const subfolderSlug = `${parentFolderSlug}/${bspInfo.subfolderSlug}`;
+    const subfolderSlug = `${actualParentSlug}/${bspInfo.subfolderSlug}`;
 
     await updateJobProgress(
       job.id,
