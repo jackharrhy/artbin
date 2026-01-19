@@ -28,7 +28,7 @@ const KIND_EXTENSIONS: Record<FileKind, string[]> = {
   model: ["gltf", "glb", "obj", "fbx", "md2", "md3", "mdl", "iqm", "blend"],
   audio: ["wav", "mp3", "ogg", "flac", "m4a", "aiff"],
   map: ["bsp", "map", "vmf", "rmf"],
-  archive: ["pk3", "pak", "wad", "zip", "7z", "rar", "tar", "gz"],
+  archive: ["pk3", "pk4", "pak", "wad", "zip", "7z", "rar", "tar", "gz"],
   config: ["cfg", "txt", "json", "xml", "ini", "yaml", "yml", "toml", "rc", "conf"],
   other: [],
 };
@@ -104,6 +104,7 @@ export async function getMimeType(filename: string, buffer?: Buffer): Promise<st
     bsp: "application/x-bsp",
     pak: "application/x-pak",
     pk3: "application/x-pk3",
+    pk4: "application/x-pk4",
     wad: "application/x-wad",
     mdl: "model/x-mdl",
     md2: "model/x-md2",

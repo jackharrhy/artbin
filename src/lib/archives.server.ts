@@ -38,7 +38,7 @@ export async function detectArchiveType(filePath: string): Promise<ParsedArchive
   const ext = filePath.split(".").pop()?.toLowerCase();
   
   // Check extension first
-  if (ext === "pk3" || ext === "zip") return "pk3";
+  if (ext === "pk3" || ext === "pk4" || ext === "zip") return "pk3";
   if (ext === "pak") return "pak";
   
   // Check magic bytes

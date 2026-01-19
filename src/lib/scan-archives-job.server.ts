@@ -97,9 +97,9 @@ function buildFdCommand(rootPath: string, excludeDirs: string[]): string {
   // Build exclusion patterns
   const excludeArgs = excludeDirs.map((dir: string) => `-E "${dir}"`).join(" ");
   
-  // Search for pak, pk3, wad, zip, bsp files
+  // Search for pak, pk3, pk4, wad, zip, bsp files
   // Use regex to match extensions (case insensitive with fd)
-  const pattern = "\\.(pak|pk3|wad|zip|bsp)$";
+  const pattern = "\\.(pak|pk3|pk4|wad|zip|bsp)$";
   
   return `fd "${pattern}" --type f --ignore-case ${excludeArgs} "${rootPath}" 2>/dev/null`;
 }
