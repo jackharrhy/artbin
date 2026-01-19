@@ -31,6 +31,7 @@ import {
   slugToPath,
 } from "./files.server";
 import { generateFolderPreview } from "./folder-preview.server";
+import { isBSPFile, extractTexturesFromBSP } from "./bsp.server";
 
 // ============================================================================
 // Types
@@ -246,6 +247,60 @@ async function handleExtractJob(
       // Track stats
       filesByKind[kind] = (filesByKind[kind] || 0) + 1;
       processedFiles++;
+
+      // Extract textures from BSP files (Quake 1 / Half-Life maps)
+      if (savedName.toLowerCase().endsWith(".bsp") && isBSPFile(buffer)) {
+        try {
+          const bspTextures = await extractTexturesFromBSP(buffer);
+          
+          if (bspTextures.length > 0) {
+            // Create a textures subfolder for this BSP
+            const bspBaseName = savedName.replace(/\.bsp$/i, "");
+            const texFolderSlug = `${folderSlug}/${pathToSlug(bspBaseName)}-textures`;
+            const texFolderName = `${bspBaseName} textures`;
+            const texFolderId = await getOrCreateFolder(texFolderSlug, texFolderName, folderId);
+            folderMap.set(`${entryDir}/${bspBaseName}-textures`, texFolderId);
+            
+            for (const tex of bspTextures) {
+              try {
+                const texFileName = `${tex.name}.png`;
+                const { path: texFilePath, name: texSavedName } = await saveFile(
+                  tex.pngBuffer, 
+                  texFolderSlug, 
+                  texFileName, 
+                  true
+                );
+                
+                // Process for preview
+                const texImageInfo = await processImage(texFilePath);
+                
+                await db.insert(files).values({
+                  id: nanoid(),
+                  path: texFilePath,
+                  name: texSavedName,
+                  mimeType: "image/png",
+                  size: tex.pngBuffer.length,
+                  kind: "texture",
+                  width: tex.width,
+                  height: tex.height,
+                  hasPreview: texImageInfo.hasPreview,
+                  folderId: texFolderId,
+                  source: `bsp-extracted`,
+                  sourceArchive: savedName,
+                });
+                
+                filesByKind["texture"] = (filesByKind["texture"] || 0) + 1;
+              } catch (texError) {
+                console.error(`Failed to save BSP texture ${tex.name}:`, texError);
+              }
+            }
+            
+            console.log(`Extracted ${bspTextures.length} textures from ${savedName}`);
+          }
+        } catch (bspError) {
+          console.error(`Failed to extract textures from BSP ${savedName}:`, bspError);
+        }
+      }
       
       // Update progress
       const progress = 15 + Math.floor((processedFiles / totalFiles) * 80);
@@ -396,6 +451,60 @@ async function handleBatchExtractJob(
           });
 
           filesExtracted++;
+
+          // Extract textures from BSP files (Quake 1 / Half-Life maps)
+          if (savedName.toLowerCase().endsWith(".bsp") && isBSPFile(buffer)) {
+            try {
+              const bspTextures = await extractTexturesFromBSP(buffer);
+              
+              if (bspTextures.length > 0) {
+                // Create a textures subfolder for this BSP
+                const bspBaseName = savedName.replace(/\.bsp$/i, "");
+                const texFolderSlug = `${folderSlug}/${pathToSlug(bspBaseName)}-textures`;
+                const texFolderName = `${bspBaseName} textures`;
+                const texFolderId = await getOrCreateFolder(texFolderSlug, texFolderName, folderId);
+                folderMap.set(`${entryDir}/${bspBaseName}-textures`, texFolderId);
+                
+                for (const tex of bspTextures) {
+                  try {
+                    const texFileName = `${tex.name}.png`;
+                    const { path: texFilePath, name: texSavedName } = await saveFile(
+                      tex.pngBuffer, 
+                      texFolderSlug, 
+                      texFileName, 
+                      true
+                    );
+                    
+                    // Process for preview
+                    const texImageInfo = await processImage(texFilePath);
+                    
+                    await db.insert(files).values({
+                      id: nanoid(),
+                      path: texFilePath,
+                      name: texSavedName,
+                      mimeType: "image/png",
+                      size: tex.pngBuffer.length,
+                      kind: "texture",
+                      width: tex.width,
+                      height: tex.height,
+                      hasPreview: texImageInfo.hasPreview,
+                      folderId: texFolderId,
+                      source: `bsp-extracted`,
+                      sourceArchive: savedName,
+                    });
+                    
+                    filesExtracted++;
+                  } catch (texError) {
+                    console.error(`Failed to save BSP texture ${tex.name}:`, texError);
+                  }
+                }
+                
+                console.log(`Extracted ${bspTextures.length} textures from ${savedName}`);
+              }
+            } catch (bspError) {
+              console.error(`Failed to extract textures from BSP ${savedName}:`, bspError);
+            }
+          }
         } catch (error) {
           console.error(`Failed to extract ${entry.name} from ${archiveName}:`, error);
           // Continue with other files
