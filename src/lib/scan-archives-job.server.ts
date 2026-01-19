@@ -1,7 +1,7 @@
 /**
  * Local archive scanner job handler
  * 
- * Scans the filesystem for game archives (PAK, PK3, WAD, ZIP) using fd.
+ * Scans the filesystem for game archives (PAK, PK3, WAD, ZIP, BSP) using fd.
  * Results are stored in job output for display in the admin UI.
  * Exclusion patterns are configurable via the settings table.
  */
@@ -97,9 +97,9 @@ function buildFdCommand(rootPath: string, excludeDirs: string[]): string {
   // Build exclusion patterns
   const excludeArgs = excludeDirs.map((dir: string) => `-E "${dir}"`).join(" ");
   
-  // Search for pak, pk3, wad, zip files
+  // Search for pak, pk3, wad, zip, bsp files
   // Use regex to match extensions (case insensitive with fd)
-  const pattern = "\\.(pak|pk3|wad|zip)$";
+  const pattern = "\\.(pak|pk3|wad|zip|bsp)$";
   
   return `fd "${pattern}" --type f --ignore-case ${excludeArgs} "${rootPath}" 2>/dev/null`;
 }
@@ -189,6 +189,22 @@ async function handleScanArchives(
       if (ext === "zip") {
         const gameDir = findGameDir(filePath, knownGameDirs);
         if (!gameDir) {
+          processed++;
+          continue;
+        }
+      }
+      
+      // For BSP files, skip small pickup/ammo model BSPs (b_*.bsp)
+      // These are typically under 200KB and don't have interesting textures
+      if (ext === "bsp") {
+        const lowerName = name.toLowerCase();
+        // Skip b_*.bsp files (Quake ammo/item models)
+        if (lowerName.startsWith("b_")) {
+          processed++;
+          continue;
+        }
+        // Skip very small BSPs (< 200KB, likely item models)
+        if (stats.size < 200 * 1024) {
           processed++;
           continue;
         }

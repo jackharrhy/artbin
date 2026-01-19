@@ -94,9 +94,26 @@ export async function action({ request }: Route.ActionArgs) {
     const archivePath = formData.get("archivePath") as string;
     const folderName = formData.get("folderName") as string;
     const folderSlug = formData.get("folderSlug") as string;
+    const archiveType = formData.get("archiveType") as string;
 
     if (!archivePath || !folderName || !folderSlug) {
       return { error: "Missing required fields" };
+    }
+
+    // Handle BSP files differently - extract textures instead of unpacking
+    if (archiveType === "bsp") {
+      const job = await createJob({
+        type: "extract-bsp",
+        input: {
+          bspPath: archivePath,
+          targetFolderSlug: folderSlug,
+          targetFolderName: folderName,
+          userId: user.id,
+        },
+        userId: user.id,
+      });
+
+      return { success: true, jobId: job.id, action: "import-bsp", archiveName: archivePath.split("/").pop() };
     }
 
     const job = await createJob({
@@ -135,25 +152,55 @@ export async function action({ request }: Route.ActionArgs) {
       return { error: "No archives selected" };
     }
 
-    const job = await createJob({
-      type: "batch-extract-archive",
-      input: {
-        parentFolderSlug: folderSlug,
-        parentFolderName: folderName,
-        archives: archivePaths.map((path) => ({
-          path,
-          subfolderSlug: slugify(path.split("/").pop()?.replace(/\.[^.]+$/, "") || "archive"),
-        })),
+    // Separate BSP files from regular archives
+    const bspPaths = archivePaths.filter((p) => p.toLowerCase().endsWith(".bsp"));
+    const regularArchivePaths = archivePaths.filter((p) => !p.toLowerCase().endsWith(".bsp"));
+
+    const results: { jobId: string; action: string; count: number }[] = [];
+
+    // Create job for regular archives if any
+    if (regularArchivePaths.length > 0) {
+      const archiveJob = await createJob({
+        type: "batch-extract-archive",
+        input: {
+          parentFolderSlug: folderSlug,
+          parentFolderName: folderName,
+          archives: regularArchivePaths.map((path) => ({
+            path,
+            subfolderSlug: slugify(path.split("/").pop()?.replace(/\.[^.]+$/, "") || "archive"),
+          })),
+          userId: user.id,
+        },
         userId: user.id,
-      },
-      userId: user.id,
-    });
+      });
+      results.push({ jobId: archiveJob.id, action: "batch-archive", count: regularArchivePaths.length });
+    }
+
+    // Create job for BSP files if any
+    if (bspPaths.length > 0) {
+      const bspJob = await createJob({
+        type: "batch-extract-bsp",
+        input: {
+          parentFolderSlug: folderSlug,
+          parentFolderName: folderName,
+          bspFiles: bspPaths.map((path) => ({
+            path,
+            subfolderSlug: slugify(path.split("/").pop()?.replace(/\.[^.]+$/, "") || "bsp"),
+          })),
+          userId: user.id,
+        },
+        userId: user.id,
+      });
+      results.push({ jobId: bspJob.id, action: "batch-bsp", count: bspPaths.length });
+    }
 
     return { 
       success: true, 
-      jobId: job.id, 
+      jobIds: results.map((r) => r.jobId),
       action: "batch-import", 
       count: archivePaths.length,
+      bspCount: bspPaths.length,
+      archiveCount: regularArchivePaths.length,
       folderName,
     };
   }
@@ -365,6 +412,7 @@ function ArchiveItem({
             {archive.type === "pk3" && "📦"}
             {archive.type === "wad" && "🎮"}
             {archive.type === "zip" && "🗜️"}
+            {archive.type === "bsp" && "🗺️"}
           </span>
           <span className="tree-archive-name">{archive.name}</span>
           <span className="tree-archive-meta">
@@ -378,6 +426,7 @@ function ArchiveItem({
           <Form method="post" className="archive-form">
             <input type="hidden" name="intent" value="import-archive" />
             <input type="hidden" name="archivePath" value={archive.path} />
+            <input type="hidden" name="archiveType" value={archive.type} />
 
             <div className="form-row">
               <div className="form-group" style={{ flex: 1 }}>
@@ -593,7 +642,7 @@ export default function AdminArchives() {
 
         <h1 className="page-title">Local Archives</h1>
         <p style={{ marginBottom: "1.5rem", color: "#666" }}>
-          Scan your computer for game archives (PAK, PK3, WAD, ZIP) and import them.
+          Scan your computer for game archives (PAK, PK3, WAD, ZIP) and BSP maps to extract textures.
         </p>
 
         {/* Alerts */}
@@ -610,9 +659,20 @@ export default function AdminArchives() {
           </div>
         )}
 
+        {actionData?.success && actionData.action === "import-bsp" && (
+          <div className="alert alert-success" style={{ marginBottom: "1rem" }}>
+            <strong>BSP extraction started!</strong> Extracting textures from {actionData.archiveName}.{" "}
+            <a href="/admin/jobs">View progress</a>
+          </div>
+        )}
+
         {actionData?.success && actionData.action === "batch-import" && (
           <div className="alert alert-success" style={{ marginBottom: "1rem" }}>
-            <strong>Batch import started!</strong> {actionData.count} archives will be extracted into "{actionData.folderName}".{" "}
+            <strong>Batch import started!</strong>{" "}
+            {(actionData.archiveCount ?? 0) > 0 && `${actionData.archiveCount} archive${actionData.archiveCount !== 1 ? "s" : ""}`}
+            {(actionData.archiveCount ?? 0) > 0 && (actionData.bspCount ?? 0) > 0 && " and "}
+            {(actionData.bspCount ?? 0) > 0 && `${actionData.bspCount} BSP map${actionData.bspCount !== 1 ? "s" : ""}`}
+            {" "}will be processed into "{actionData.folderName}".{" "}
             <a href="/admin/jobs">View progress</a>
           </div>
         )}
