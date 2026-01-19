@@ -4,6 +4,7 @@ import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
 import { db, files, folders, fileTags, tags } from "~/db";
 import { eq } from "drizzle-orm";
 import { Header } from "~/components/Header";
+import { ModelViewer } from "~/components/ModelViewer";
 import { readFile } from "fs/promises";
 import { getFilePath } from "~/lib/files.server";
 
@@ -30,6 +31,24 @@ function isTextMimeType(mimeType: string): boolean {
     mimeType === "application/xml" ||
     mimeType === "application/javascript"
   );
+}
+
+// Model formats supported by our viewer
+const MODEL_FORMATS = {
+  md2: "md2",
+  obj: "obj",
+  gltf: "gltf",
+  glb: "glb",
+} as const;
+
+type ModelFormat = (typeof MODEL_FORMATS)[keyof typeof MODEL_FORMATS] | null;
+
+function getModelFormat(filename: string): ModelFormat {
+  const ext = getExtname(filename).toLowerCase().slice(1);
+  if (ext in MODEL_FORMATS) {
+    return MODEL_FORMATS[ext as keyof typeof MODEL_FORMATS];
+  }
+  return null;
 }
 
 // Max size to load for text preview (100KB)
@@ -105,7 +124,45 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     textTruncated = true;
   }
 
-  return { user, file, folder, ancestors, tags: fileTags_, textContent, textTruncated };
+  // For model files, look for associated texture/material files
+  let modelTexture: string | null = null;
+  let modelMtl: string | null = null;
+  
+  if (file.kind === "model" && file.folderId) {
+    // Get the base name without extension
+    const baseName = file.name.replace(/\.[^.]+$/, "");
+    
+    // Look for texture files with matching name in same folder
+    const textureExts = ["tga", "png", "jpg", "jpeg", "pcx", "bmp"];
+    for (const ext of textureExts) {
+      const texturePath = file.path.replace(/\.[^.]+$/, `.${ext}`);
+      const textureFile = await db.query.files.findFirst({
+        where: eq(files.path, texturePath),
+      });
+      if (textureFile) {
+        // Use preview for legacy formats, otherwise direct
+        if (textureFile.hasPreview) {
+          modelTexture = `/uploads/${textureFile.path}.preview.png`;
+        } else {
+          modelTexture = `/uploads/${textureFile.path}`;
+        }
+        break;
+      }
+    }
+    
+    // For OBJ files, look for MTL file
+    if (file.name.toLowerCase().endsWith(".obj")) {
+      const mtlPath = file.path.replace(/\.obj$/i, ".mtl");
+      const mtlFile = await db.query.files.findFirst({
+        where: eq(files.path, mtlPath),
+      });
+      if (mtlFile) {
+        modelMtl = `/uploads/${mtlFile.path}`;
+      }
+    }
+  }
+
+  return { user, file, folder, ancestors, tags: fileTags_, textContent, textTruncated, modelTexture, modelMtl };
 }
 
 export function meta({ data }: Route.MetaArgs) {
@@ -160,12 +217,13 @@ function getAspectRatio(width: number, height: number): string {
 }
 
 export default function FileView() {
-  const { user, file, folder, ancestors, tags, textContent, textTruncated } = useLoaderData<typeof loader>();
+  const { user, file, folder, ancestors, tags, textContent, textTruncated, modelTexture, modelMtl } = useLoaderData<typeof loader>();
 
   const isImage = file.kind === "texture";
   const isModel = file.kind === "model";
   const isAudio = file.kind === "audio";
   const isTextFile = isTextMimeType(file.mimeType);
+  const modelFormat = getModelFormat(file.name);
 
   const displayUrl = getDisplayUrl(file);
   const downloadUrl = `/uploads/${file.path}`;
@@ -211,7 +269,17 @@ export default function FileView() {
               </a>
             )}
 
-            {isModel && (
+            {isModel && modelFormat && (
+              <ModelViewer
+                modelUrl={downloadUrl}
+                textureUrl={modelTexture || undefined}
+                mtlUrl={modelMtl || undefined}
+                format={modelFormat}
+                height={450}
+              />
+            )}
+
+            {isModel && !modelFormat && (
               <div
                 style={{
                   height: "400px",
@@ -221,10 +289,12 @@ export default function FileView() {
                   justifyContent: "center",
                 }}
               >
-                {/* TODO: Add model viewer */}
                 <div style={{ textAlign: "center", color: "#999" }}>
                   <div style={{ fontSize: "3rem" }}>📦</div>
                   <div>3D Model</div>
+                  <div style={{ fontSize: "0.875rem", marginTop: "0.5rem" }}>
+                    Format not supported for preview
+                  </div>
                   <a href={downloadUrl} className="btn" style={{ marginTop: "1rem" }}>
                     Download
                   </a>
