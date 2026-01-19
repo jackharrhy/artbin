@@ -2,7 +2,8 @@
  * BSP file parser for Quake 1 and Half-Life
  * 
  * Extracts embedded MIPTEX textures from BSP files.
- * Quake 1 BSP version 29, Half-Life BSP version 30.
+ * - Quake 1 BSP version 29: Uses global palette (gfx/palette.lmp)
+ * - Half-Life BSP version 30: Each texture has its own embedded 256-color palette
  */
 
 import sharp from "sharp";
@@ -68,7 +69,10 @@ interface MipTex {
   name: string;
   width: number;
   height: number;
-  pixels: Uint8Array;  // Raw indexed pixels (mip0 only)
+  pixels: Uint8Array;       // Raw indexed pixels (mip0 only)
+  palette: Uint8Array;      // 768-byte palette (256 RGB colors)
+  hasEmbeddedPalette: boolean;  // true if palette was extracted from texture
+  isTransparent: boolean;   // true if texture name starts with { (masked texture)
 }
 
 // ============================================================================
@@ -99,6 +103,43 @@ function parseBSPHeader(buffer: Buffer): BSPHeader | null {
 }
 
 /**
+ * Extract embedded palette from Half-Life MIPTEX
+ * 
+ * Half-Life MIPTEX structure (when texture data is embedded):
+ * - Header: 40 bytes (name[16], width, height, offsets[4])
+ * - Mip0: width * height bytes
+ * - Mip1: (width/2) * (height/2) bytes
+ * - Mip2: (width/4) * (height/4) bytes
+ * - Mip3: (width/8) * (height/8) bytes
+ * - Padding: 2 bytes (palette entry count, usually 256)
+ * - Palette: 768 bytes (256 * 3 RGB)
+ */
+function extractHLPalette(
+  buffer: Buffer, 
+  mipTexOffset: number, 
+  mip0Offset: number,
+  width: number, 
+  height: number
+): Uint8Array | null {
+  // Calculate total size of all 4 mip levels
+  const mip0Size = width * height;
+  const mip1Size = Math.floor(width / 2) * Math.floor(height / 2);
+  const mip2Size = Math.floor(width / 4) * Math.floor(height / 4);
+  const mip3Size = Math.floor(width / 8) * Math.floor(height / 8);
+  const totalMipSize = mip0Size + mip1Size + mip2Size + mip3Size;
+  
+  // Palette is located after all mip data + 2 byte padding
+  const paletteOffset = mipTexOffset + mip0Offset + totalMipSize + 2;
+  
+  // Bounds check
+  if (paletteOffset + 768 > buffer.length) {
+    return null;
+  }
+  
+  return new Uint8Array(buffer.subarray(paletteOffset, paletteOffset + 768));
+}
+
+/**
  * Parse MIPTEX textures from the texture lump
  */
 function parseMipTextures(buffer: Buffer, header: BSPHeader): MipTex[] {
@@ -110,18 +151,19 @@ function parseMipTextures(buffer: Buffer, header: BSPHeader): MipTex[] {
 
   if (numMipTex <= 0 || numMipTex > 10000) return []; // Sanity check
 
+  const isHalfLife = header.version === BSP_VERSION_HALFLIFE;
   const textures: MipTex[] = [];
 
   // Read offset table
   for (let i = 0; i < numMipTex; i++) {
     const offset = buffer.readInt32LE(lumpStart + 4 + i * 4);
     
-    // -1 means empty slot
+    // -1 means empty slot (texture stored in external WAD)
     if (offset === -1) continue;
 
     const mipTexOffset = lumpStart + offset;
     
-    // Bounds check
+    // Bounds check for header
     if (mipTexOffset + 40 > buffer.length) continue;
 
     // Read MIPTEX header
@@ -136,10 +178,19 @@ function parseMipTextures(buffer: Buffer, header: BSPHeader): MipTex[] {
 
     // Sanity checks
     if (width === 0 || height === 0 || width > 4096 || height > 4096) continue;
-    if (name.length === 0 || name.startsWith("*")) continue; // Skip special textures
+    if (name.length === 0) continue;
+    
+    // Skip liquid textures (start with *) - these animate and tile specially
+    if (name.startsWith("*")) continue;
+    
+    // Skip sky textures - these are split into two layers
+    if (name.toLowerCase() === "sky" || name.toLowerCase().startsWith("sky")) continue;
 
-    // Texture pixel data offset (relative to MIPTEX start for embedded textures)
-    // For Quake 1/HL BSP, mip0Offset is relative to the MIPTEX structure start
+    // Check if texture data is embedded (mip0Offset != 0)
+    // When mip0Offset is 0, texture is stored in external WAD file
+    if (mip0Offset === 0) continue;
+
+    // Calculate pixel data location
     const pixelOffset = mipTexOffset + mip0Offset;
     const pixelSize = width * height;
 
@@ -147,7 +198,31 @@ function parseMipTextures(buffer: Buffer, header: BSPHeader): MipTex[] {
 
     const pixels = new Uint8Array(buffer.subarray(pixelOffset, pixelOffset + pixelSize));
 
-    textures.push({ name, width, height, pixels });
+    // Determine palette to use
+    let palette: Uint8Array = QUAKE_PALETTE;
+    let hasEmbeddedPalette = false;
+
+    if (isHalfLife) {
+      // Try to extract embedded palette for Half-Life textures
+      const hlPalette = extractHLPalette(buffer, mipTexOffset, mip0Offset, width, height);
+      if (hlPalette) {
+        palette = hlPalette;
+        hasEmbeddedPalette = true;
+      }
+    }
+
+    // Check if this is a transparent/masked texture (name starts with {)
+    const isTransparent = name.startsWith("{");
+
+    textures.push({ 
+      name, 
+      width, 
+      height, 
+      pixels, 
+      palette, 
+      hasEmbeddedPalette,
+      isTransparent,
+    });
   }
 
   return textures;
@@ -155,48 +230,57 @@ function parseMipTextures(buffer: Buffer, header: BSPHeader): MipTex[] {
 
 /**
  * Convert indexed pixels to RGBA using palette
+ * 
+ * Handles transparency:
+ * - For Quake 1: Index 255 is transparent
+ * - For Half-Life masked textures ({name): Last palette index (255) is transparent
+ * - For Half-Life masked textures: Also detect pure blue (0,0,255) as transparent
  */
 function indexedToRGBA(
   pixels: Uint8Array, 
   width: number, 
   height: number,
-  palette: Uint8Array
+  palette: Uint8Array,
+  isTransparent: boolean,
+  hasEmbeddedPalette: boolean
 ): Buffer {
   const rgba = Buffer.alloc(width * height * 4);
 
   for (let i = 0; i < pixels.length; i++) {
     const idx = pixels[i];
     const palOffset = idx * 3;
-    rgba[i * 4 + 0] = palette[palOffset + 0]; // R
-    rgba[i * 4 + 1] = palette[palOffset + 1]; // G
-    rgba[i * 4 + 2] = palette[palOffset + 2]; // B
-    rgba[i * 4 + 3] = idx === 255 ? 0 : 255;  // A (index 255 is transparent in Quake)
+    
+    const r = palette[palOffset + 0];
+    const g = palette[palOffset + 1];
+    const b = palette[palOffset + 2];
+    
+    rgba[i * 4 + 0] = r;
+    rgba[i * 4 + 1] = g;
+    rgba[i * 4 + 2] = b;
+    
+    // Determine alpha
+    let alpha = 255;
+    
+    if (isTransparent) {
+      // For masked textures, last palette entry (index 255) is transparent
+      if (idx === 255) {
+        alpha = 0;
+      }
+      // Also check for pure blue which Half-Life uses as transparency marker
+      else if (r === 0 && g === 0 && b === 255) {
+        alpha = 0;
+      }
+    } else if (!hasEmbeddedPalette) {
+      // Quake 1 style: index 255 is always transparent
+      if (idx === 255) {
+        alpha = 0;
+      }
+    }
+    
+    rgba[i * 4 + 3] = alpha;
   }
 
   return rgba;
-}
-
-/**
- * Get palette for Half-Life BSP texture (embedded after mip data)
- */
-function getHLPalette(buffer: Buffer, mipTexOffset: number, width: number, height: number): Uint8Array | null {
-  // Half-Life MIPTEX has palette after all 4 mips
-  // mip0: w*h, mip1: (w/2)*(h/2), mip2: (w/4)*(h/4), mip3: (w/8)*(h/8)
-  // Then: 2 bytes (unknown), then 768 bytes palette
-  
-  const mip0Size = width * height;
-  const mip1Size = (width / 2) * (height / 2);
-  const mip2Size = (width / 4) * (height / 4);
-  const mip3Size = (width / 8) * (height / 8);
-  const totalMipSize = mip0Size + mip1Size + mip2Size + mip3Size;
-  
-  // MIPTEX header is 40 bytes, mip0 offset is at byte 24
-  const mip0Offset = buffer.readUInt32LE(mipTexOffset + 24);
-  const paletteOffset = mipTexOffset + mip0Offset + totalMipSize + 2;
-  
-  if (paletteOffset + 768 > buffer.length) return null;
-  
-  return new Uint8Array(buffer.subarray(paletteOffset, paletteOffset + 768));
 }
 
 // ============================================================================
@@ -221,6 +305,11 @@ export function isBSPFile(buffer: Buffer): boolean {
 
 /**
  * Extract all textures from a BSP file
+ * 
+ * Supports:
+ * - Quake 1 BSP (version 29) with global palette
+ * - Half-Life BSP (version 30) with per-texture embedded palettes
+ * - Transparent/masked textures (names starting with {)
  */
 export async function extractTexturesFromBSP(buffer: Buffer): Promise<ExtractedTexture[]> {
   const header = parseBSPHeader(buffer);
@@ -231,14 +320,14 @@ export async function extractTexturesFromBSP(buffer: Buffer): Promise<ExtractedT
 
   for (const tex of mipTextures) {
     try {
-      // Use Quake palette for version 29, attempt HL palette for version 30
-      let palette = QUAKE_PALETTE;
-      
-      // For Half-Life, we'd need to extract the embedded palette
-      // For now, use Quake palette for both (works reasonably well)
-      // TODO: Implement HL palette extraction if needed
-      
-      const rgba = indexedToRGBA(tex.pixels, tex.width, tex.height, palette);
+      const rgba = indexedToRGBA(
+        tex.pixels, 
+        tex.width, 
+        tex.height, 
+        tex.palette,
+        tex.isTransparent,
+        tex.hasEmbeddedPalette
+      );
       
       const pngBuffer = await sharp(rgba, {
         raw: {
