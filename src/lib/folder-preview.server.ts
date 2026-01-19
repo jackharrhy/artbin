@@ -45,11 +45,16 @@ async function getPreviewTextures(folderId: string): Promise<string[]> {
     .from(files)
     .where(eq(files.folderId, folderId))
     .orderBy(desc(files.hasPreview), desc(files.createdAt))
-    .limit(GRID_SIZE * GRID_SIZE);
+    .limit(GRID_SIZE * GRID_SIZE * 2); // Get more to filter
 
-  // Get paths to the actual displayable images
+  // Filter to only image-like files and get paths to displayable images
   return textures
-    .filter((t) => t.path)
+    .filter((t) => {
+      if (!t.path) return false;
+      const ext = t.path.toLowerCase().split('.').pop();
+      return ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'tga', 'pcx'].includes(ext || '');
+    })
+    .slice(0, GRID_SIZE * GRID_SIZE)
     .map((t) => {
       if (t.hasPreview) {
         return join(UPLOADS_DIR, t.path + ".preview.png");
@@ -96,21 +101,32 @@ async function getPreviewTexturesRecursive(folderId: string): Promise<string[]> 
   // Get all descendant folder IDs
   const allFolderIds = await getAllDescendantFolderIds(folderId);
 
-  // Get all textures from all these folders
+  // Get only image files (textures) from all these folders
+  // Filter by kind to avoid trying to process audio, maps, etc.
   const textures = await db
     .select({
       path: files.path,
       hasPreview: files.hasPreview,
     })
     .from(files)
-    .where(inArray(files.folderId, allFolderIds));
+    .where(
+      inArray(files.folderId, allFolderIds)
+    );
 
-  if (textures.length === 0) {
+  // Filter to only image-like files
+  const imageTextures = textures.filter(t => {
+    if (!t.path) return false;
+    const ext = t.path.toLowerCase().split('.').pop();
+    // Only include known image formats
+    return ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'tga', 'pcx'].includes(ext || '');
+  });
+
+  if (imageTextures.length === 0) {
     return [];
   }
 
   // Shuffle to get random sampling across all folders
-  const shuffled = shuffleArray(textures);
+  const shuffled = shuffleArray(imageTextures);
 
   // Get paths to the actual displayable images
   const paths: string[] = [];
