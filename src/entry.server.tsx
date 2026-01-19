@@ -12,6 +12,7 @@ import "~/lib/texturetown-job.server";
 import "~/lib/thejang-job.server";
 import "~/lib/sadgrl-job.server";
 import "~/lib/scan-archives-job.server";
+import "~/lib/folder-import-job.server";
 
 // Start the job runner (only once)
 if (!isJobRunnerActive()) {

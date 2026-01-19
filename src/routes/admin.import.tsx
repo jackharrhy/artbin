@@ -5,6 +5,9 @@ import { db, files, folders } from "~/db";
 import { count } from "drizzle-orm";
 import { Header } from "~/components/Header";
 import { createJob } from "~/lib/jobs.server";
+import { existsSync } from "fs";
+import { stat } from "fs/promises";
+import { basename } from "path";
 
 // Import sources configuration
 const IMPORT_SOURCES = [
@@ -95,6 +98,49 @@ export async function action({ request }: Route.ActionArgs) {
     return { success: true, jobId: job.id, action: "sadgrl" };
   }
 
+  // Folder import
+  if (intent === "folder-import") {
+    const folderPath = formData.get("folderPath") as string;
+    const folderName = formData.get("folderName") as string;
+    
+    if (!folderPath || !folderPath.trim()) {
+      return { error: "Please enter a folder path" };
+    }
+
+    // Validate the path exists and is a directory
+    if (!existsSync(folderPath)) {
+      return { error: `Path does not exist: ${folderPath}` };
+    }
+
+    try {
+      const stats = await stat(folderPath);
+      if (!stats.isDirectory()) {
+        return { error: `Path is not a directory: ${folderPath}` };
+      }
+    } catch {
+      return { error: `Cannot access path: ${folderPath}` };
+    }
+
+    // Generate slug from folder name or path
+    const name = folderName?.trim() || basename(folderPath);
+    const slug = name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+
+    const job = await createJob({
+      type: "folder-import",
+      input: {
+        sourcePath: folderPath,
+        targetFolderSlug: slug,
+        targetFolderName: name,
+        userId: user.id,
+      },
+      userId: user.id,
+    });
+    return { success: true, jobId: job.id, action: "folder-import", folderName: name };
+  }
+
   return { error: "Unknown action" };
 }
 
@@ -145,6 +191,13 @@ export default function AdminImport() {
           </div>
         )}
 
+        {actionData?.success && actionData.action === "folder-import" && (
+          <div className="alert alert-success">
+            <p><strong>Folder import started: {actionData.folderName}</strong></p>
+            <p><a href="/admin/jobs">View job progress</a></p>
+          </div>
+        )}
+
         {/* Stats */}
         <div className="card" style={{ marginBottom: "1.5rem" }}>
           <h2 style={{ fontWeight: 500, marginBottom: "0.5rem" }}>Current Stats</h2>
@@ -155,6 +208,83 @@ export default function AdminImport() {
             <dd>{stats.folderCount.toLocaleString()}</dd>
           </dl>
         </div>
+
+        {/* Local Folder Import */}
+        <section className="section">
+          <h2 className="section-title">Local Folder</h2>
+          
+          <div className="card" style={{ marginBottom: "1rem" }}>
+            <h3 style={{ fontWeight: 500, marginBottom: "0.5rem" }}>
+              Import from Folder Path
+            </h3>
+            <p style={{ fontSize: "0.875rem", color: "#666", marginBottom: "1rem" }}>
+              Recursively import all supported files from a local folder (images, audio, models, etc.)
+            </p>
+            
+            <Form method="post">
+              <input type="hidden" name="intent" value="folder-import" />
+              
+              <div style={{ marginBottom: "0.75rem" }}>
+                <label style={{ display: "block", fontSize: "0.875rem", marginBottom: "0.25rem" }}>
+                  Folder Path
+                </label>
+                <input
+                  type="text"
+                  name="folderPath"
+                  placeholder="/path/to/game/assets"
+                  style={{
+                    width: "100%",
+                    padding: "0.5rem",
+                    border: "1px solid #ccc",
+                    fontFamily: "monospace",
+                    fontSize: "0.875rem",
+                  }}
+                />
+              </div>
+              
+              <div style={{ marginBottom: "1rem" }}>
+                <label style={{ display: "block", fontSize: "0.875rem", marginBottom: "0.25rem" }}>
+                  Collection Name (optional)
+                </label>
+                <input
+                  type="text"
+                  name="folderName"
+                  placeholder="Leave blank to use folder name"
+                  style={{
+                    width: "100%",
+                    padding: "0.5rem",
+                    border: "1px solid #ccc",
+                    fontSize: "0.875rem",
+                  }}
+                />
+              </div>
+              
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: "0.75rem", color: "#888" }}>
+                  Supports: png, jpg, tga, bmp, wav, ogg, mp3, obj, md5mesh, etc.
+                </span>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  onClick={(e) => {
+                    const form = e.currentTarget.form;
+                    const pathInput = form?.querySelector('input[name="folderPath"]') as HTMLInputElement;
+                    if (!pathInput?.value.trim()) {
+                      e.preventDefault();
+                      alert("Please enter a folder path");
+                      return;
+                    }
+                    if (!confirm(`Import all supported files from:\n${pathInput.value}\n\nThis may take a while for large folders.`)) {
+                      e.preventDefault();
+                    }
+                  }}
+                >
+                  Import Folder
+                </button>
+              </div>
+            </Form>
+          </div>
+        </section>
 
         {/* Local Archives */}
         <section className="section">
