@@ -18,6 +18,7 @@ import {
   isImageKind,
   ensureDir,
   slugToPath,
+  recalculateFolderCounts,
 } from "./files.server";
 import { generateFolderPreview } from "./folder-preview.server";
 
@@ -325,7 +326,10 @@ async function handleTextureStationImport(
     }
   }
 
-  // Generate folder previews
+  // Recalculate folder counts and generate previews
+  await updateJobProgress(job.id, 95, "Updating folder counts...");
+  await recalculateFolderCounts(createdFolderIds);
+
   await updateJobProgress(job.id, 96, "Generating folder previews...");
   for (const folderId of createdFolderIds) {
     try {

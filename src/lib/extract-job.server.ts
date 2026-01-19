@@ -29,6 +29,7 @@ import {
   TEMP_DIR,
   ensureDir,
   slugToPath,
+  recalculateFolderCounts,
 } from "./files.server";
 import { generateFolderPreview } from "./folder-preview.server";
 import { isBSPFile, extractTexturesFromBSP } from "./bsp.server";
@@ -337,6 +338,10 @@ async function handleExtractJob(
     }
   }
   
+  // Recalculate file counts for all created folders
+  await updateJobProgress(job.id, 96, "Updating folder counts...");
+  await recalculateFolderCounts(Array.from(folderMap.values()));
+
   // Generate folder previews for all created folders
   await updateJobProgress(job.id, 97, "Generating folder previews...");
   for (const [, folderId] of folderMap) {
@@ -524,7 +529,8 @@ async function handleBatchExtractJob(
         }
       }
 
-      // Generate folder previews for all created folders
+      // Recalculate file counts and generate folder previews
+      await recalculateFolderCounts(Array.from(folderMap.values()));
       for (const [, folderId] of folderMap) {
         try {
           await generateFolderPreview(folderId);
@@ -555,8 +561,9 @@ async function handleBatchExtractJob(
     processedArchives++;
   }
 
-  // Generate preview for parent folder
+  // Update parent folder count and generate preview
   await updateJobProgress(job.id, 97, "Generating parent folder preview...");
+  await recalculateFolderCounts([parentFolderId]);
   try {
     await generateFolderPreview(parentFolderId);
   } catch (err) {
@@ -679,8 +686,9 @@ async function handleExtractBSPJob(
     }
   }
 
-  // Generate folder preview
+  // Update folder count and generate preview
   await updateJobProgress(job.id, 95, "Generating folder preview...");
+  await recalculateFolderCounts([folderId]);
   try {
     await generateFolderPreview(folderId);
   } catch (err) {
@@ -824,7 +832,8 @@ async function handleBatchExtractBSPJob(
         }
       }
 
-      // Generate preview for subfolder
+      // Update folder count and generate preview for subfolder
+      await recalculateFolderCounts([subFolderId]);
       try {
         await generateFolderPreview(subFolderId);
       } catch (err) {
@@ -853,8 +862,9 @@ async function handleBatchExtractBSPJob(
     processedBSPs++;
   }
 
-  // Generate preview for parent folder
+  // Update parent folder count and generate preview
   await updateJobProgress(job.id, 97, "Generating parent folder preview...");
+  await recalculateFolderCounts([parentFolderId]);
   try {
     await generateFolderPreview(parentFolderId);
   } catch (err) {

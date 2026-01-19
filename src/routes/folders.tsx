@@ -4,7 +4,7 @@ import { UploadModal } from "~/components/UploadModal";
 import type { Route } from "./+types/folders";
 import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
 import { db, folders, files, tags } from "~/db";
-import { eq, isNull, count, desc } from "drizzle-orm";
+import { eq, isNull, count, desc, sql } from "drizzle-orm";
 import { Header } from "~/components/Header";
 import { BrowseTabs, type ViewMode } from "~/components/BrowseTabs";
 import { SearchBar } from "~/components/SearchBar";
@@ -41,29 +41,20 @@ export async function loader({ request }: Route.LoaderArgs) {
       orderBy: [desc(folders.createdAt)],
     });
 
-    // Get file counts for each folder (including descendants)
+    // Use the pre-computed fileCount from the database
+    // For root folders, we sum the fileCount of the folder and all its descendants
     const folderCounts: Record<string, number> = {};
 
-    async function countFilesRecursive(folderId: string): Promise<number> {
-      const [{ c }] = await db
-        .select({ c: count() })
-        .from(files)
-        .where(eq(files.folderId, folderId));
-
-      const childFolders = await db.query.folders.findMany({
-        where: eq(folders.parentId, folderId),
-      });
-
-      let total = c;
-      for (const child of childFolders) {
-        total += await countFilesRecursive(child.id);
-      }
-
-      return total;
-    }
-
+    // Get total file counts per root folder (including all descendants)
+    // This is a single query that sums all files under each root folder's tree
     for (const folder of rootFolders) {
-      folderCounts[folder.id] = await countFilesRecursive(folder.id);
+      // Get all descendant folder IDs using a recursive approach, but cached
+      const descendantCounts = await db
+        .select({ total: sql<number>`SUM(file_count)` })
+        .from(folders)
+        .where(sql`slug LIKE ${folder.slug + '%'}`);
+      
+      folderCounts[folder.id] = descendantCounts[0]?.total || 0;
     }
 
     // Count root folders

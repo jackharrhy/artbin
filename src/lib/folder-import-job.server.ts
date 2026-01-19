@@ -21,6 +21,7 @@ import {
   isImageKind,
   ensureDir,
   slugToPath,
+  recalculateFolderCounts,
 } from "./files.server";
 import { generateFolderPreview } from "./folder-preview.server";
 
@@ -328,6 +329,10 @@ async function handleFolderImportJob(
       // Continue with other files
     }
   }
+
+  // Recalculate file counts for all created folders
+  await updateJobProgress(job.id, 96, "Updating folder counts...");
+  await recalculateFolderCounts(Array.from(folderMap.values()));
 
   // Generate folder previews for all created folders
   await updateJobProgress(job.id, 97, "Generating folder previews...");

@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, primaryKey } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, primaryKey, index } from "drizzle-orm/sqlite-core";
 
 // ============================================================================
 // Auth & Users
@@ -44,8 +44,11 @@ export const folders = sqliteTable("folders", {
   parentId: text("parent_id").references((): any => folders.id, { onDelete: "cascade" }),
   ownerId: text("owner_id").references(() => users.id, { onDelete: "set null" }),
   visibility: text("visibility", { enum: ["public", "private", "unlisted"] }).default("public"),
+  fileCount: integer("file_count").default(0),    // Direct file count (not including subfolders)
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn((): Date => new Date()),
-});
+}, (table) => ({
+  parentIdIdx: index("idx_folders_parent_id").on(table.parentId),
+}));
 
 // ============================================================================
 // Files - Unified file storage
@@ -82,7 +85,12 @@ export const files = sqliteTable("files", {
   sourceArchive: text("source_archive"),           // Original archive filename if extracted
   
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn((): Date => new Date()),
-});
+}, (table) => ({
+  folderIdIdx: index("idx_files_folder_id").on(table.folderId),
+  kindIdx: index("idx_files_kind").on(table.kind),
+  createdAtIdx: index("idx_files_created_at").on(table.createdAt),
+  kindCreatedIdx: index("idx_files_kind_created").on(table.kind, table.createdAt),
+}));
 
 // ============================================================================
 // Tags - For categorizing files
@@ -132,7 +140,9 @@ export const jobs = sqliteTable("jobs", {
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn((): Date => new Date()),
   startedAt: integer("started_at", { mode: "timestamp" }),
   completedAt: integer("completed_at", { mode: "timestamp" }),
-});
+}, (table) => ({
+  statusIdx: index("idx_jobs_status").on(table.status),
+}));
 
 // ============================================================================
 // Settings - Key-value store for app configuration

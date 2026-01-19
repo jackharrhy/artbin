@@ -606,3 +606,104 @@ export async function getFileCountsByKind(folderIds?: string[]): Promise<Record<
 
   return counts;
 }
+
+// ============================================================================
+// File Record Management (with folder count sync)
+// ============================================================================
+
+export interface CreateFileRecord {
+  id: string;
+  path: string;
+  name: string;
+  mimeType: string;
+  size: number;
+  kind: FileKind;
+  width?: number | null;
+  height?: number | null;
+  hasPreview?: boolean;
+  folderId: string | null;
+  uploaderId?: string | null;
+  source?: string | null;
+  sourceArchive?: string | null;
+}
+
+/**
+ * Insert a file record and increment the parent folder's file count.
+ * Use this instead of direct db.insert(files) to keep counts in sync.
+ */
+export async function insertFileRecord(record: CreateFileRecord): Promise<void> {
+  await db.insert(files).values({
+    id: record.id,
+    path: record.path,
+    name: record.name,
+    mimeType: record.mimeType,
+    size: record.size,
+    kind: record.kind,
+    width: record.width ?? null,
+    height: record.height ?? null,
+    hasPreview: record.hasPreview ?? false,
+    folderId: record.folderId,
+    uploaderId: record.uploaderId ?? null,
+    source: record.source ?? null,
+    sourceArchive: record.sourceArchive ?? null,
+  });
+
+  // Increment folder's file count
+  if (record.folderId) {
+    await db
+      .update(folders)
+      .set({ fileCount: sql`file_count + 1` })
+      .where(eq(folders.id, record.folderId));
+  }
+}
+
+/**
+ * Delete a file record and decrement the parent folder's file count.
+ */
+export async function deleteFileRecord(fileId: string): Promise<void> {
+  // Get the file first to know which folder to update
+  const file = await db.query.files.findFirst({
+    where: eq(files.id, fileId),
+  });
+
+  if (!file) return;
+
+  // Delete the file record
+  await db.delete(files).where(eq(files.id, fileId));
+
+  // Decrement folder's file count
+  if (file.folderId) {
+    await db
+      .update(folders)
+      .set({ fileCount: sql`MAX(0, file_count - 1)` })
+      .where(eq(folders.id, file.folderId));
+  }
+}
+
+/**
+ * Bulk increment folder file count (for batch imports)
+ */
+export async function incrementFolderFileCount(folderId: string, count: number = 1): Promise<void> {
+  await db
+    .update(folders)
+    .set({ fileCount: sql`file_count + ${count}` })
+    .where(eq(folders.id, folderId));
+}
+
+/**
+ * Recalculate file counts for a set of folders.
+ * Call this after batch file operations to sync counts.
+ */
+export async function recalculateFolderCounts(folderIds: string[]): Promise<void> {
+  for (const folderId of folderIds) {
+    const [{ c }] = await db
+      .select({ c: sql<number>`count(*)` })
+      .from(files)
+      .where(eq(files.folderId, folderId));
+    
+    await db
+      .update(folders)
+      .set({ fileCount: c })
+      .where(eq(folders.id, folderId));
+  }
+}
