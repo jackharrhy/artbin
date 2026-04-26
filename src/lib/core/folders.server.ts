@@ -54,6 +54,10 @@ export function cleanFolderSlug(slug: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
+function toError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
+}
+
 export async function createFolder(input: CreateFolderInput, deps: CreateFolderDeps = {}) {
   const database = deps.db ?? appDb;
   const uploadsDir = deps.uploadsDir ?? UPLOADS_DIR;
@@ -88,22 +92,26 @@ export async function createFolder(input: CreateFolderInput, deps: CreateFolderD
     return Result.err(new Error(`Folder "${fullSlug}" already exists`));
   }
 
-  const folderId = createId();
-  await ensureDir(join(uploadsDir, fullSlug));
+  try {
+    const folderId = createId();
+    await ensureDir(join(uploadsDir, fullSlug));
 
-  await database.insert(folders).values({
-    id: folderId,
-    name,
-    slug: fullSlug,
-    parentId: input.parentId || null,
-    ownerId: input.ownerId,
-  });
+    await database.insert(folders).values({
+      id: folderId,
+      name,
+      slug: fullSlug,
+      parentId: input.parentId || null,
+      ownerId: input.ownerId,
+    });
 
-  return Result.ok({
-    id: folderId,
-    name,
-    slug: fullSlug,
-  } satisfies CreatedFolder);
+    return Result.ok({
+      id: folderId,
+      name,
+      slug: fullSlug,
+    } satisfies CreatedFolder);
+  } catch (error) {
+    return Result.err(toError(error));
+  }
 }
 
 async function getDescendantFolders(database: AppDb, folderId: string): Promise<Folder[]> {
@@ -204,63 +212,67 @@ export async function moveFolder(
     return Result.err(new Error(`Directory already exists at "${newSlug}"`));
   }
 
-  let movedFolders = 0;
-  let movedFiles = 0;
+  try {
+    let movedFolders = 0;
+    let movedFiles = 0;
 
-  await database
-    .update(folders)
-    .set({
-      parentId: newParentId,
-      slug: newSlug,
-    })
-    .where(eq(folders.id, folderId));
-  movedFolders++;
-
-  for (const descendant of descendants) {
-    const descendantNewSlug = descendant.slug.replace(oldSlug, newSlug);
     await database
       .update(folders)
-      .set({ slug: descendantNewSlug })
-      .where(eq(folders.id, descendant.id));
+      .set({
+        parentId: newParentId,
+        slug: newSlug,
+      })
+      .where(eq(folders.id, folderId));
     movedFolders++;
-  }
 
-  const affectedFolderIds = [folderId, ...descendants.map((descendant) => descendant.id)];
-  for (const affectedFolderId of affectedFolderIds) {
-    const folderFiles = await database.query.files.findMany({
-      where: eq(files.folderId, affectedFolderId),
+    for (const descendant of descendants) {
+      const descendantNewSlug = descendant.slug.replace(oldSlug, newSlug);
+      await database
+        .update(folders)
+        .set({ slug: descendantNewSlug })
+        .where(eq(folders.id, descendant.id));
+      movedFolders++;
+    }
+
+    const affectedFolderIds = [folderId, ...descendants.map((descendant) => descendant.id)];
+    for (const affectedFolderId of affectedFolderIds) {
+      const folderFiles = await database.query.files.findMany({
+        where: eq(files.folderId, affectedFolderId),
+      });
+
+      for (const file of folderFiles) {
+        await database
+          .update(files)
+          .set({ path: file.path.replace(oldSlug, newSlug) })
+          .where(eq(files.id, file.id));
+        movedFiles++;
+      }
+    }
+
+    if (exists(oldPath)) {
+      await moveDir(oldPath, newPath);
+    }
+
+    await generatePreview(folderId);
+    if (newParentId) {
+      await generatePreview(newParentId);
+    }
+    if (folder.parentId) {
+      await generatePreview(folder.parentId);
+    }
+
+    const updatedFolder = await database.query.folders.findFirst({
+      where: eq(folders.id, folderId),
     });
 
-    for (const file of folderFiles) {
-      await database
-        .update(files)
-        .set({ path: file.path.replace(oldSlug, newSlug) })
-        .where(eq(files.id, file.id));
-      movedFiles++;
-    }
+    return Result.ok({
+      folder: updatedFolder,
+      movedFolders,
+      movedFiles,
+    } satisfies MoveFolderOutput);
+  } catch (error) {
+    return Result.err(toError(error));
   }
-
-  if (exists(oldPath)) {
-    await moveDir(oldPath, newPath);
-  }
-
-  await generatePreview(folderId);
-  if (newParentId) {
-    await generatePreview(newParentId);
-  }
-  if (folder.parentId) {
-    await generatePreview(folder.parentId);
-  }
-
-  const updatedFolder = await database.query.folders.findFirst({
-    where: eq(folders.id, folderId),
-  });
-
-  return Result.ok({
-    folder: updatedFolder,
-    movedFolders,
-    movedFiles,
-  } satisfies MoveFolderOutput);
 }
 
 export async function createFolderAndMoveChildren(
@@ -316,10 +328,12 @@ export async function createFolderAndMoveChildren(
   for (const childId of childFolderIds) {
     const moveResult = await moveFolder(childId, newFolderId, { ...deps, db: database, uploadsDir });
 
-    if (Result.isOk(moveResult)) {
-      totalMovedFolders += moveResult.value.movedFolders;
-      totalMovedFiles += moveResult.value.movedFiles;
+    if (moveResult.isErr()) {
+      return Result.err(moveResult.error);
     }
+
+    totalMovedFolders += moveResult.value.movedFolders;
+    totalMovedFiles += moveResult.value.movedFiles;
   }
 
   const newFolder = await database.query.folders.findFirst({

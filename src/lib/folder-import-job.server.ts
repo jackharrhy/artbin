@@ -289,9 +289,10 @@ async function handleFolderImportJob(
 
       if (isImageKind(kind)) {
         const imageInfo = await processImage(filePath);
-        width = imageInfo.width;
-        height = imageInfo.height;
-        hasPreview = imageInfo.hasPreview;
+        if (imageInfo.isErr()) throw imageInfo.error;
+        width = imageInfo.value.width;
+        height = imageInfo.value.height;
+        hasPreview = imageInfo.value.hasPreview;
       }
 
       // Create file record

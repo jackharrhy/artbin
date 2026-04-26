@@ -1,10 +1,14 @@
 import { afterEach, describe, expect, test } from "vitest";
+import { Result } from "better-result";
 import { eq } from "drizzle-orm";
 import { folders } from "~/db/schema";
 import { setDbForTesting } from "~/db";
 import {
   deleteFileRecord,
+  generatePreview,
+  getImageDimensions,
   insertFileRecord,
+  processImage,
   recalculateFolderCounts,
 } from "~/lib/files.server";
 import { applyMigrations, createTestDatabase, type TestDatabase } from "./db";
@@ -33,7 +37,7 @@ describe("file record count sync", () => {
       slug: "textures",
     });
 
-    await insertFileRecord({
+    const insert = await insertFileRecord({
       id: "file-1",
       path: "textures/wall.png",
       name: "wall.png",
@@ -42,13 +46,15 @@ describe("file record count sync", () => {
       kind: "texture",
       folderId: "folder-1",
     });
+    expect(Result.isOk(insert)).toBe(true);
 
     const afterInsert = await db.query.folders.findFirst({
       where: eq(folders.id, "folder-1"),
     });
     expect(afterInsert?.fileCount).toBe(1);
 
-    await deleteFileRecord("file-1");
+    const deleted = await deleteFileRecord("file-1");
+    expect(Result.isOk(deleted)).toBe(true);
 
     const afterDelete = await db.query.folders.findFirst({
       where: eq(folders.id, "folder-1"),
@@ -66,7 +72,7 @@ describe("file record count sync", () => {
       fileCount: 99,
     });
 
-    await insertFileRecord({
+    const insert = await insertFileRecord({
       id: "file-1",
       path: "textures/wall.png",
       name: "wall.png",
@@ -75,6 +81,7 @@ describe("file record count sync", () => {
       kind: "texture",
       folderId: "folder-1",
     });
+    expect(Result.isOk(insert)).toBe(true);
 
     await recalculateFolderCounts(["folder-1"]);
 
@@ -82,5 +89,45 @@ describe("file record count sync", () => {
       where: eq(folders.id, "folder-1"),
     });
     expect(folder?.fileCount).toBe(1);
+  });
+
+  test("returns an error when inserting a duplicate file record fails", async () => {
+    setupDatabase();
+
+    const record = {
+      id: "file-1",
+      path: "textures/wall.png",
+      name: "wall.png",
+      mimeType: "image/png",
+      size: 123,
+      kind: "texture" as const,
+      folderId: null,
+    };
+
+    expect(Result.isOk(await insertFileRecord(record))).toBe(true);
+
+    const duplicate = await insertFileRecord(record);
+
+    expect(duplicate.isErr()).toBe(true);
+  });
+});
+
+describe("image processing Result APIs", () => {
+  test("returns an error when image dimensions cannot be read", async () => {
+    const result = await getImageDimensions("/definitely/not/here.png");
+
+    expect(result.isErr()).toBe(true);
+  });
+
+  test("returns an error when preview generation fails", async () => {
+    const result = await generatePreview("/definitely/not/here.tga");
+
+    expect(result.isErr()).toBe(true);
+  });
+
+  test("returns an error when processing a legacy image cannot generate a preview", async () => {
+    const result = await processImage("missing.tga");
+
+    expect(result.isErr()).toBe(true);
   });
 });

@@ -83,6 +83,26 @@ describe("createFolder", () => {
     expect(result.unwrap().slug).toBe("parent/child");
   });
 
+  test("returns an error when creating the directory fails", async () => {
+    const db = setupDatabase();
+    await seedUser(db);
+
+    const result = await createFolder(
+      { name: "Textures", slug: "textures", parentId: null, ownerId: "user-1" },
+      {
+        createId: () => "folder-1",
+        uploadsDir: "/uploads-test",
+        ensureDir: async () => {
+          throw new Error("disk is full");
+        },
+      },
+    );
+
+    expect(result.isErr()).toBe(true);
+    if (!result.isErr()) throw new Error("Expected folder creation to fail");
+    expect(result.error.message).toBe("disk is full");
+  });
+
   test("rejects duplicate folder slugs", async () => {
     const db = setupDatabase();
     await seedUser(db);
@@ -225,6 +245,29 @@ describe("moveFolder", () => {
     expect(rootFile?.path).toBe("target/source/root.png");
     expect(nestedFile?.path).toBe("target/source/child/nested.png");
   });
+
+  test("returns an error when moving the directory fails", async () => {
+    const db = setupDatabase();
+
+    await db.insert(folders).values([
+      { id: "source", name: "Source", slug: "source" },
+      { id: "target", name: "Target", slug: "target" },
+    ]);
+
+    const result = await moveFolder("source", "target", {
+      uploadsDir: "/uploads-test",
+      exists: (path) => path === "/uploads-test/source",
+      rename: async () => {
+        throw new Error("permission denied");
+      },
+      ensureDir: async () => {},
+      generatePreview: async () => null,
+    });
+
+    expect(result.isErr()).toBe(true);
+    if (!result.isErr()) throw new Error("Expected folder move to fail");
+    expect(result.error.message).toBe("permission denied");
+  });
 });
 
 describe("createFolderAndMoveChildren", () => {
@@ -256,5 +299,25 @@ describe("createFolderAndMoveChildren", () => {
     expect(childA?.slug).toBe("group/child-a");
     expect(childB?.parentId).toBe("group");
     expect(childB?.slug).toBe("group/child-b");
+  });
+
+  test("returns an error when a selected child cannot be moved", async () => {
+    const db = setupDatabase();
+    await seedUser(db);
+
+    await db.insert(folders).values({ id: "child-a", name: "Child A", slug: "child-a" });
+
+    const result = await createFolderAndMoveChildren("Group", null, ["child-a", "missing"], {
+      createId: () => "group",
+      uploadsDir: "/uploads-test",
+      exists: () => false,
+      rename: async () => {},
+      ensureDir: async () => {},
+      generatePreview: async () => null,
+    });
+
+    expect(result.isErr()).toBe(true);
+    if (!result.isErr()) throw new Error("Expected grouping to fail");
+    expect(result.error.message).toBe("Folder not found");
   });
 });

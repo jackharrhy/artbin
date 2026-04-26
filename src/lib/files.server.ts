@@ -11,9 +11,14 @@ import { exec } from "child_process";
 import { promisify } from "util";
 import mime from "mime-types";
 import { fileTypeFromBuffer } from "file-type";
+import { Result } from "better-result";
 import type { FileKind } from "~/db/schema";
 
 const execAsync = promisify(exec);
+
+function toError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
+}
 
 // Base directories
 export const UPLOADS_DIR = join(process.cwd(), "public", "uploads");
@@ -385,33 +390,32 @@ export async function deleteFolder(folderSlug: string): Promise<void> {
  */
 export async function getImageDimensions(
   filePath: string
-): Promise<{ width: number; height: number } | null> {
+): Promise<Result<{ width: number; height: number }, Error>> {
   try {
     const { stdout } = await execAsync(
       `magick identify -format "%w %h" "${filePath}[0]"`
     );
     const [width, height] = stdout.trim().split(" ").map(Number);
     if (width && height) {
-      return { width, height };
+      return Result.ok({ width, height });
     }
-    return null;
-  } catch {
-    return null;
+    return Result.err(new Error(`Could not read image dimensions for ${filePath}`));
+  } catch (error) {
+    return Result.err(toError(error));
   }
 }
 
 /**
  * Generate a PNG preview for a legacy format image
  */
-export async function generatePreview(inputPath: string): Promise<boolean> {
+export async function generatePreview(inputPath: string): Promise<Result<boolean, Error>> {
   const outputPath = inputPath + ".preview.png";
   
   try {
     await execAsync(`magick "${inputPath}" "${outputPath}"`);
-    return true;
+    return Result.ok(true);
   } catch (error) {
-    console.error(`Failed to generate preview for ${inputPath}:`, error);
-    return false;
+    return Result.err(toError(error));
   }
 }
 
@@ -420,28 +424,32 @@ export async function generatePreview(inputPath: string): Promise<boolean> {
  * - Get dimensions
  * - Generate preview if needed
  */
-export async function processImage(filePath: string): Promise<{
+export async function processImage(filePath: string): Promise<Result<{
   width: number | null;
   height: number | null;
   hasPreview: boolean;
-}> {
+}, Error>> {
   const fullPath = getFilePath(filePath);
   let hasPreview = false;
   
   // Generate preview for legacy formats
   if (needsPreview(filePath)) {
-    hasPreview = await generatePreview(fullPath);
+    const preview = await generatePreview(fullPath);
+    if (preview.isErr()) {
+      return Result.err(preview.error);
+    }
+    hasPreview = preview.value;
   }
   
   // Get dimensions from preview if it exists, otherwise from original
   const dimensionPath = hasPreview ? fullPath + ".preview.png" : fullPath;
   const dims = await getImageDimensions(dimensionPath);
   
-  return {
-    width: dims?.width ?? null,
-    height: dims?.height ?? null,
+  return Result.ok({
+    width: dims.isOk() ? dims.value.width : null,
+    height: dims.isOk() ? dims.value.height : null,
     hasPreview,
-  };
+  });
 }
 
 // ============================================================================
@@ -733,52 +741,64 @@ export interface CreateFileRecord {
  * Insert a file record and increment the parent folder's file count.
  * Use this instead of direct db.insert(files) to keep counts in sync.
  */
-export async function insertFileRecord(record: CreateFileRecord): Promise<void> {
-  await db.insert(files).values({
-    id: record.id,
-    path: record.path,
-    name: record.name,
-    mimeType: record.mimeType,
-    size: record.size,
-    kind: record.kind,
-    width: record.width ?? null,
-    height: record.height ?? null,
-    hasPreview: record.hasPreview ?? false,
-    folderId: record.folderId,
-    uploaderId: record.uploaderId ?? null,
-    source: record.source ?? null,
-    sourceArchive: record.sourceArchive ?? null,
-  });
+export async function insertFileRecord(record: CreateFileRecord): Promise<Result<void, Error>> {
+  try {
+    await db.insert(files).values({
+      id: record.id,
+      path: record.path,
+      name: record.name,
+      mimeType: record.mimeType,
+      size: record.size,
+      kind: record.kind,
+      width: record.width ?? null,
+      height: record.height ?? null,
+      hasPreview: record.hasPreview ?? false,
+      folderId: record.folderId,
+      uploaderId: record.uploaderId ?? null,
+      source: record.source ?? null,
+      sourceArchive: record.sourceArchive ?? null,
+    });
 
-  // Increment folder's file count
-  if (record.folderId) {
-    await db
-      .update(folders)
-      .set({ fileCount: sql`file_count + 1` })
-      .where(eq(folders.id, record.folderId));
+    // Increment folder's file count
+    if (record.folderId) {
+      await db
+        .update(folders)
+        .set({ fileCount: sql`file_count + 1` })
+        .where(eq(folders.id, record.folderId));
+    }
+
+    return Result.ok(undefined);
+  } catch (error) {
+    return Result.err(toError(error));
   }
 }
 
 /**
  * Delete a file record and decrement the parent folder's file count.
  */
-export async function deleteFileRecord(fileId: string): Promise<void> {
-  // Get the file first to know which folder to update
-  const file = await db.query.files.findFirst({
-    where: eq(files.id, fileId),
-  });
+export async function deleteFileRecord(fileId: string): Promise<Result<void, Error>> {
+  try {
+    // Get the file first to know which folder to update
+    const file = await db.query.files.findFirst({
+      where: eq(files.id, fileId),
+    });
 
-  if (!file) return;
+    if (!file) return Result.ok(undefined);
 
-  // Delete the file record
-  await db.delete(files).where(eq(files.id, fileId));
+    // Delete the file record
+    await db.delete(files).where(eq(files.id, fileId));
 
-  // Decrement folder's file count
-  if (file.folderId) {
-    await db
-      .update(folders)
-      .set({ fileCount: sql`MAX(0, file_count - 1)` })
-      .where(eq(folders.id, file.folderId));
+    // Decrement folder's file count
+    if (file.folderId) {
+      await db
+        .update(folders)
+        .set({ fileCount: sql`MAX(0, file_count - 1)` })
+        .where(eq(folders.id, file.folderId));
+    }
+
+    return Result.ok(undefined);
+  } catch (error) {
+    return Result.err(toError(error));
   }
 }
 

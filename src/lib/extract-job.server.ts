@@ -234,9 +234,10 @@ async function handleExtractJob(
       
       if (isImageKind(kind)) {
         const imageInfo = await processImage(filePath);
-        width = imageInfo.width;
-        height = imageInfo.height;
-        hasPreview = imageInfo.hasPreview;
+        if (imageInfo.isErr()) throw imageInfo.error;
+        width = imageInfo.value.width;
+        height = imageInfo.value.height;
+        hasPreview = imageInfo.value.hasPreview;
       }
       
       // Create file record
@@ -284,6 +285,7 @@ async function handleExtractJob(
                 
                 // Process for preview
                 const texImageInfo = await processImage(texFilePath);
+                if (texImageInfo.isErr()) throw texImageInfo.error;
                 
                 await db.insert(files).values({
                   id: nanoid(),
@@ -294,7 +296,7 @@ async function handleExtractJob(
                   kind: "texture",
                   width: tex.width,
                   height: tex.height,
-                  hasPreview: texImageInfo.hasPreview,
+                  hasPreview: texImageInfo.value.hasPreview,
                   folderId: texFolderId,
                   source: `bsp-extracted`,
                   sourceArchive: savedName,
@@ -447,9 +449,10 @@ async function handleBatchExtractJob(
 
           if (isImageKind(kind)) {
             const imageInfo = await processImage(filePath);
-            width = imageInfo.width;
-            height = imageInfo.height;
-            hasPreview = imageInfo.hasPreview;
+            if (imageInfo.isErr()) throw imageInfo.error;
+            width = imageInfo.value.width;
+            height = imageInfo.value.height;
+            hasPreview = imageInfo.value.hasPreview;
           }
 
           // Create file record
@@ -495,6 +498,7 @@ async function handleBatchExtractJob(
                     
                     // Process for preview
                     const texImageInfo = await processImage(texFilePath);
+                    if (texImageInfo.isErr()) throw texImageInfo.error;
                     
                     await db.insert(files).values({
                       id: nanoid(),
@@ -505,7 +509,7 @@ async function handleBatchExtractJob(
                       kind: "texture",
                       width: tex.width,
                       height: tex.height,
-                      hasPreview: texImageInfo.hasPreview,
+                      hasPreview: texImageInfo.value.hasPreview,
                       folderId: texFolderId,
                       source: `bsp-extracted`,
                       sourceArchive: savedName,
@@ -654,6 +658,7 @@ async function handleExtractBSPJob(
 
       // Process for preview
       const texImageInfo = await processImage(texFilePath);
+      if (texImageInfo.isErr()) throw texImageInfo.error;
 
       await db.insert(files).values({
         id: nanoid(),
@@ -664,7 +669,7 @@ async function handleExtractBSPJob(
         kind: "texture",
         width: tex.width,
         height: tex.height,
-        hasPreview: texImageInfo.hasPreview,
+        hasPreview: texImageInfo.value.hasPreview,
         folderId,
         source: "bsp-extracted",
         sourceArchive: bspName,
@@ -810,6 +815,7 @@ async function handleBatchExtractBSPJob(
 
           // Process for preview
           const texImageInfo = await processImage(texFilePath);
+          if (texImageInfo.isErr()) throw texImageInfo.error;
 
           await db.insert(files).values({
             id: nanoid(),
@@ -820,7 +826,7 @@ async function handleBatchExtractBSPJob(
             kind: "texture",
             width: tex.width,
             height: tex.height,
-            hasPreview: texImageInfo.hasPreview,
+            hasPreview: texImageInfo.value.hasPreview,
             folderId: subFolderId,
             source: "bsp-extracted",
             sourceArchive: bspName,
