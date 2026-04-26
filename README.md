@@ -1,87 +1,61 @@
-# Welcome to React Router!
+# artbin
 
-A modern, production-ready template for building full-stack React applications using React Router.
+artbin is a private, invite-only asset bin for game development resources.
 
-[![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/remix-run/react-router-templates/tree/main/default)
+It is focused on textures first, with support for other asset types and import/extraction tooling for classic game archives.
 
-## Features
+## What it does
 
-- 🚀 Server-side rendering
-- ⚡️ Hot Module Replacement (HMR)
-- 📦 Asset bundling and optimization
-- 🔄 Data loading and mutations
-- 🔒 TypeScript by default
-- 🎉 TailwindCSS for styling
-- 📖 [React Router docs](https://reactrouter.com/)
+- Private login + invite-code registration
+- Folder-based asset library
+- File metadata and type classification (textures, models, audio, maps, archives, etc.)
+- Admin import pipelines:
+  - TextureTown
+  - Texture Station
+  - Sadgrl tiled backgrounds
+  - local folder imports
+  - local archive scan/import (PAK/PK3/WAD/ZIP)
+- Background job queue for long-running imports and processing
 
-## Getting Started
+## Stack
 
-### Installation
+- React Router v7
+- TypeScript
+- Tailwind CSS v4
+- Drizzle ORM + SQLite (`better-sqlite3`)
+- three.js (viewer-related UI)
 
-Install the dependencies:
+## Quick start
 
-```bash
-npm install
-```
-
-### Development
-
-Start the development server with HMR:
-
-```bash
-npm run dev
-```
-
-Your application will be available at `http://localhost:5173`.
-
-## Building for Production
-
-Create a production build:
+Prereqs: Node 25+, pnpm
 
 ```bash
-npm run build
+pnpm install
+pnpm run build
+pnpm run dev
 ```
 
-## Deployment
+App runs at `http://localhost:5173` in dev mode.
 
-### Docker Deployment
-
-To build and run using Docker:
+## Scripts
 
 ```bash
-docker build -t my-app .
-
-# Run the container
-docker run -p 3000:3000 my-app
+pnpm run dev
+pnpm run build
+pnpm run start
+pnpm run typecheck
+pnpm run db:push
+pnpm run db:studio
+pnpm run create-admin
 ```
 
-The containerized application can be deployed to any platform that supports Docker, including:
+## Docker
 
-- AWS ECS
-- Google Cloud Run
-- Azure Container Apps
-- Digital Ocean App Platform
-- Fly.io
-- Railway
-
-### DIY Deployment
-
-If you're familiar with deploying Node applications, the built-in app server is production-ready.
-
-Make sure to deploy the output of `npm run build`
-
-```
-├── package.json
-├── package-lock.json (or pnpm-lock.yaml, or bun.lockb)
-├── build/
-│   ├── client/    # Static assets
-│   └── server/    # Server-side code
+```bash
+docker build -t artbin .
+docker run -p 3000:3000 artbin
 ```
 
-## Styling
+## Project notes
 
-This template comes with [Tailwind CSS](https://tailwindcss.com/) already configured for a simple default starting experience. You can use whatever CSS framework you prefer.
-
----
-
-Built with ❤️ using React Router.
+See `PROJECT.md` for roadmap and design goals.
