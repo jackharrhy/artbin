@@ -202,16 +202,20 @@ export default function AdminImport() {
   return (
     <div>
       <Header user={user} />
-      <main className="main-content" style={{ maxWidth: "900px" }}>
-        <div className="breadcrumb">
-          <a href="/folders">Folders</a>
-          <span className="breadcrumb-sep">/</span>
-          <a href="/admin/jobs">Admin</a>
-          <span className="breadcrumb-sep">/</span>
+      <main className="max-w-[900px] mx-auto p-4 bg-bg min-h-[calc(100vh-48px)]">
+        <div className="text-xs text-text-muted mb-4">
+          <a className="text-text-muted hover:text-text" href="/folders">
+            Folders
+          </a>
+          <span className="mx-2">/</span>
+          <a className="text-text-muted hover:text-text" href="/admin/jobs">
+            Admin
+          </a>
+          <span className="mx-2">/</span>
           <span>Import</span>
         </div>
 
-        <h1 className="page-title">Import</h1>
+        <h1 className="text-xl font-normal mb-4 pb-2 border-b border-border-light">Import</h1>
 
         {actionData?.error && <div className="alert alert-error">{actionData.error}</div>}
 
@@ -260,8 +264,8 @@ export default function AdminImport() {
         )}
 
         {/* Stats */}
-        <div className="card" style={{ marginBottom: "1.5rem" }}>
-          <h2 style={{ fontWeight: 500, marginBottom: "0.5rem" }}>Current Stats</h2>
+        <div className="card mb-6">
+          <h2 className="font-medium mb-2">Current Stats</h2>
           <dl className="detail-info">
             <dt>Total Files</dt>
             <dd>{stats.fileCount.toLocaleString()}</dd>
@@ -272,26 +276,18 @@ export default function AdminImport() {
           </dl>
 
           {stats.byKind.length > 0 && (
-            <div style={{ marginTop: "1rem", paddingTop: "1rem", borderTop: "1px solid #eee" }}>
-              <h3 style={{ fontWeight: 500, fontSize: "0.875rem", marginBottom: "0.5rem" }}>
-                By Type
-              </h3>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
-                  gap: "0.5rem",
-                }}
-              >
+            <div className="mt-4 pt-4 border-t border-bg-subtle">
+              <h3 className="font-medium text-sm mb-2">By Type</h3>
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2">
                 {stats.byKind
                   .sort((a, b) => b.size - a.size)
                   .map((k) => (
-                    <div key={k.kind} style={{ fontSize: "0.8125rem" }}>
-                      <span style={{ color: "#666" }}>{kindLabel(k.kind)}</span>
+                    <div key={k.kind} className="text-[0.8125rem]">
+                      <span className="text-text-muted">{kindLabel(k.kind)}</span>
                       <br />
                       <span>{k.count.toLocaleString()} files</span>
                       <br />
-                      <span style={{ color: "#888" }}>{formatSize(k.size)}</span>
+                      <span className="text-text-faint">{formatSize(k.size)}</span>
                     </div>
                   ))}
               </div>
@@ -300,12 +296,14 @@ export default function AdminImport() {
         </div>
 
         {/* Local Folder Import */}
-        <section className="section">
-          <h2 className="section-title">Local Folder</h2>
+        <section className="mb-8">
+          <h2 className="text-sm font-medium uppercase tracking-wide text-text-muted mb-3">
+            Local Folder
+          </h2>
 
-          <div className="card" style={{ marginBottom: "1rem" }}>
-            <h3 style={{ fontWeight: 500, marginBottom: "0.5rem" }}>Import from Folder Path</h3>
-            <p style={{ fontSize: "0.875rem", color: "#666", marginBottom: "1rem" }}>
+          <div className="card mb-4">
+            <h3 className="font-medium mb-2">Import from Folder Path</h3>
+            <p className="text-sm text-text-muted mb-4">
               Recursively import all supported files from a local folder (images, audio, models,
               etc.)
             </p>
@@ -313,45 +311,28 @@ export default function AdminImport() {
             <Form method="post">
               <input type="hidden" name="intent" value="folder-import" />
 
-              <div style={{ marginBottom: "0.75rem" }}>
-                <label style={{ display: "block", fontSize: "0.875rem", marginBottom: "0.25rem" }}>
-                  Folder Path
-                </label>
+              <div className="mb-3">
+                <label className="block text-sm mb-1">Folder Path</label>
                 <input
                   type="text"
                   name="folderPath"
                   placeholder="/path/to/game/assets"
-                  style={{
-                    width: "100%",
-                    padding: "0.5rem",
-                    border: "1px solid #ccc",
-                    fontFamily: "monospace",
-                    fontSize: "0.875rem",
-                  }}
+                  className="input w-full font-mono"
                 />
               </div>
 
-              <div style={{ marginBottom: "1rem" }}>
-                <label style={{ display: "block", fontSize: "0.875rem", marginBottom: "0.25rem" }}>
-                  Collection Name (optional)
-                </label>
+              <div className="mb-4">
+                <label className="block text-sm mb-1">Collection Name (optional)</label>
                 <input
                   type="text"
                   name="folderName"
                   placeholder="Leave blank to use folder name"
-                  style={{
-                    width: "100%",
-                    padding: "0.5rem",
-                    border: "1px solid #ccc",
-                    fontSize: "0.875rem",
-                  }}
+                  className="input w-full"
                 />
               </div>
 
-              <div
-                style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
-              >
-                <span style={{ fontSize: "0.75rem", color: "#888" }}>
+              <div className="flex justify-between items-center">
+                <span className="text-xs text-text-faint">
                   Supports: png, jpg, tga, bmp, wav, ogg, mp3, obj, md5mesh, etc.
                 </span>
                 <button
@@ -384,27 +365,20 @@ export default function AdminImport() {
         </section>
 
         {/* Local Archives */}
-        <section className="section">
-          <h2 className="section-title">Local Archives</h2>
+        <section className="mb-8">
+          <h2 className="text-sm font-medium uppercase tracking-wide text-text-muted mb-3">
+            Local Archives
+          </h2>
 
-          <div className="card" style={{ marginBottom: "1rem" }}>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "flex-start",
-                gap: "1rem",
-              }}
-            >
+          <div className="card mb-4">
+            <div className="flex justify-between items-start gap-4">
               <div>
-                <h3 style={{ fontWeight: 500, marginBottom: "0.25rem" }}>
-                  Scan & Import Local Archives
-                </h3>
-                <p style={{ fontSize: "0.875rem", color: "#666", margin: 0 }}>
+                <h3 className="font-medium mb-1">Scan & Import Local Archives</h3>
+                <p className="text-sm text-text-muted m-0">
                   Find PAK, PK3, WAD, and ZIP files in game directories on this computer
                 </p>
               </div>
-              <div style={{ display: "flex", gap: "0.5rem" }}>
+              <div className="flex gap-2">
                 <a href="/admin/scan-settings" className="btn">
                   Settings
                 </a>
@@ -417,28 +391,21 @@ export default function AdminImport() {
         </section>
 
         {/* Online Sources */}
-        <section className="section">
-          <h2 className="section-title">Online Sources</h2>
+        <section className="mb-8">
+          <h2 className="text-sm font-medium uppercase tracking-wide text-text-muted mb-3">
+            Online Sources
+          </h2>
 
           {sources.map((source) => (
-            <div key={source.id} className="card" style={{ marginBottom: "1rem" }}>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "flex-start",
-                  gap: "1rem",
-                }}
-              >
+            <div key={source.id} className="card mb-4">
+              <div className="flex justify-between items-start gap-4">
                 <div>
-                  <h3 style={{ fontWeight: 500, marginBottom: "0.25rem" }}>
+                  <h3 className="font-medium mb-1">
                     <a href={source.url} target="_blank" rel="noopener noreferrer">
                       {source.name}
                     </a>
                   </h3>
-                  <p style={{ fontSize: "0.875rem", color: "#666", margin: 0 }}>
-                    {source.description}
-                  </p>
+                  <p className="text-sm text-text-muted m-0">{source.description}</p>
                 </div>
 
                 <Form method="post">
@@ -460,7 +427,7 @@ export default function AdminImport() {
           ))}
         </section>
 
-        <p style={{ marginTop: "2rem", fontSize: "0.875rem", color: "#666" }}>
+        <p className="mt-8 text-sm text-text-muted">
           <a href="/admin/jobs">View Jobs</a> | <a href="/folders">Browse Folders</a>
         </p>
       </main>

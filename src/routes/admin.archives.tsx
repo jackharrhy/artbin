@@ -358,26 +358,26 @@ function TreeNodeView({
   const isPartiallySelected = selectedCount > 0 && selectedCount < allPaths.length;
 
   return (
-    <div className="tree-folder-wrapper">
+    <div className="flex items-start gap-2">
       <input
         type="checkbox"
-        className="tree-checkbox"
+        className="w-4 h-4 m-0 cursor-pointer accent-text shrink-0"
         checked={isAllSelected}
         ref={(el) => {
           if (el) el.indeterminate = isPartiallySelected;
         }}
         onChange={() => onToggleFolder(allPaths, !isAllSelected)}
       />
-      <details className="tree-folder" open>
-        <summary className="tree-folder-header">
-          <span className="tree-folder-icon">{hasChildren || hasArchives ? "📁" : "📂"}</span>
-          <span className="tree-folder-name">{displayPath}</span>
-          <span className="tree-folder-count">
+      <details className="flex-1" open>
+        <summary className="flex items-center gap-2 py-1.5 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+          <span className="text-base">{hasChildren || hasArchives ? "📁" : "📂"}</span>
+          <span className="flex-1 font-mono text-xs break-all">{displayPath}</span>
+          <span className="text-[0.7rem] text-text-muted px-1.5 py-0.5 bg-bg-hover">
             {archiveCount} archive{archiveCount !== 1 ? "s" : ""}
           </span>
         </summary>
 
-        <div className="tree-folder-content">
+        <div className="ml-5 border-l border-border-light pl-3">
           {/* Child folders */}
           {sortedChildren.map((child) => (
             <TreeNodeView
@@ -419,62 +419,69 @@ function ArchiveItem({
     : archive.name.replace(/\.[^.]+$/, "");
 
   return (
-    <div className={`tree-archive-wrapper ${isSelected ? "tree-archive-selected" : ""}`}>
-      <input type="checkbox" className="tree-checkbox" checked={isSelected} onChange={onToggle} />
-      <details className="tree-archive">
-        <summary className="tree-archive-header">
-          <span className="tree-archive-icon">
+    <div className={`flex items-start gap-2 mb-1 ${isSelected ? "bg-[#f0f7ff]" : ""}`}>
+      <input
+        type="checkbox"
+        className="w-4 h-4 m-0 cursor-pointer accent-text shrink-0"
+        checked={isSelected}
+        onChange={onToggle}
+      />
+      <details className="flex-1">
+        <summary className="flex items-center gap-2 py-1 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+          <span className="text-base">
             {archive.type === "pak" && "📦"}
             {archive.type === "pk3" && "📦"}
             {archive.type === "wad" && "🎮"}
             {archive.type === "zip" && "🗜️"}
             {archive.type === "bsp" && "🗺️"}
           </span>
-          <span className="tree-archive-name">{archive.name}</span>
-          <span className="tree-archive-meta">
-            <span className="archive-type">{archive.type.toUpperCase()}</span>
-            <span className="archive-size">{formatSize(archive.size)}</span>
-            {archive.gameDir && <span className="archive-gamedir">{archive.gameDir}</span>}
+          <span className="font-medium text-[0.8125rem]">{archive.name}</span>
+          <span className="flex items-center gap-2 ml-auto">
+            <span className="text-[0.625rem] font-semibold px-1.5 py-0.5 bg-bg-subtle font-mono">
+              {archive.type.toUpperCase()}
+            </span>
+            <span className="text-[0.7rem] text-text-muted">{formatSize(archive.size)}</span>
+            {archive.gameDir && (
+              <span className="text-[0.625rem] px-1.5 py-0.5 bg-[#d4edda]">{archive.gameDir}</span>
+            )}
           </span>
         </summary>
 
-        <div className="tree-archive-details">
-          <Form method="post" className="archive-form">
+        <div className="p-3 mt-1 bg-[#fafafa] border border-border-light">
+          <Form method="post">
             <input type="hidden" name="intent" value="import-archive" />
             <input type="hidden" name="archivePath" value={archive.path} />
             <input type="hidden" name="archiveType" value={archive.type} />
 
-            <div className="form-row">
-              <div className="form-group" style={{ flex: 1 }}>
-                <label className="form-label">Folder Name</label>
+            <div className="flex gap-3 items-end max-sm:flex-col max-sm:items-stretch">
+              <div className="mb-4 flex-1">
+                <label className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1">
+                  Folder Name
+                </label>
                 <input
                   type="text"
                   name="folderName"
-                  className="input"
-                  style={{ width: "100%" }}
+                  className="input w-full"
                   defaultValue={defaultName}
                   required
                 />
               </div>
 
-              <div className="form-group" style={{ flex: 1 }}>
-                <label className="form-label">Slug</label>
+              <div className="mb-4 flex-1">
+                <label className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1">
+                  Slug
+                </label>
                 <input
                   type="text"
                   name="folderSlug"
-                  className="input"
-                  style={{ width: "100%" }}
+                  className="input w-full"
                   defaultValue={slugify(defaultName)}
                   pattern="[a-z0-9-]+"
                   required
                 />
               </div>
 
-              <button
-                type="submit"
-                className="btn btn-primary btn-sm"
-                style={{ alignSelf: "flex-end" }}
-              >
+              <button type="submit" className="btn btn-primary btn-sm self-end">
                 Import
               </button>
             </div>
@@ -507,7 +514,11 @@ function BatchImportButton({
   return (
     <>
       {/* Fixed button in bottom right */}
-      <button type="button" className="batch-import-fab" onClick={() => setIsOpen(true)}>
+      <button
+        type="button"
+        className="fixed bottom-6 right-6 bg-text text-white border-none px-5 py-3 text-sm font-inherit cursor-pointer shadow-lg z-100 hover:bg-[#333]"
+        onClick={() => setIsOpen(true)}
+      >
         Import {selectedPaths.size} selected
       </button>
 
@@ -522,7 +533,7 @@ function BatchImportButton({
               </button>
             </div>
             <div className="modal-body">
-              <p style={{ marginBottom: "1rem", color: "#666" }}>
+              <p className="mb-4 text-text-muted">
                 Import <strong>{selectedPaths.size}</strong> archives as subfolders of a new parent
                 folder. Each archive will become a subfolder named after its filename.
               </p>
@@ -535,13 +546,14 @@ function BatchImportButton({
                   value={JSON.stringify([...selectedPaths])}
                 />
 
-                <div className="form-group">
-                  <label className="form-label">Parent Folder Name</label>
+                <div className="mb-4">
+                  <label className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1">
+                    Parent Folder Name
+                  </label>
                   <input
                     type="text"
                     name="folderName"
-                    className="input"
-                    style={{ width: "100%" }}
+                    className="input w-full"
                     placeholder="e.g. Thirty Flights of Loving"
                     value={folderName}
                     onChange={handleNameChange}
@@ -549,13 +561,14 @@ function BatchImportButton({
                   />
                 </div>
 
-                <div className="form-group">
-                  <label className="form-label">Slug</label>
+                <div className="mb-4">
+                  <label className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1">
+                    Slug
+                  </label>
                   <input
                     type="text"
                     name="folderSlug"
-                    className="input"
-                    style={{ width: "100%" }}
+                    className="input w-full"
                     placeholder="thirty-flights-of-loving"
                     value={folderSlug}
                     onChange={(e) => setFolderSlug(e.target.value)}
@@ -654,46 +667,50 @@ export default function AdminArchives() {
   return (
     <div>
       <Header user={user} />
-      <main className="main-content" style={{ maxWidth: "1000px" }}>
-        <div className="breadcrumb">
-          <a href="/folders">Folders</a>
-          <span className="breadcrumb-sep">/</span>
-          <a href="/admin/jobs">Admin</a>
-          <span className="breadcrumb-sep">/</span>
-          <a href="/admin/import">Import</a>
-          <span className="breadcrumb-sep">/</span>
+      <main className="max-w-[1000px] mx-auto p-4 bg-bg min-h-[calc(100vh-48px)]">
+        <div className="text-xs text-text-muted mb-4">
+          <a className="text-text-muted hover:text-text" href="/folders">
+            Folders
+          </a>
+          <span className="mx-2">/</span>
+          <a className="text-text-muted hover:text-text" href="/admin/jobs">
+            Admin
+          </a>
+          <span className="mx-2">/</span>
+          <a className="text-text-muted hover:text-text" href="/admin/import">
+            Import
+          </a>
+          <span className="mx-2">/</span>
           <span>Local Archives</span>
         </div>
 
-        <h1 className="page-title">Local Archives</h1>
-        <p style={{ marginBottom: "1.5rem", color: "#666" }}>
+        <h1 className="text-xl font-normal mb-4 pb-2 border-b border-border-light">
+          Local Archives
+        </h1>
+        <p className="mb-6 text-text-muted">
           Scan your computer for game archives (PAK, PK3, WAD, ZIP) and BSP maps to extract
           textures.
         </p>
 
         {/* Alerts */}
-        {actionData?.error && (
-          <div className="alert alert-error" style={{ marginBottom: "1rem" }}>
-            {actionData.error}
-          </div>
-        )}
+        {actionData?.error && <div className="alert alert-error mb-4">{actionData.error}</div>}
 
         {actionData?.success && actionData.action === "import-archive" && (
-          <div className="alert alert-success" style={{ marginBottom: "1rem" }}>
+          <div className="alert alert-success mb-4">
             <strong>Import started!</strong> {actionData.archiveName} is being extracted.{" "}
             <a href="/admin/jobs">View progress</a>
           </div>
         )}
 
         {actionData?.success && actionData.action === "import-bsp" && (
-          <div className="alert alert-success" style={{ marginBottom: "1rem" }}>
+          <div className="alert alert-success mb-4">
             <strong>BSP extraction started!</strong> Extracting textures from{" "}
             {actionData.archiveName}. <a href="/admin/jobs">View progress</a>
           </div>
         )}
 
         {actionData?.success && actionData.action === "batch-import" && (
-          <div className="alert alert-success" style={{ marginBottom: "1rem" }}>
+          <div className="alert alert-success mb-4">
             <strong>Batch import started!</strong>{" "}
             {(actionData.archiveCount ?? 0) > 0 &&
               `${actionData.archiveCount} archive${actionData.archiveCount !== 1 ? "s" : ""}`}
@@ -706,18 +723,11 @@ export default function AdminArchives() {
         )}
 
         {/* Scan Controls */}
-        <div className="card" style={{ marginBottom: "1.5rem" }}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              gap: "1rem",
-            }}
-          >
+        <div className="card mb-6">
+          <div className="flex justify-between items-center gap-4">
             <div>
               <strong>Scan Home Directory</strong>
-              <p style={{ fontSize: "0.875rem", color: "#666", margin: 0 }}>
+              <p className="text-sm text-text-muted m-0">
                 Find PAK, PK3, WAD, and ZIP files in game directories
               </p>
             </div>
@@ -730,28 +740,14 @@ export default function AdminArchives() {
           </div>
 
           {isScanning && (
-            <div style={{ marginTop: "1rem" }}>
-              <div
-                style={{
-                  width: "100%",
-                  height: "6px",
-                  background: "#eee",
-                  borderRadius: "3px",
-                  overflow: "hidden",
-                }}
-              >
+            <div className="mt-4">
+              <div className="w-full h-1.5 bg-bg-subtle overflow-hidden">
                 <div
-                  style={{
-                    width: `${scanJobProgress || 0}%`,
-                    height: "100%",
-                    background: "#4CAF50",
-                    transition: "width 0.3s",
-                  }}
+                  className="h-full bg-[#4CAF50] transition-[width] duration-300"
+                  style={{ width: `${scanJobProgress || 0}%` }}
                 />
               </div>
-              <p
-                style={{ fontSize: "0.75rem", color: "#666", marginTop: "0.5rem", marginBottom: 0 }}
-              >
+              <p className="text-xs text-text-muted mt-2 mb-0">
                 {scanJobMessage || "Starting scan..."}
               </p>
             </div>
@@ -760,8 +756,8 @@ export default function AdminArchives() {
 
         {/* Results */}
         {totalArchives > 0 ? (
-          <div className="archive-tree">
-            <div style={{ marginBottom: "1rem", color: "#666", fontSize: "0.875rem" }}>
+          <div className="text-sm">
+            <div className="mb-4 text-text-muted text-sm">
               Found {totalArchives} archive{totalArchives !== 1 ? "s" : ""}. Use checkboxes to
               select multiple, or click archives to import individually.
             </div>
@@ -777,16 +773,16 @@ export default function AdminArchives() {
             ))}
           </div>
         ) : scanJobStatus === "completed" ? (
-          <div className="empty-state" style={{ padding: "2rem" }}>
+          <div className="text-center p-8 text-text-muted">
             No game archives found. Try running a scan.
           </div>
         ) : !scanJobStatus ? (
-          <div className="empty-state" style={{ padding: "2rem" }}>
+          <div className="text-center p-8 text-text-muted">
             No scan results yet. Click "Scan" to search for game archives.
           </div>
         ) : null}
 
-        <p style={{ marginTop: "2rem", fontSize: "0.875rem", color: "#666" }}>
+        <p className="mt-8 text-sm text-text-muted">
           <a href="/admin/import">← Back to Import</a> | <a href="/admin/jobs">View Jobs</a>
         </p>
       </main>

@@ -94,19 +94,19 @@ function formatDuration(startDate: Date | null): string {
   return `${hours}h ${minutes % 60}m`;
 }
 
-function getStatusColor(status: string, isStuck: boolean): string {
-  if (isStuck) return "#f8d7da"; // Red for stuck
+function getStatusBadgeClass(status: string, isStuck: boolean): string {
+  if (isStuck) return "bg-[#f8d7da]";
   switch (status) {
     case "completed":
-      return "#d4edda";
+      return "bg-[#d4edda]";
     case "failed":
-      return "#f8d7da";
+      return "bg-[#f8d7da]";
     case "running":
-      return "#fff3cd";
+      return "bg-[#fff3cd]";
     case "cancelled":
-      return "#e2e3e5";
+      return "bg-[#e2e3e5]";
     default:
-      return "#cce5ff";
+      return "bg-[#cce5ff]";
   }
 }
 
@@ -141,29 +141,31 @@ export default function AdminJobs() {
         <span className="badge-admin">admin</span>
       </header>
 
-      <main className="main-content" style={{ maxWidth: "1100px" }}>
-        <h1 className="page-title">Background Jobs</h1>
+      <main className="max-w-[1100px] mx-auto p-4 bg-bg min-h-[calc(100vh-48px)]">
+        <h1 className="text-xl font-normal mb-4 pb-2 border-b border-border-light">
+          Background Jobs
+        </h1>
 
         {activeJobs.length > 0 && (
-          <div style={{ marginBottom: "0.5rem", fontSize: "0.875rem", color: "#666" }}>
+          <div className="mb-2 text-sm text-text-muted">
             Auto-refreshing... {activeJobs.length} active job(s)
           </div>
         )}
 
         {jobs.length === 0 ? (
-          <div className="empty-state">No jobs found</div>
+          <div className="text-center p-12 text-text-muted">No jobs found</div>
         ) : (
-          <div className="card" style={{ overflow: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <div className="card overflow-auto">
+            <table className="w-full border-collapse">
               <thead>
-                <tr style={{ borderBottom: "2px solid #eee" }}>
-                  <th style={{ padding: "0.5rem", textAlign: "left" }}>ID</th>
-                  <th style={{ padding: "0.5rem", textAlign: "left" }}>Type</th>
-                  <th style={{ padding: "0.5rem", textAlign: "left" }}>Status</th>
-                  <th style={{ padding: "0.5rem", textAlign: "left" }}>Progress</th>
-                  <th style={{ padding: "0.5rem", textAlign: "left" }}>Duration</th>
-                  <th style={{ padding: "0.5rem", textAlign: "left" }}>Created</th>
-                  <th style={{ padding: "0.5rem", textAlign: "left" }}>Actions</th>
+                <tr className="border-b-2 border-bg-subtle">
+                  <th className="p-2 text-left">ID</th>
+                  <th className="p-2 text-left">Type</th>
+                  <th className="p-2 text-left">Status</th>
+                  <th className="p-2 text-left">Progress</th>
+                  <th className="p-2 text-left">Duration</th>
+                  <th className="p-2 text-left">Created</th>
+                  <th className="p-2 text-left">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -180,55 +182,35 @@ export default function AdminJobs() {
                   return (
                     <tr
                       key={job.id}
-                      style={{
-                        borderBottom: "1px solid #eee",
-                        background: job.isStuck ? "#fff5f5" : undefined,
-                      }}
+                      className={`border-b border-bg-subtle ${job.isStuck ? "bg-[#fff5f5]" : ""}`}
                     >
-                      <td style={{ padding: "0.5rem" }}>
-                        <code style={{ fontSize: "0.75rem" }}>{job.id.slice(0, 8)}...</code>
+                      <td className="p-2">
+                        <code className="text-xs">{job.id.slice(0, 8)}...</code>
                       </td>
-                      <td style={{ padding: "0.5rem", fontSize: "0.875rem" }}>{job.type}</td>
-                      <td style={{ padding: "0.5rem" }}>
+                      <td className="p-2 text-sm">{job.type}</td>
+                      <td className="p-2">
                         <span
-                          style={{
-                            padding: "0.125rem 0.5rem",
-                            borderRadius: "4px",
-                            fontSize: "0.75rem",
-                            background: getStatusColor(job.status, job.isStuck),
-                          }}
+                          className={`px-2 py-0.5 text-xs ${getStatusBadgeClass(job.status, job.isStuck)}`}
                         >
                           {job.isStuck ? "stuck" : job.status}
                         </span>
                       </td>
-                      <td style={{ padding: "0.5rem" }}>
+                      <td className="p-2">
                         {job.status === "running" && (
                           <div>
-                            <div
-                              style={{
-                                width: "100px",
-                                height: "6px",
-                                background: "#eee",
-                                borderRadius: "3px",
-                                overflow: "hidden",
-                              }}
-                            >
+                            <div className="w-[100px] h-1.5 bg-bg-subtle overflow-hidden">
                               <div
-                                style={{
-                                  width: `${job.progress || 0}%`,
-                                  height: "100%",
-                                  background: job.isStuck ? "#dc3545" : "#4CAF50",
-                                  transition: "width 0.3s",
-                                }}
+                                className={`h-full transition-[width] duration-300 ${job.isStuck ? "bg-[#dc3545]" : "bg-[#4CAF50]"}`}
+                                style={{ width: `${job.progress || 0}%` }}
                               />
                             </div>
-                            <div style={{ fontSize: "0.75rem", marginTop: "0.25rem" }}>
+                            <div className="text-xs mt-1">
                               {job.progressMessage || `${job.progress || 0}%`}
                             </div>
                           </div>
                         )}
                         {job.status === "completed" && output && (
-                          <span style={{ fontSize: "0.75rem" }}>
+                          <span className="text-xs">
                             {(output as any).totalFiles ??
                               (output as any).categoriesImported?.length ??
                               "-"}{" "}
@@ -237,7 +219,7 @@ export default function AdminJobs() {
                         )}
                         {job.status === "failed" && (
                           <span
-                            style={{ fontSize: "0.75rem", color: "#dc3545" }}
+                            className="text-xs text-[#dc3545]"
                             title={job.error || "Unknown error"}
                           >
                             {job.error?.substring(0, 40)}
@@ -245,9 +227,9 @@ export default function AdminJobs() {
                           </span>
                         )}
                       </td>
-                      <td style={{ padding: "0.5rem", fontSize: "0.75rem" }}>
+                      <td className="p-2 text-xs">
                         {job.status === "running" && (
-                          <span style={{ color: job.isStuck ? "#dc3545" : undefined }}>
+                          <span className={job.isStuck ? "text-[#dc3545]" : ""}>
                             {formatDuration(job.startedAt)}
                             {job.isStuck && " (stuck!)"}
                           </span>
@@ -255,16 +237,16 @@ export default function AdminJobs() {
                         {job.status === "completed" && job.startedAt && job.completedAt && (
                           <span>{formatDuration(job.startedAt).replace(/s$/, "")}</span>
                         )}
-                        {job.status === "pending" && <span style={{ color: "#999" }}>waiting</span>}
+                        {job.status === "pending" && (
+                          <span className="text-text-faint">waiting</span>
+                        )}
                         {(job.status === "failed" || job.status === "cancelled") && "-"}
                       </td>
-                      <td style={{ padding: "0.5rem", fontSize: "0.75rem" }}>
-                        {formatDate(job.createdAt)}
-                      </td>
-                      <td style={{ padding: "0.5rem" }}>
-                        <div style={{ display: "flex", gap: "0.25rem" }}>
+                      <td className="p-2 text-xs">{formatDate(job.createdAt)}</td>
+                      <td className="p-2">
+                        <div className="flex gap-1">
                           {canCancel && (
-                            <Form method="post" style={{ display: "inline" }}>
+                            <Form method="post" className="inline">
                               <input type="hidden" name="intent" value="cancel" />
                               <input type="hidden" name="jobId" value={job.id} />
                               <button type="submit" className="btn btn-sm" disabled={isSubmitting}>
@@ -273,7 +255,7 @@ export default function AdminJobs() {
                             </Form>
                           )}
                           {canReset && (
-                            <Form method="post" style={{ display: "inline" }}>
+                            <Form method="post" className="inline">
                               <input type="hidden" name="intent" value="reset" />
                               <input type="hidden" name="jobId" value={job.id} />
                               <button
@@ -287,7 +269,7 @@ export default function AdminJobs() {
                             </Form>
                           )}
                           {canDelete && (
-                            <Form method="post" style={{ display: "inline" }}>
+                            <Form method="post" className="inline">
                               <input type="hidden" name="intent" value="delete" />
                               <input type="hidden" name="jobId" value={job.id} />
                               <button
@@ -314,7 +296,7 @@ export default function AdminJobs() {
           </div>
         )}
 
-        <p style={{ marginTop: "2rem", fontSize: "0.875rem" }}>
+        <p className="mt-8 text-sm">
           <a href="/admin/import">Import</a> | <a href="/upload">Upload</a> |{" "}
           <a href="/folders">Folders</a> | <a href="/settings">Settings</a>
         </p>
