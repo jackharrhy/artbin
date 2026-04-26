@@ -8,6 +8,7 @@
 import { db, jobs, type Job, type JobStatus } from "~/db";
 import { eq, and, or, lt } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import { Result } from "better-result";
 
 // ============================================================================
 // Job Creation & Management
@@ -134,7 +135,15 @@ export async function failJob(id: string, error: string): Promise<void> {
 /**
  * Cancel a pending job
  */
-export async function cancelJob(id: string): Promise<boolean> {
+export async function cancelJob(id: string) {
+  const job = await getJob(id);
+  if (!job) {
+    return Result.err(new Error("Job not found"));
+  }
+  if (job.status !== "pending") {
+    return Result.err(new Error("Only pending jobs can be cancelled"));
+  }
+
   const result = await db
     .update(jobs)
     .set({
@@ -143,7 +152,12 @@ export async function cancelJob(id: string): Promise<boolean> {
     })
     .where(and(eq(jobs.id, id), eq(jobs.status, "pending")));
   
-  return result.changes > 0;
+  if (result.changes === 0) {
+    return Result.err(new Error("Job could not be cancelled"));
+  }
+
+  const updatedJob = await getJob(id);
+  return Result.ok(updatedJob!);
 }
 
 /**
@@ -176,17 +190,17 @@ export async function deleteJob(id: string): Promise<boolean> {
  * Reset a stuck running job back to pending
  * Only works for jobs that have been running for more than the threshold
  */
-export async function resetStuckJob(id: string, stuckThresholdMinutes = 30): Promise<boolean> {
+export async function resetStuckJob(id: string, stuckThresholdMinutes = 30) {
   const job = await getJob(id);
-  if (!job) return false;
-  if (job.status !== "running") return false;
+  if (!job) return Result.err(new Error("Job not found"));
+  if (job.status !== "running") return Result.err(new Error("Job is not running"));
 
   // Check if the job has been running long enough to be considered stuck
   if (job.startedAt) {
     const runningTime = Date.now() - new Date(job.startedAt).getTime();
     const thresholdMs = stuckThresholdMinutes * 60 * 1000;
     if (runningTime < thresholdMs) {
-      return false; // Not stuck yet
+      return Result.err(new Error("Job is not stuck"));
     }
   }
 
@@ -200,7 +214,12 @@ export async function resetStuckJob(id: string, stuckThresholdMinutes = 30): Pro
     })
     .where(eq(jobs.id, id));
 
-  return result.changes > 0;
+  if (result.changes === 0) {
+    return Result.err(new Error("Job could not be reset"));
+  }
+
+  const updatedJob = await getJob(id);
+  return Result.ok(updatedJob!);
 }
 
 /**
@@ -243,12 +262,12 @@ async function getNextJob(): Promise<Job | undefined> {
 /**
  * Process a single job
  */
-async function processJob(job: Job): Promise<void> {
+export async function processJob(job: Job) {
   const handler = jobHandlers.get(job.type);
   
   if (!handler) {
     await failJob(job.id, `Unknown job type: ${job.type}`);
-    return;
+    return Result.err(new Error(`Unknown job type: ${job.type}`));
   }
   
   try {
@@ -256,10 +275,13 @@ async function processJob(job: Job): Promise<void> {
     const input = JSON.parse(job.input) as Record<string, unknown>;
     const output = await handler(job, input);
     await completeJob(job.id, output);
+    const completedJob = await getJob(job.id);
+    return Result.ok(completedJob!);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     await failJob(job.id, message);
     console.error(`Job ${job.id} failed:`, error);
+    return Result.err(new Error(message));
   }
 }
 

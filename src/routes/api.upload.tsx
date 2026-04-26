@@ -1,6 +1,6 @@
 import type { Route } from "./+types/api.upload";
 import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
-import { db, folders, files } from "~/db";
+import { db, folders } from "~/db";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { join, basename, dirname } from "path";
@@ -13,6 +13,7 @@ import {
   isImageKind,
   TEMP_DIR,
   ensureDir,
+  insertFileRecord,
 } from "~/lib/files.server";
 import { createJob } from "~/lib/jobs.server";
 import { parseArchive, getFileEntries, getDirectoryPaths } from "~/lib/archives.server";
@@ -137,7 +138,7 @@ async function handleFileUpload(formData: FormData, userId: string) {
     }
 
     const fileId = nanoid();
-    await db.insert(files).values({
+    await insertFileRecord({
       id: fileId,
       path: filePath,
       name: savedName,

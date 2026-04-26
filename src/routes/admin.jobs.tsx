@@ -1,5 +1,6 @@
 import { useLoaderData, redirect, useRevalidator, Form, useNavigation } from "react-router";
 import type { Route } from "./+types/admin.jobs";
+import { Result } from "better-result";
 import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
 import { getAllJobs, deleteJob, cancelJob, resetStuckJob, isJobStuck } from "~/lib/jobs.server";
 import { useEffect } from "react";
@@ -51,13 +52,16 @@ export async function action({ request }: Route.ActionArgs) {
       return { success: true, action: "deleted" };
 
     case "cancel":
-      await cancelJob(jobId);
+      const cancel = await cancelJob(jobId);
+      if (Result.isError(cancel)) {
+        return { error: cancel.error.message };
+      }
       return { success: true, action: "cancelled" };
 
     case "reset":
       const reset = await resetStuckJob(jobId, STUCK_THRESHOLD_MINUTES);
-      if (!reset) {
-        return { error: "Job cannot be reset (not stuck or not running)" };
+      if (Result.isError(reset)) {
+        return { error: reset.error.message };
       }
       return { success: true, action: "reset" };
 

@@ -22,6 +22,13 @@
       "when": 1768766529020,
       "tag": "0002_lovely_wonder_man",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1777229052384,
+      "tag": "0003_clever_spot",
+      "breakpoints": true
     }
   ]
 }

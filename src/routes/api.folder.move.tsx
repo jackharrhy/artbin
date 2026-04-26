@@ -1,6 +1,7 @@
 import type { Route } from "./+types/api.folder.move";
+import { Result } from "better-result";
 import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
-import { moveFolder, createFolderAndMoveChildren } from "~/lib/folder-ops.server";
+import { createFolderAndMoveChildren, moveFolder } from "~/lib/core/folders.server";
 
 export async function action({ request }: Route.ActionArgs) {
   const sessionId = parseSessionCookie(request.headers.get("Cookie"));
@@ -27,15 +28,15 @@ export async function action({ request }: Route.ActionArgs) {
 
     const result = await moveFolder(folderId, parentId);
 
-    if (!result.success) {
-      return Response.json({ error: result.error }, { status: 400 });
+    if (Result.isError(result)) {
+      return Response.json({ error: result.error.message }, { status: 400 });
     }
 
     return Response.json({
       success: true,
-      folder: result.folder,
-      movedFolders: result.movedFolders,
-      movedFiles: result.movedFiles,
+      folder: result.value.folder,
+      movedFolders: result.value.movedFolders,
+      movedFiles: result.value.movedFiles,
     });
   }
 
@@ -63,15 +64,15 @@ export async function action({ request }: Route.ActionArgs) {
 
     const result = await createFolderAndMoveChildren(name, effectiveParentId, childFolderIds);
 
-    if (!result.success) {
-      return Response.json({ error: result.error }, { status: 400 });
+    if (Result.isError(result)) {
+      return Response.json({ error: result.error.message }, { status: 400 });
     }
 
     return Response.json({
       success: true,
-      folder: result.folder,
-      movedFolders: result.movedFolders,
-      movedFiles: result.movedFiles,
+      folder: result.value.folder,
+      movedFolders: result.value.movedFolders,
+      movedFiles: result.value.movedFiles,
     });
   }
 
