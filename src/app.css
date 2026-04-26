@@ -24,50 +24,54 @@
   --color-success: #080;
 }
 
-html {
-  background-color: #f0f0f0;
-  color: var(--color-text);
+@layer base {
+  html {
+    background-color: #f0f0f0;
+    color: var(--color-text);
+  }
+
+  body {
+    background-color: #f0f0f0;
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    min-height: 100vh;
+  }
+
+  /* Links */
+  a {
+    color: var(--color-text);
+    text-decoration: underline;
+  }
+
+  a:hover {
+    color: #000;
+  }
 }
 
-body {
-  background-color: #f0f0f0;
-  color: var(--color-text);
-  font-family: var(--font-sans);
-  min-height: 100vh;
-}
+@layer base {
+  /* Scrollbar - minimal */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
 
-/* Links */
-a {
-  color: var(--color-text);
-  text-decoration: underline;
-}
+  ::-webkit-scrollbar-track {
+    background: #f0f0f0;
+  }
 
-a:hover {
-  color: #000;
-}
+  ::-webkit-scrollbar-thumb {
+    background: #ccc;
+  }
 
-/* Scrollbar - minimal */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
+  ::-webkit-scrollbar-thumb:hover {
+    background: #999;
+  }
 
-::-webkit-scrollbar-track {
-  background: #f0f0f0;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #ccc;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #999;
-}
-
-/* Selection */
-::selection {
-  background-color: #111;
-  color: #fff;
+  /* Selection */
+  ::selection {
+    background-color: #111;
+    color: #fff;
+  }
 }
 
 /* ============================================

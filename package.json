@@ -11,6 +11,7 @@
     "lint:fix": "oxlint --fix",
     "format": "oxfmt --write src/ test/",
     "format:check": "oxfmt --check src/ test/",
+    "ci": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run test",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
