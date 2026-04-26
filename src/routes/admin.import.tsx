@@ -44,9 +44,12 @@ export async function loader({ request }: Route.LoaderArgs) {
   }
 
   // Get current counts and sizes
-  const [{ total: fileCount }] = await db.select({ total: count() }).from(files);
-  const [{ total: folderCount }] = await db.select({ total: count() }).from(folders);
-  const [{ total: totalSize }] = await db.select({ total: sum(files.size) }).from(files);
+  const [[{ total: fileCount }], [{ total: folderCount }], [{ total: totalSize }]] =
+    await Promise.all([
+      db.select({ total: count() }).from(files),
+      db.select({ total: count() }).from(folders),
+      db.select({ total: sum(files.size) }).from(files),
+    ]);
 
   // Get size by kind
   const sizeByKind = await db

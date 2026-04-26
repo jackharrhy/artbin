@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback } from "react";
 
 interface UploadModalProps {
   isOpen: boolean;
@@ -70,34 +70,45 @@ export function UploadModal({ isOpen, onClose, currentFolder, onSuccess }: Uploa
 
   const isAtRoot = !currentFolder;
 
-  // Reset state when modal closes
-  useEffect(() => {
-    if (!isOpen) {
-      setView("main");
-      setFiles([]);
-      setError(null);
-      setUploading(false);
-      setUploadProgress({ done: 0, total: 0 });
-      setFolderName("");
-      setFolderSlug("");
-      setCustomSlug(false);
-      setArchiveAnalysis(null);
-    }
-  }, [isOpen]);
+  // Reset state when modal closes (previous-prop pattern)
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  if (!isOpen && prevIsOpen) {
+    setPrevIsOpen(false);
+    setView("main");
+    setFiles([]);
+    setError(null);
+    setUploading(false);
+    setUploadProgress({ done: 0, total: 0 });
+    setFolderName("");
+    setFolderSlug("");
+    setCustomSlug(false);
+    setArchiveAnalysis(null);
+  }
+  if (isOpen && !prevIsOpen) {
+    setPrevIsOpen(true);
+  }
 
-  // Auto-update folder slug when name changes
-  useEffect(() => {
+  // Auto-update folder slug when name changes (previous-prop pattern)
+  const [prevFolderName, setPrevFolderName] = useState(folderName);
+  const [prevCustomSlug, setPrevCustomSlug] = useState(customSlug);
+  if (folderName !== prevFolderName || customSlug !== prevCustomSlug) {
+    setPrevFolderName(folderName);
+    setPrevCustomSlug(customSlug);
     if (!customSlug) {
       setFolderSlug(slugify(folderName));
     }
-  }, [folderName, customSlug]);
+  }
 
-  // Auto-update archive folder slug when name changes
-  useEffect(() => {
+  // Auto-update archive folder slug when name changes (previous-prop pattern)
+  const [prevArchiveFolderName, setPrevArchiveFolderName] = useState(archiveFolderName);
+  const [prevArchiveCustomSlug, setPrevArchiveCustomSlug] = useState(archiveCustomSlug);
+  if (archiveFolderName !== prevArchiveFolderName || archiveCustomSlug !== prevArchiveCustomSlug) {
+    setPrevArchiveFolderName(archiveFolderName);
+    setPrevArchiveCustomSlug(archiveCustomSlug);
     if (!archiveCustomSlug) {
       setArchiveFolderSlug(slugify(archiveFolderName));
     }
-  }, [archiveFolderName, archiveCustomSlug]);
+  }
 
   const handleFileSelect = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {

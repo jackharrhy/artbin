@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useFetcher } from "react-router";
 
 interface Folder {
@@ -31,18 +31,23 @@ export function MoveFolderModal({
 
   const isSubmitting = fetcher.state === "submitting";
 
-  // Reset state when modal opens
-  useEffect(() => {
-    if (isOpen) {
-      setSelectedParentId(folder.parentId);
-      setCreateNew(false);
-      setNewFolderName("");
-      setError(null);
-    }
-  }, [isOpen, folder.parentId]);
+  // Reset state when modal opens (previous-prop pattern)
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  if (isOpen && !prevIsOpen) {
+    setPrevIsOpen(true);
+    setSelectedParentId(folder.parentId);
+    setCreateNew(false);
+    setNewFolderName("");
+    setError(null);
+  }
+  if (!isOpen && prevIsOpen) {
+    setPrevIsOpen(false);
+  }
 
-  // Handle response
-  useEffect(() => {
+  // Handle response (previous-prop pattern)
+  const [prevFetcherData, setPrevFetcherData] = useState(fetcher.data);
+  if (fetcher.data !== prevFetcherData) {
+    setPrevFetcherData(fetcher.data);
     if (fetcher.data) {
       if (fetcher.data.error) {
         setError(fetcher.data.error);
@@ -51,7 +56,7 @@ export function MoveFolderModal({
         onClose();
       }
     }
-  }, [fetcher.data, onSuccess, onClose]);
+  }
 
   if (!isOpen) return null;
 

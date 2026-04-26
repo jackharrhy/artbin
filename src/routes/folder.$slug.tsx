@@ -6,7 +6,7 @@ import {
   useFetcher,
   useRevalidator,
 } from "react-router";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import type { Route } from "./+types/folder.$slug";
 import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
 import { db, folders, files, tags } from "~/db";
@@ -282,22 +282,26 @@ export default function FolderView() {
   const [searchFiles, setSearchFiles] = useState(data.searchResults?.files || []);
   const [nextCursor, setNextCursor] = useState(data.searchResults?.nextCursor || null);
   const [loading, setLoading] = useState(false);
+  const [prevSearchResults, setPrevSearchResults] = useState(data.searchResults);
   const fetcher = useFetcher();
+  const [prevFetcherData, setPrevFetcherData] = useState(fetcher.data);
 
-  // Reset files when view/query changes
-  useEffect(() => {
+  // Reset when loader data changes (e.g. view/query navigation)
+  if (data.searchResults !== prevSearchResults) {
+    setPrevSearchResults(data.searchResults);
     setSearchFiles(data.searchResults?.files || []);
     setNextCursor(data.searchResults?.nextCursor || null);
-  }, [data.searchResults]);
+  }
 
-  // Handle fetcher response for infinite scroll
-  useEffect(() => {
+  // Append results when fetcher completes a new load
+  if (fetcher.data !== prevFetcherData) {
+    setPrevFetcherData(fetcher.data);
     if (fetcher.data?.searchResults) {
       setSearchFiles((prev: typeof searchFiles) => [...prev, ...fetcher.data.searchResults.files]);
       setNextCursor(fetcher.data.searchResults.nextCursor);
       setLoading(false);
     }
-  }, [fetcher.data]);
+  }
 
   const loadMore = useCallback(() => {
     if (loading || !nextCursor) return;

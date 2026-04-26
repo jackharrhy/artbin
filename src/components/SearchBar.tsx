@@ -1,5 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useSearchParams, useNavigate } from "react-router";
+
+const EMPTY_TAGS: { id: string; name: string; slug: string }[] = [];
 
 interface SearchBarProps {
   baseUrl: string;
@@ -15,16 +17,16 @@ export function SearchBar({
   currentView,
   currentQuery,
   currentTag,
-  tags = [],
+  tags = EMPTY_TAGS,
   placeholder = "Search files...",
 }: SearchBarProps) {
   const [query, setQuery] = useState(currentQuery);
-  const navigate = useNavigate();
-
-  // Update local state when prop changes (e.g., navigating)
-  useEffect(() => {
+  const [prevCurrentQuery, setPrevCurrentQuery] = useState(currentQuery);
+  if (currentQuery !== prevCurrentQuery) {
+    setPrevCurrentQuery(currentQuery);
     setQuery(currentQuery);
-  }, [currentQuery]);
+  }
+  const navigate = useNavigate();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

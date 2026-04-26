@@ -49,25 +49,31 @@ export async function action({ request }: Route.ActionArgs) {
 
   if (intent === "save") {
     // Parse the textarea values (one item per line)
-    const excludeDirs = ((formData.get("excludeDirs") as string) || "")
-      .split("\n")
-      .map((s) => s.trim())
-      .filter(Boolean);
+    const excludeDirs = ((formData.get("excludeDirs") as string) || "").split("\n").flatMap((s) => {
+      const trimmed = s.trim();
+      return trimmed ? [trimmed] : [];
+    });
 
     const excludeFilenames = ((formData.get("excludeFilenames") as string) || "")
       .split("\n")
-      .map((s) => s.trim())
-      .filter(Boolean);
+      .flatMap((s) => {
+        const trimmed = s.trim();
+        return trimmed ? [trimmed] : [];
+      });
 
     const excludePathPatterns = ((formData.get("excludePathPatterns") as string) || "")
       .split("\n")
-      .map((s) => s.trim())
-      .filter(Boolean);
+      .flatMap((s) => {
+        const trimmed = s.trim();
+        return trimmed ? [trimmed] : [];
+      });
 
     const knownGameDirs = ((formData.get("knownGameDirs") as string) || "")
       .split("\n")
-      .map((s) => s.trim())
-      .filter(Boolean);
+      .flatMap((s) => {
+        const trimmed = s.trim();
+        return trimmed ? [trimmed] : [];
+      });
 
     const result = await updateScanSettings({
       excludeDirs,
