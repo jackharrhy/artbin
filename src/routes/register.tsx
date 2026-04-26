@@ -1,7 +1,13 @@
 import { Form, redirect, useActionData, useSearchParams, useLoaderData } from "react-router";
 import type { Route } from "./+types/register";
-import { Result } from "better-result";
-import { createUser, getSessionCookie, login, parseSessionCookie, getUserFromSession, getInviteByCode } from "~/lib/auth.server";
+import {
+  createUser,
+  getSessionCookie,
+  login,
+  parseSessionCookie,
+  getUserFromSession,
+  getInviteByCode,
+} from "~/lib/auth.server";
 import { Header } from "~/components/Header";
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -41,14 +47,14 @@ export async function action({ request }: Route.ActionArgs) {
 
   const result = await createUser(email, username, password, inviteCode);
 
-  if (Result.isError(result)) {
+  if (result.isErr()) {
     return { error: result.error.message };
   }
 
   // Auto-login after registration
   const loginResult = await login(email, password);
 
-  if (Result.isError(loginResult)) {
+  if (loginResult.isErr()) {
     return redirect("/login");
   }
 
@@ -73,15 +79,15 @@ export default function Register() {
       <main className="auth-container">
         <h1 className="auth-title">Register</h1>
 
-        {actionData?.error && (
-          <div className="alert alert-error">{actionData.error}</div>
-        )}
+        {actionData?.error && <div className="alert alert-error">{actionData.error}</div>}
 
         <Form method="post">
           <input type="hidden" name="inviteCode" value={code || ""} />
-          
+
           <div className="form-group">
-            <label htmlFor="email" className="form-label">Email</label>
+            <label htmlFor="email" className="form-label">
+              Email
+            </label>
             <input
               type="email"
               id="email"
@@ -93,7 +99,9 @@ export default function Register() {
           </div>
 
           <div className="form-group">
-            <label htmlFor="username" className="form-label">Username</label>
+            <label htmlFor="username" className="form-label">
+              Username
+            </label>
             <input
               type="text"
               id="username"
@@ -107,7 +115,9 @@ export default function Register() {
           </div>
 
           <div className="form-group">
-            <label htmlFor="password" className="form-label">Password</label>
+            <label htmlFor="password" className="form-label">
+              Password
+            </label>
             <input
               type="password"
               id="password"

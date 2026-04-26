@@ -1,23 +1,21 @@
 # artbin
 
-artbin is a private, invite-only asset bin for game development resources.
+artbin is an asset bin for game development resources.
 
-It is focused on textures first, with support for other asset types and import/extraction tooling for classic game archives.
+it is focused on textures first, with support for other asset types and import/extraction tooling for classic game archives.
 
-## What it does
+## what it does
 
-- Private login + invite-code registration
-- Folder-based asset library
-- File metadata and type classification (textures, models, audio, maps, archives, etc.)
-- Admin import pipelines:
-  - TextureTown
-  - Texture Station
-  - Sadgrl tiled backgrounds
+- login + invite-code registration
+- folder-based asset library
+- file metadata and type classification (textures, models, audio, maps, archives, etc.)
+- admin import pipelines:
+  - misc. online sources
   - local folder imports
   - local archive scan/import (PAK/PK3/WAD/ZIP)
-- Background job queue for long-running imports and processing
+- background job queue for long-running imports and processing
 
-## Stack
+## stack
 
 - React Router v7
 - TypeScript
@@ -25,9 +23,9 @@ It is focused on textures first, with support for other asset types and import/e
 - Drizzle ORM + SQLite (`better-sqlite3`)
 - three.js (viewer-related UI)
 
-## Quick start
+## quick start
 
-Prereqs: Node 25+, pnpm
+prereqs: Node 25+, pnpm
 
 ```bash
 pnpm install
@@ -35,7 +33,7 @@ pnpm run build
 pnpm run dev
 ```
 
-App runs at `http://localhost:5173` in dev mode.
+app runs at `http://localhost:5173` in dev mode.
 
 ## Scripts
 
@@ -55,7 +53,3 @@ pnpm run create-admin
 docker build -t artbin .
 docker run -p 3000:3000 artbin
 ```
-
-## Project notes
-
-See `PROJECT.md` for roadmap and design goals.

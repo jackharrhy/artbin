@@ -1,4 +1,11 @@
-import { useLoaderData, redirect, Form, useNavigation, useFetcher, useRevalidator } from "react-router";
+import {
+  useLoaderData,
+  redirect,
+  Form,
+  useNavigation,
+  useFetcher,
+  useRevalidator,
+} from "react-router";
 import { useState, useCallback, useEffect } from "react";
 import type { Route } from "./+types/folder.$slug";
 import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
@@ -11,7 +18,13 @@ import { FileGrid } from "~/components/FileGrid";
 import { FileList } from "~/components/FileList";
 import { UploadModal } from "~/components/UploadModal";
 import { MoveFolderModal } from "~/components/MoveFolderModal";
-import { deleteFile, deleteFolder, searchFiles, getDescendantFolderIds, getFileCountsByKind } from "~/lib/files.server";
+import {
+  deleteFile,
+  deleteFolder,
+  searchFiles,
+  getDescendantFolderIds,
+  getFileCountsByKind,
+} from "~/lib/files.server";
 
 export async function loader({ request, params }: Route.LoaderArgs) {
   const sessionId = parseSessionCookie(request.headers.get("Cookie"));
@@ -242,8 +255,20 @@ function getFileIcon(kind: string | null): string {
 
 export default function FolderView() {
   const data = useLoaderData<typeof loader>();
-  const { user, folder, ancestors, childFolders, allFolders, view, query, tagSlug, fileCounts, tags, files: folderFiles } = data;
-  
+  const {
+    user,
+    folder,
+    ancestors,
+    childFolders,
+    allFolders,
+    view,
+    query,
+    tagSlug,
+    fileCounts,
+    tags,
+    files: folderFiles,
+  } = data;
+
   // State for modals
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showMoveModal, setShowMoveModal] = useState(false);
@@ -251,8 +276,7 @@ export default function FolderView() {
 
   const navigation = useNavigation();
   const isDeleting =
-    navigation.state === "submitting" &&
-    navigation.formData?.get("_action") === "delete";
+    navigation.state === "submitting" && navigation.formData?.get("_action") === "delete";
 
   // State for infinite scroll
   const [searchFiles, setSearchFiles] = useState(data.searchResults?.files || []);
@@ -336,11 +360,7 @@ export default function FolderView() {
 
             {user.isAdmin && (
               <>
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() => setShowMoveModal(true)}
-                >
+                <button type="button" className="btn" onClick={() => setShowMoveModal(true)}>
                   Move
                 </button>
 
@@ -360,11 +380,7 @@ export default function FolderView() {
                   }}
                 >
                   <input type="hidden" name="_action" value="delete" />
-                  <button
-                    type="submit"
-                    className="btn btn-danger"
-                    disabled={isDeleting}
-                  >
+                  <button type="submit" className="btn btn-danger" disabled={isDeleting}>
                     {isDeleting ? "Deleting..." : "Delete"}
                   </button>
                 </Form>
@@ -374,9 +390,7 @@ export default function FolderView() {
         </div>
 
         {folder.description && (
-          <p style={{ marginBottom: "1rem", color: "#666" }}>
-            {folder.description}
-          </p>
+          <p style={{ marginBottom: "1rem", color: "#666" }}>{folder.description}</p>
         )}
 
         <BrowseTabs
@@ -419,11 +433,7 @@ export default function FolderView() {
                     >
                       {child.previewPath ? (
                         <div className="folder-preview">
-                          <img
-                            src={`/uploads/${child.previewPath}`}
-                            alt=""
-                            loading="lazy"
-                          />
+                          <img src={`/uploads/${child.previewPath}`} alt="" loading="lazy" />
                         </div>
                       ) : (
                         <div className="folder-preview folder-preview-empty">
@@ -447,16 +457,8 @@ export default function FolderView() {
                 </div>
                 <div className="texture-grid">
                   {textures.map((file) => (
-                    <a
-                      key={file.id}
-                      href={`/file/${file.path}`}
-                      className="texture-card"
-                    >
-                      <img
-                        src={getFileDisplayUrl(file) || ""}
-                        alt={file.name}
-                        loading="lazy"
-                      />
+                    <a key={file.id} href={`/file/${file.path}`} className="texture-card">
+                      <img src={getFileDisplayUrl(file) || ""} alt={file.name} loading="lazy" />
                       <div className="texture-card-info">{file.name}</div>
                     </a>
                   ))}
@@ -486,9 +488,7 @@ export default function FolderView() {
                         color: "inherit",
                       }}
                     >
-                      <span style={{ fontSize: "1.25rem" }}>
-                        {getFileIcon(file.kind)}
-                      </span>
+                      <span style={{ fontSize: "1.25rem" }}>{getFileIcon(file.kind)}</span>
                       <div style={{ flex: 1 }}>
                         <div>{file.name}</div>
                         <div style={{ fontSize: "0.75rem", color: "#999" }}>
@@ -540,8 +540,18 @@ export default function FolderView() {
         <MoveFolderModal
           isOpen={showMoveModal}
           onClose={() => setShowMoveModal(false)}
-          folder={{ id: folder.id, name: folder.name, slug: folder.slug, parentId: folder.parentId }}
-          allFolders={allFolders.map((f) => ({ id: f.id, name: f.name, slug: f.slug, parentId: f.parentId }))}
+          folder={{
+            id: folder.id,
+            name: folder.name,
+            slug: folder.slug,
+            parentId: folder.parentId,
+          }}
+          allFolders={allFolders.map((f) => ({
+            id: f.id,
+            name: f.name,
+            slug: f.slug,
+            parentId: f.parentId,
+          }))}
           onSuccess={() => {
             revalidator.revalidate();
             // Redirect to new location after move

@@ -1,0 +1,30 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "oxc", "react", "import"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "warn",
+    "perf": "warn"
+  },
+  "rules": {
+    "no-unused-vars": "off",
+    "typescript/no-unused-vars": "off",
+    "unicorn/filename-case": "off",
+    "react/react-in-jsx-scope": "off",
+    "no-await-in-loop": "off",
+    "no-control-regex": "off",
+    "import/no-unassigned-import": "off",
+    "no-shadow": "off",
+    "unicorn/no-array-sort": "off",
+    "react/no-array-index-key": "off",
+    "typescript/no-extraneous-class": "off",
+    "no-new": "off",
+    "oxc/no-map-spread": "off"
+  },
+  "env": {
+    "builtin": true,
+    "browser": true,
+    "node": true
+  },
+  "ignorePatterns": ["build/", ".react-router/", "tmp/"]
+}

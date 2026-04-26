@@ -37,9 +37,7 @@ export function BrowseTabs({ baseUrl, currentView, counts }: BrowseTabsProps) {
             className={`browse-tab ${isActive ? "browse-tab-active" : ""}`}
           >
             {tab.label}
-            {count !== undefined && (
-              <span className="browse-tab-count">{count}</span>
-            )}
+            {count !== undefined && <span className="browse-tab-count">{count}</span>}
           </a>
         );
       })}

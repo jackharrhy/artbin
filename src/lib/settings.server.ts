@@ -1,6 +1,6 @@
 /**
  * Settings management for artbin
- * 
+ *
  * Key-value store for application configuration, stored in the database.
  */
 
@@ -61,12 +61,34 @@ const DEFAULT_EXCLUDE_PATH_PATTERNS = [
 
 // Default known game directories
 const DEFAULT_KNOWN_GAME_DIRS = [
-  "id1", "hipnotic", "rogue", "quoth", "ad", "alkaline",
-  "baseq2", "ctf", "xatrix",
-  "baseq3", "missionpack", "cpma", "defrag",
-  "valve", "cstrike", "tfc", "dod", "gearbox", "bshift",
-  "doom", "doom2", "plutonia", "tnt",
-  "data", "pak", "paks", "base", "main",
+  "id1",
+  "hipnotic",
+  "rogue",
+  "quoth",
+  "ad",
+  "alkaline",
+  "baseq2",
+  "ctf",
+  "xatrix",
+  "baseq3",
+  "missionpack",
+  "cpma",
+  "defrag",
+  "valve",
+  "cstrike",
+  "tfc",
+  "dod",
+  "gearbox",
+  "bshift",
+  "doom",
+  "doom2",
+  "plutonia",
+  "tnt",
+  "data",
+  "pak",
+  "paks",
+  "base",
+  "main",
 ];
 
 // ============================================================================

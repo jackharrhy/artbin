@@ -1,6 +1,6 @@
 /**
  * Three.js-based 3D model viewer component
- * 
+ *
  * Supports MD2 (Quake 2), MD5 (Doom 3), ASE (3ds Max), OBJ, and GLTF/GLB formats
  * Features: orbit controls, animation playback, auto-sizing
  */
@@ -39,11 +39,11 @@ class ModelScene {
   private mixer: THREE.AnimationMixer | null = null;
   private currentAction: THREE.AnimationAction | null = null;
   private resizeObserver: ResizeObserver;
-  
+
   public clips: THREE.AnimationClip[] = [];
   public currentClipIndex = 0;
   public isPlaying = true;
-  
+
   public onAnimationChange?: (info: AnimationInfo) => void;
   public onLoadStart?: () => void;
   public onLoadComplete?: () => void;
@@ -113,12 +113,12 @@ class ModelScene {
 
   private animate = () => {
     this.animationFrameId = requestAnimationFrame(this.animate);
-    
+
     const delta = this.clock.getDelta();
     if (this.mixer) {
       this.mixer.update(delta);
     }
-    
+
     this.controls.update();
     this.renderer.render(this.scene, this.camera);
   };
@@ -127,17 +127,17 @@ class ModelScene {
     const box = new THREE.Box3().setFromObject(object);
     const center = box.getCenter(new THREE.Vector3());
     const size = box.getSize(new THREE.Vector3());
-    
+
     // Center the model
     object.position.sub(center);
-    
+
     // Scale to fit
     const maxDim = Math.max(size.x, size.y, size.z);
     if (maxDim > 0) {
       const scale = 50 / maxDim;
       object.scale.multiplyScalar(scale);
     }
-    
+
     // Position camera
     this.camera.position.set(0, 30, 80);
     this.controls.target.set(0, 0, 0);
@@ -146,16 +146,16 @@ class ModelScene {
 
   private setupAnimations(clips: THREE.AnimationClip[], target: THREE.Object3D) {
     if (clips.length === 0) return;
-    
+
     this.clips = clips;
     this.mixer = new THREE.AnimationMixer(target);
-    
+
     // Play first animation
     this.currentAction = this.mixer.clipAction(clips[0]);
     this.currentAction.play();
     this.currentClipIndex = 0;
     this.isPlaying = true;
-    
+
     this.notifyAnimationChange();
   }
 
@@ -167,12 +167,18 @@ class ModelScene {
     });
   }
 
-  async loadModel(url: string, format: ModelFormat, textureUrl?: string, mtlUrl?: string, animUrls?: string[]) {
+  async loadModel(
+    url: string,
+    format: ModelFormat,
+    textureUrl?: string,
+    mtlUrl?: string,
+    animUrls?: string[],
+  ) {
     this.onLoadStart?.();
-    
+
     // Clear previous model
     this.clearModel();
-    
+
     try {
       switch (format) {
         case "md2":
@@ -203,53 +209,55 @@ class ModelScene {
   private loadMD2(url: string, textureUrl?: string): Promise<void> {
     return new Promise((resolve, reject) => {
       const loader = new MD2Loader();
-      
+
       loader.load(
         url,
         (geometry) => {
           let material: THREE.Material;
-          
+
           if (textureUrl) {
             const texture = new THREE.TextureLoader().load(textureUrl);
             texture.colorSpace = THREE.SRGBColorSpace;
             material = new THREE.MeshLambertMaterial({ map: texture });
           } else {
-            material = new THREE.MeshLambertMaterial({ 
+            material = new THREE.MeshLambertMaterial({
               color: 0x888888,
               flatShading: true,
             });
           }
-          
+
           const mesh = new THREE.Mesh(geometry, material);
           this.scene.add(mesh);
           this.fitModelToView(mesh);
-          
+
           // MD2 animations are attached to geometry
-          const geomWithAnims = geometry as THREE.BufferGeometry & { animations?: THREE.AnimationClip[] };
+          const geomWithAnims = geometry as THREE.BufferGeometry & {
+            animations?: THREE.AnimationClip[];
+          };
           if (geomWithAnims.animations) {
             this.setupAnimations(geomWithAnims.animations, mesh);
           }
-          
+
           resolve();
         },
         undefined,
-        (err) => reject(err)
+        (err) => reject(err),
       );
     });
   }
 
   private async loadMD5(url: string, textureUrl?: string, animUrls?: string[]): Promise<void> {
     const loader = new MD5Loader();
-    
+
     // Load mesh
     const { mesh, skeleton } = await loader.loadMesh(url, textureUrl);
     this.scene.add(mesh);
     this.fitModelToView(mesh);
-    
+
     // Load animations if provided
     if (animUrls && animUrls.length > 0) {
       const clips: THREE.AnimationClip[] = [];
-      
+
       for (const animUrl of animUrls) {
         try {
           const clip = await loader.loadAnim(animUrl, skeleton);
@@ -258,7 +266,7 @@ class ModelScene {
           console.warn(`Failed to load animation ${animUrl}:`, err);
         }
       }
-      
+
       if (clips.length > 0) {
         this.setupAnimations(clips, mesh);
       }
@@ -275,13 +283,13 @@ class ModelScene {
   private loadOBJ(url: string, textureUrl?: string, mtlUrl?: string): Promise<void> {
     return new Promise((resolve, reject) => {
       const objLoader = new OBJLoader();
-      
+
       const loadWithMaterial = (materials?: MTLLoader.MaterialCreator) => {
         if (materials) {
           materials.preload();
           objLoader.setMaterials(materials);
         }
-        
+
         objLoader.load(
           url,
           (object) => {
@@ -289,7 +297,7 @@ class ModelScene {
             if (textureUrl && !mtlUrl) {
               const texture = new THREE.TextureLoader().load(textureUrl);
               texture.colorSpace = THREE.SRGBColorSpace;
-              
+
               object.traverse((child) => {
                 if (child instanceof THREE.Mesh) {
                   child.material = new THREE.MeshLambertMaterial({ map: texture });
@@ -298,28 +306,28 @@ class ModelScene {
             } else if (!mtlUrl) {
               object.traverse((child) => {
                 if (child instanceof THREE.Mesh) {
-                  child.material = new THREE.MeshLambertMaterial({ 
+                  child.material = new THREE.MeshLambertMaterial({
                     color: 0x888888,
                     flatShading: true,
                   });
                 }
               });
             }
-            
+
             this.scene.add(object);
             this.fitModelToView(object);
             resolve();
           },
           undefined,
-          (err) => reject(err)
+          (err) => reject(err),
         );
       };
-      
+
       if (mtlUrl) {
         const mtlLoader = new MTLLoader();
         const mtlPath = mtlUrl.substring(0, mtlUrl.lastIndexOf("/") + 1);
         mtlLoader.setPath(mtlPath);
-        
+
         mtlLoader.load(
           mtlUrl.substring(mtlUrl.lastIndexOf("/") + 1),
           (materials) => loadWithMaterial(materials),
@@ -327,7 +335,7 @@ class ModelScene {
           () => {
             console.warn("Failed to load MTL, continuing without materials");
             loadWithMaterial();
-          }
+          },
         );
       } else {
         loadWithMaterial();
@@ -338,22 +346,22 @@ class ModelScene {
   private loadGLTF(url: string): Promise<void> {
     return new Promise((resolve, reject) => {
       const loader = new GLTFLoader();
-      
+
       loader.load(
         url,
         (gltf) => {
           const model = gltf.scene;
           this.scene.add(model);
           this.fitModelToView(model);
-          
+
           if (gltf.animations && gltf.animations.length > 0) {
             this.setupAnimations(gltf.animations, model);
           }
-          
+
           resolve();
         },
         undefined,
-        (err) => reject(err)
+        (err) => reject(err),
       );
     });
   }
@@ -367,7 +375,7 @@ class ModelScene {
     this.currentAction = null;
     this.clips = [];
     this.currentClipIndex = 0;
-    
+
     // Remove meshes (keep lights and grid)
     const toRemove: THREE.Object3D[] = [];
     this.scene.traverse((child) => {
@@ -387,25 +395,25 @@ class ModelScene {
 
   playAnimation(index: number) {
     if (!this.mixer || index < 0 || index >= this.clips.length) return;
-    
+
     if (this.currentAction) {
       this.currentAction.stop();
     }
-    
+
     this.currentAction = this.mixer.clipAction(this.clips[index]);
     this.currentAction.play();
     this.currentClipIndex = index;
     this.isPlaying = true;
-    
+
     this.notifyAnimationChange();
   }
 
   togglePlayPause() {
     if (!this.currentAction) return;
-    
+
     this.currentAction.paused = !this.currentAction.paused;
     this.isPlaying = !this.currentAction.paused;
-    
+
     this.notifyAnimationChange();
   }
 
@@ -414,14 +422,14 @@ class ModelScene {
     if (this.animationFrameId !== null) {
       cancelAnimationFrame(this.animationFrameId);
     }
-    
+
     // Clean up observers
     this.resizeObserver.disconnect();
-    
+
     // Dispose Three.js resources
     this.controls.dispose();
     this.renderer.dispose();
-    
+
     // Remove canvas
     if (this.container.contains(this.renderer.domElement)) {
       this.container.removeChild(this.renderer.domElement);
@@ -453,7 +461,7 @@ export function ModelViewer({
 }: ModelViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sceneRef = useRef<ModelScene | null>(null);
-  
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [animationInfo, setAnimationInfo] = useState<AnimationInfo | null>(null);
@@ -461,10 +469,10 @@ export function ModelViewer({
   // Initialize scene
   useEffect(() => {
     if (!containerRef.current) return;
-    
+
     const scene = new ModelScene(containerRef.current, height);
     sceneRef.current = scene;
-    
+
     // Wire up callbacks
     scene.onLoadStart = () => {
       setLoading(true);
@@ -476,7 +484,7 @@ export function ModelViewer({
       setLoading(false);
     };
     scene.onAnimationChange = setAnimationInfo;
-    
+
     return () => {
       scene.dispose();
       sceneRef.current = null;
@@ -487,7 +495,7 @@ export function ModelViewer({
   useEffect(() => {
     const scene = sceneRef.current;
     if (!scene) return;
-    
+
     scene.loadModel(modelUrl, format, textureUrl, mtlUrl, animUrls);
   }, [modelUrl, format, textureUrl, mtlUrl, animUrls]);
 
@@ -501,71 +509,77 @@ export function ModelViewer({
 
   return (
     <div style={{ position: "relative" }}>
-      <div 
-        ref={containerRef} 
-        style={{ 
-          width: "100%", 
+      <div
+        ref={containerRef}
+        style={{
+          width: "100%",
           height: `${height}px`,
           background: "#f5f5f5",
           borderRadius: "4px",
           overflow: "hidden",
-        }} 
+        }}
       />
-      
+
       {/* Loading overlay */}
       {loading && (
-        <div style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          background: "rgba(245, 245, 245, 0.9)",
-        }}>
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(245, 245, 245, 0.9)",
+          }}
+        >
           <div style={{ textAlign: "center", color: "#666" }}>
             <div style={{ fontSize: "1.5rem", marginBottom: "0.5rem" }}>Loading model...</div>
           </div>
         </div>
       )}
-      
+
       {/* Error overlay */}
       {error && (
-        <div style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          background: "rgba(245, 245, 245, 0.9)",
-        }}>
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(245, 245, 245, 0.9)",
+          }}
+        >
           <div style={{ textAlign: "center", color: "#c00" }}>
             <div style={{ fontSize: "1.5rem", marginBottom: "0.5rem" }}>Failed to load model</div>
             <div style={{ fontSize: "0.875rem" }}>{error}</div>
           </div>
         </div>
       )}
-      
+
       {/* Animation controls */}
       {!loading && !error && animationInfo && animationInfo.clips.length > 0 && (
-        <div style={{
-          position: "absolute",
-          bottom: "10px",
-          left: "10px",
-          right: "10px",
-          display: "flex",
-          alignItems: "center",
-          gap: "0.5rem",
-          padding: "0.5rem",
-          background: "rgba(255, 255, 255, 0.9)",
-          borderRadius: "4px",
-          fontSize: "0.8125rem",
-        }}>
+        <div
+          style={{
+            position: "absolute",
+            bottom: "10px",
+            left: "10px",
+            right: "10px",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+            padding: "0.5rem",
+            background: "rgba(255, 255, 255, 0.9)",
+            borderRadius: "4px",
+            fontSize: "0.8125rem",
+          }}
+        >
           <button
             onClick={handleTogglePlayPause}
             style={{
@@ -579,7 +593,7 @@ export function ModelViewer({
           >
             {animationInfo.isPlaying ? "||" : ">"}
           </button>
-          
+
           <select
             value={animationInfo.currentIndex}
             onChange={(e) => handlePlayAnimation(parseInt(e.target.value))}
@@ -597,25 +611,27 @@ export function ModelViewer({
               </option>
             ))}
           </select>
-          
+
           <span style={{ color: "#666", fontSize: "0.75rem" }}>
             {animationInfo.clips.length} animation{animationInfo.clips.length !== 1 ? "s" : ""}
           </span>
         </div>
       )}
-      
+
       {/* Controls hint */}
       {!loading && !error && (
-        <div style={{
-          position: "absolute",
-          top: "10px",
-          right: "10px",
-          padding: "0.25rem 0.5rem",
-          background: "rgba(255, 255, 255, 0.8)",
-          borderRadius: "3px",
-          fontSize: "0.6875rem",
-          color: "#888",
-        }}>
+        <div
+          style={{
+            position: "absolute",
+            top: "10px",
+            right: "10px",
+            padding: "0.25rem 0.5rem",
+            background: "rgba(255, 255, 255, 0.8)",
+            borderRadius: "3px",
+            fontSize: "0.6875rem",
+            color: "#888",
+          }}
+        >
           Drag to rotate | Scroll to zoom
         </div>
       )}

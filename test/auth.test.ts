@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, test } from "vitest";
-import { Result } from "better-result";
 import { eq } from "drizzle-orm";
 import { inviteCodes, sessions, users } from "~/db/schema";
 import { setDbForTesting } from "~/db";
@@ -36,7 +35,10 @@ async function seedInviter(db: ReturnType<typeof setupDatabase>) {
   });
 }
 
-async function seedInvite(db: ReturnType<typeof setupDatabase>, overrides: Partial<typeof inviteCodes.$inferInsert> = {}) {
+async function seedInvite(
+  db: ReturnType<typeof setupDatabase>,
+  overrides: Partial<typeof inviteCodes.$inferInsert> = {},
+) {
   await db.insert(inviteCodes).values({
     id: "invite-1",
     code: "INVITE",
@@ -56,7 +58,7 @@ describe("createUser", () => {
 
     const result = await createUser("new@example.com", "newuser", "password123", "INVITE");
 
-    expect(Result.isOk(result)).toBe(true);
+    expect(result.isOk()).toBe(true);
     const user = result.unwrap();
     expect(user.email).toBe("new@example.com");
     expect(user.invitedBy).toBe("inviter-1");
@@ -85,14 +87,19 @@ describe("createUser", () => {
     await seedInvite(db, { maxUses: 10 });
 
     const first = await createUser("new@example.com", "newuser", "password123", "INVITE");
-    expect(Result.isOk(first)).toBe(true);
+    expect(first.isOk()).toBe(true);
 
     const duplicateEmail = await createUser("new@example.com", "other", "password123", "INVITE");
     expect(duplicateEmail.isErr()).toBe(true);
     if (!duplicateEmail.isErr()) throw new Error("Expected duplicate email to fail");
     expect(duplicateEmail.error.message).toBe("Email already registered");
 
-    const duplicateUsername = await createUser("other@example.com", "newuser", "password123", "INVITE");
+    const duplicateUsername = await createUser(
+      "other@example.com",
+      "newuser",
+      "password123",
+      "INVITE",
+    );
     expect(duplicateUsername.isErr()).toBe(true);
     if (!duplicateUsername.isErr()) throw new Error("Expected duplicate username to fail");
     expect(duplicateUsername.error.message).toBe("Username already taken");
@@ -108,7 +115,7 @@ describe("login and sessions", () => {
 
     const result = await login("new@example.com", "password123");
 
-    expect(Result.isOk(result)).toBe(true);
+    expect(result.isOk()).toBe(true);
     const session = result.unwrap();
     expect(session.userId).toBeTruthy();
 
@@ -143,7 +150,9 @@ describe("login and sessions", () => {
     const session = await getSession("expired-session");
 
     expect(session).toBeNull();
-    const persisted = await db.query.sessions.findFirst({ where: eq(sessions.id, "expired-session") });
+    const persisted = await db.query.sessions.findFirst({
+      where: eq(sessions.id, "expired-session"),
+    });
     expect(persisted).toBeUndefined();
   });
 

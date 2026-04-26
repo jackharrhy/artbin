@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, test } from "vitest";
-import { Result } from "better-result";
 import { eq } from "drizzle-orm";
 import { folders } from "~/db/schema";
 import { setDbForTesting } from "~/db";
@@ -46,7 +45,7 @@ describe("file record count sync", () => {
       kind: "texture",
       folderId: "folder-1",
     });
-    expect(Result.isOk(insert)).toBe(true);
+    expect(insert.isOk()).toBe(true);
 
     const afterInsert = await db.query.folders.findFirst({
       where: eq(folders.id, "folder-1"),
@@ -54,7 +53,7 @@ describe("file record count sync", () => {
     expect(afterInsert?.fileCount).toBe(1);
 
     const deleted = await deleteFileRecord("file-1");
-    expect(Result.isOk(deleted)).toBe(true);
+    expect(deleted.isOk()).toBe(true);
 
     const afterDelete = await db.query.folders.findFirst({
       where: eq(folders.id, "folder-1"),
@@ -81,7 +80,7 @@ describe("file record count sync", () => {
       kind: "texture",
       folderId: "folder-1",
     });
-    expect(Result.isOk(insert)).toBe(true);
+    expect(insert.isOk()).toBe(true);
 
     await recalculateFolderCounts(["folder-1"]);
 
@@ -104,7 +103,7 @@ describe("file record count sync", () => {
       folderId: null,
     };
 
-    expect(Result.isOk(await insertFileRecord(record))).toBe(true);
+    expect((await insertFileRecord(record)).isOk()).toBe(true);
 
     const duplicate = await insertFileRecord(record);
 

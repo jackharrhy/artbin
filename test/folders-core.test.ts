@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, test } from "vitest";
-import { Result } from "better-result";
 import { eq } from "drizzle-orm";
 import { files, folders, users } from "~/db/schema";
 import { setDbForTesting } from "~/db";
@@ -46,11 +45,11 @@ describe("createFolder", () => {
       },
     );
 
-    expect(Result.isOk(result)).toBe(true);
+    expect(result.isOk()).toBe(true);
     expect(result.unwrap()).toEqual({
-        id: "folder-1",
-        name: "Wall Textures",
-        slug: "wall-textures",
+      id: "folder-1",
+      name: "Wall Textures",
+      slug: "wall-textures",
     });
     expect(createdDirs).toEqual(["/uploads-test/wall-textures"]);
 
@@ -229,7 +228,7 @@ describe("moveFolder", () => {
       },
     });
 
-    expect(Result.isOk(result)).toBe(true);
+    expect(result.isOk()).toBe(true);
     expect(result.unwrap()).toMatchObject({ movedFolders: 2, movedFiles: 2 });
     expect(renamed).toEqual([["/uploads-test/source", "/uploads-test/target/source"]]);
     expect(previewed).toEqual(["source", "target"]);
@@ -289,7 +288,7 @@ describe("createFolderAndMoveChildren", () => {
       generatePreview: async () => null,
     });
 
-    expect(Result.isOk(result)).toBe(true);
+    expect(result.isOk()).toBe(true);
     expect(result.unwrap()).toMatchObject({ movedFolders: 3, movedFiles: 0 });
 
     const childA = await db.query.folders.findFirst({ where: eq(folders.id, "child-a") });

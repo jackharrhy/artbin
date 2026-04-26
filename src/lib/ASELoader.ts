@@ -1,17 +1,22 @@
 /**
  * ASELoader - Three.js loader for 3D Studio Max ASCII Scene Export format
- * 
+ *
  * Supports:
  * - .ase files (static meshes with materials and UVs)
- * 
+ *
  * Used in Doom 3, Quake 4, and other idTech 4 engine games.
- * 
+ *
  * Usage:
  *   const loader = new ASELoader();
  *   const mesh = await loader.load(url, textureUrl);
  */
 
 import * as THREE from "three";
+
+// Helper to transform from ASE coords (Z-up) to Three.js coords (Y-up)
+function transformCoord(x: number, y: number, z: number): [number, number, number] {
+  return [x, z, -y];
+}
 
 // ============================================================================
 // Types
@@ -116,15 +121,15 @@ class ASEParser {
   private static extractBlocks(source: string, tag: string): string[] {
     const blocks: string[] = [];
     let searchStart = 0;
-    
+
     while (true) {
       const tagIndex = source.indexOf(tag, searchStart);
       if (tagIndex === -1) break;
-      
+
       // Find the opening brace
       const braceStart = source.indexOf("{", tagIndex);
       if (braceStart === -1) break;
-      
+
       // Find matching closing brace
       let depth = 1;
       let i = braceStart + 1;
@@ -133,14 +138,14 @@ class ASEParser {
         else if (source[i] === "}") depth--;
         i++;
       }
-      
+
       if (depth === 0) {
         blocks.push(source.substring(tagIndex, i));
       }
-      
+
       searchStart = i;
     }
-    
+
     return blocks;
   }
 
@@ -157,7 +162,7 @@ class ASEParser {
     return {
       name: nameMatch ? nameMatch[1] : "",
       diffuseMap: bitmapMatch ? bitmapMatch[1] : undefined,
-      ambient: ambientMatch 
+      ambient: ambientMatch
         ? [parseFloat(ambientMatch[1]), parseFloat(ambientMatch[2]), parseFloat(ambientMatch[3])]
         : [0, 0, 0],
       diffuse: diffuseMatch
@@ -179,7 +184,7 @@ class ASEParser {
     // Find mesh block
     const meshMatch = block.match(/\*MESH\s*\{([\s\S]*)\}/);
     if (!meshMatch) return null;
-    
+
     const meshBlock = meshMatch[1];
 
     // Parse vertices
@@ -196,7 +201,8 @@ class ASEParser {
 
     // Parse faces
     const faces: ASEFace[] = [];
-    const faceRegex = /\*MESH_FACE\s+\d+:\s+A:\s*(\d+)\s+B:\s*(\d+)\s+C:\s*(\d+).*?\*MESH_MTLID\s+(\d+)/g;
+    const faceRegex =
+      /\*MESH_FACE\s+\d+:\s+A:\s*(\d+)\s+B:\s*(\d+)\s+C:\s*(\d+).*?\*MESH_MTLID\s+(\d+)/g;
     while ((match = faceRegex.exec(meshBlock)) !== null) {
       faces.push({
         a: parseInt(match[1], 10),
@@ -205,7 +211,7 @@ class ASEParser {
         materialId: parseInt(match[4], 10),
       });
     }
-    
+
     // If no MTLID found, try simpler face format
     if (faces.length === 0) {
       const simpleFaceRegex = /\*MESH_FACE\s+\d+:\s+A:\s*(\d+)\s+B:\s*(\d+)\s+C:\s*(\d+)/g;
@@ -246,15 +252,15 @@ class ASEParser {
     if (normalsBlock) {
       const faceNormalRegex = /\*MESH_FACENORMAL\s+\d+\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)/g;
       const vertNormalRegex = /\*MESH_VERTEXNORMAL\s+\d+\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)/g;
-      
+
       // Split by face normals
       const faceNormalMatches = [...normalsBlock[1].matchAll(faceNormalRegex)];
       const vertNormalMatches = [...normalsBlock[1].matchAll(vertNormalRegex)];
-      
+
       for (let i = 0; i < faceNormalMatches.length; i++) {
         const fn = faceNormalMatches[i];
         const vertNormals: ASENormal[] = [];
-        
+
         // Each face has 3 vertex normals following it
         for (let j = 0; j < 3; j++) {
           const vnIdx = i * 3 + j;
@@ -267,7 +273,7 @@ class ASEParser {
             });
           }
         }
-        
+
         normals.push({
           face: {
             x: parseFloat(fn[1]),
@@ -341,12 +347,13 @@ export class ASELoader {
 
   /**
    * Build BufferGeometry from ASE mesh data
-   * 
+   *
    * Coordinate system: ASE uses right-handed Z-up, Three.js uses right-handed Y-up
    * Transform: (x, y, z) -> (x, z, -y)
    */
   private buildGeometry(meshData: ASEMesh): THREE.BufferGeometry {
-    const hasUVs = meshData.texVertices.length > 0 && meshData.texFaces.length === meshData.faces.length;
+    const hasUVs =
+      meshData.texVertices.length > 0 && meshData.texFaces.length === meshData.faces.length;
     const hasNormals = meshData.normals.length === meshData.faces.length;
 
     // We need to build non-indexed geometry because UVs are per-face-vertex
@@ -354,14 +361,9 @@ export class ASELoader {
     const normals: number[] = [];
     const uvs: number[] = [];
 
-    // Helper to transform from ASE coords (Z-up) to Three.js coords (Y-up)
-    const transformCoord = (x: number, y: number, z: number): [number, number, number] => {
-      return [x, z, -y];
-    };
-
     for (let i = 0; i < meshData.faces.length; i++) {
       const face = meshData.faces[i];
-      
+
       // Get vertices for this face
       const vA = meshData.vertices[face.a];
       const vB = meshData.vertices[face.b];
@@ -372,7 +374,7 @@ export class ASELoader {
       const [ax, ay, az] = transformCoord(vA.x, vA.y, vA.z);
       const [bx, by, bz] = transformCoord(vB.x, vB.y, vB.z);
       const [cx, cy, cz] = transformCoord(vC.x, vC.y, vC.z);
-      
+
       positions.push(ax, ay, az);
       positions.push(cx, cy, cz);
       positions.push(bx, by, bz);
@@ -383,13 +385,25 @@ export class ASELoader {
         if (faceNormals.length === 3) {
           // Transform normals the same way as positions
           // Order matches vertex order: A, C, B
-          const [nax, nay, naz] = transformCoord(faceNormals[0].x, faceNormals[0].y, faceNormals[0].z);
-          const [nbx, nby, nbz] = transformCoord(faceNormals[1].x, faceNormals[1].y, faceNormals[1].z);
-          const [ncx, ncy, ncz] = transformCoord(faceNormals[2].x, faceNormals[2].y, faceNormals[2].z);
-          
-          normals.push(nax, nay, naz);  // Normal for vertex A
-          normals.push(ncx, ncy, ncz);  // Normal for vertex C (swapped)
-          normals.push(nbx, nby, nbz);  // Normal for vertex B (swapped)
+          const [nax, nay, naz] = transformCoord(
+            faceNormals[0].x,
+            faceNormals[0].y,
+            faceNormals[0].z,
+          );
+          const [nbx, nby, nbz] = transformCoord(
+            faceNormals[1].x,
+            faceNormals[1].y,
+            faceNormals[1].z,
+          );
+          const [ncx, ncy, ncz] = transformCoord(
+            faceNormals[2].x,
+            faceNormals[2].y,
+            faceNormals[2].z,
+          );
+
+          normals.push(nax, nay, naz); // Normal for vertex A
+          normals.push(ncx, ncy, ncz); // Normal for vertex C (swapped)
+          normals.push(nbx, nby, nbz); // Normal for vertex B (swapped)
         } else {
           // Use face normal for all vertices
           const fn = meshData.normals[i].face;
@@ -409,7 +423,7 @@ export class ASELoader {
 
         // Match the swapped vertex order (A, C, B)
         if (uvA && uvC && uvB) {
-          uvs.push(uvA.u, 1 - uvA.v);  // Flip V for Three.js
+          uvs.push(uvA.u, 1 - uvA.v); // Flip V for Three.js
           uvs.push(uvC.u, 1 - uvC.v);
           uvs.push(uvB.u, 1 - uvB.v);
         }
@@ -418,13 +432,13 @@ export class ASELoader {
 
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-    
+
     if (normals.length > 0) {
       geometry.setAttribute("normal", new THREE.Float32BufferAttribute(normals, 3));
     } else {
       geometry.computeVertexNormals();
     }
-    
+
     if (uvs.length > 0) {
       geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
     }

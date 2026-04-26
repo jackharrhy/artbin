@@ -18,11 +18,11 @@ import {
 import { createJob } from "~/lib/jobs.server";
 import { parseArchive, getFileEntries, getDirectoryPaths } from "~/lib/archives.server";
 
-const ARCHIVE_EXTENSIONS = ["pak", "pk3", "zip"];
+const ARCHIVE_EXTENSIONS = new Set(["pak", "pk3", "zip"]);
 
 function isArchive(filename: string): boolean {
   const ext = filename.split(".").pop()?.toLowerCase();
-  return ext ? ARCHIVE_EXTENSIONS.includes(ext) : false;
+  return ext ? ARCHIVE_EXTENSIONS.has(ext) : false;
 }
 
 export async function action({ request }: Route.ActionArgs) {
@@ -83,21 +83,21 @@ async function handleFileUpload(formData: FormData, userId: string) {
     // e.g., "textures/walls/brick.png" should create subfolders
     let targetFolderSlug = folder.slug;
     let targetFolderId = folder.id;
-    
+
     if (relativePath && relativePath.includes("/")) {
       const pathParts = relativePath.split("/");
       const fileName = pathParts.pop()!; // Remove filename
-      
+
       // Create nested folders if needed
       for (const part of pathParts) {
         if (!part) continue;
-        
+
         const nestedSlug = `${targetFolderSlug}/${part.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
-        
+
         let nestedFolder = await db.query.folders.findFirst({
           where: eq(folders.slug, nestedSlug),
         });
-        
+
         if (!nestedFolder) {
           const nestedId = nanoid();
           await db.insert(folders).values({
@@ -120,7 +120,7 @@ async function handleFileUpload(formData: FormData, userId: string) {
       buffer,
       targetFolderSlug,
       relativePath ? basename(relativePath) : file.name,
-      true
+      true,
     );
 
     const kind = detectKind(savedName);
@@ -176,7 +176,7 @@ async function handleAnalyzeArchive(formData: FormData) {
   }
 
   const ext = file.name.split(".").pop()?.toLowerCase();
-  if (!ext || !ARCHIVE_EXTENSIONS.includes(ext)) {
+  if (!ext || !ARCHIVE_EXTENSIONS.has(ext)) {
     return Response.json({ error: "Unsupported archive type. Supported: PAK, PK3, ZIP" });
   }
 
@@ -192,9 +192,7 @@ async function handleAnalyzeArchive(formData: FormData) {
     const dirPaths = getDirectoryPaths(archive.entries);
 
     const baseName = basename(file.name, "." + ext);
-    const suggestedName = baseName
-      .replace(/[-_]/g, " ")
-      .replace(/\b\w/g, (c) => c.toUpperCase());
+    const suggestedName = baseName.replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
     const suggestedSlug = baseName
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")

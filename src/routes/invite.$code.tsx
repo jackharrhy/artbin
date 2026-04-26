@@ -4,14 +4,14 @@ import { getInviteByCode } from "~/lib/auth.server";
 
 export async function loader({ params }: Route.LoaderArgs) {
   const code = params.code;
-  
+
   if (!code) {
     return redirect("/login");
   }
 
   // Validate the invite code exists and is usable
   const invite = await getInviteByCode(code);
-  
+
   if (!invite || !invite.isActive) {
     return redirect("/login?error=invalid_invite");
   }

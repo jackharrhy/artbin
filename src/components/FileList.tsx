@@ -26,11 +26,11 @@ interface FileListProps {
 }
 
 // Audio formats that browsers can play natively
-const WEB_PLAYABLE_AUDIO = ["mp3", "ogg", "wav", "m4a", "webm", "aac"];
+const WEB_PLAYABLE_AUDIO = new Set(["mp3", "ogg", "wav", "m4a", "webm", "aac"]);
 
 function isWebPlayableAudio(filename: string): boolean {
   const ext = extname(filename).toLowerCase().slice(1);
-  return WEB_PLAYABLE_AUDIO.includes(ext);
+  return WEB_PLAYABLE_AUDIO.has(ext);
 }
 
 function getFileIcon(kind: string | null): string {
@@ -58,7 +58,13 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export function FileList({ files, hasMore, onLoadMore, loading, showAudioPlayers = true }: FileListProps) {
+export function FileList({
+  files,
+  hasMore,
+  onLoadMore,
+  loading,
+  showAudioPlayers = true,
+}: FileListProps) {
   const loaderRef = useRef<HTMLDivElement>(null);
 
   // Infinite scroll with Intersection Observer
@@ -71,7 +77,7 @@ export function FileList({ files, hasMore, onLoadMore, loading, showAudioPlayers
           onLoadMore();
         }
       },
-      { threshold: 0.1 }
+      { threshold: 0.1 },
     );
 
     if (loaderRef.current) {
@@ -95,13 +101,8 @@ export function FileList({ files, hasMore, onLoadMore, loading, showAudioPlayers
 
           return (
             <div key={file.id} className="file-list-item">
-              <a
-                href={`/file/${file.path}`}
-                className="file-list-link"
-              >
-                <span className="file-list-icon">
-                  {getFileIcon(file.kind)}
-                </span>
+              <a href={`/file/${file.path}`} className="file-list-link">
+                <span className="file-list-icon">{getFileIcon(file.kind)}</span>
                 <div className="file-list-info">
                   <div className="file-list-name">{file.name}</div>
                   <div className="file-list-meta">
@@ -128,11 +129,7 @@ export function FileList({ files, hasMore, onLoadMore, loading, showAudioPlayers
       {/* Infinite scroll trigger */}
       {hasMore && (
         <div ref={loaderRef} className="load-more-trigger">
-          {loading ? (
-            <span>Loading...</span>
-          ) : (
-            <span>Scroll for more</span>
-          )}
+          {loading ? <span>Loading...</span> : <span>Scroll for more</span>}
         </div>
       )}
 

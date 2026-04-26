@@ -33,11 +33,11 @@ interface ArchiveAnalysis {
   sampleFiles: string[];
 }
 
-const ARCHIVE_EXTENSIONS = ["pak", "pk3", "zip"];
+const ARCHIVE_EXTENSIONS = new Set(["pak", "pk3", "zip"]);
 
 function isArchive(filename: string): boolean {
   const ext = filename.split(".").pop()?.toLowerCase();
-  return ext ? ARCHIVE_EXTENSIONS.includes(ext) : false;
+  return ext ? ARCHIVE_EXTENSIONS.has(ext) : false;
 }
 
 function slugify(str: string): string {
@@ -47,29 +47,24 @@ function slugify(str: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-export function UploadModal({
-  isOpen,
-  onClose,
-  currentFolder,
-  onSuccess,
-}: UploadModalProps) {
+export function UploadModal({ isOpen, onClose, currentFolder, onSuccess }: UploadModalProps) {
   const [view, setView] = useState<ModalView>("main");
   const [files, setFiles] = useState<UploadFile[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({ done: 0, total: 0 });
-  
+
   // Folder creation state
   const [folderName, setFolderName] = useState("");
   const [folderSlug, setFolderSlug] = useState("");
   const [customSlug, setCustomSlug] = useState(false);
-  
+
   // Archive analysis state
   const [archiveAnalysis, setArchiveAnalysis] = useState<ArchiveAnalysis | null>(null);
   const [archiveFolderName, setArchiveFolderName] = useState("");
   const [archiveFolderSlug, setArchiveFolderSlug] = useState("");
   const [archiveCustomSlug, setArchiveCustomSlug] = useState(false);
-  
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
 
@@ -104,47 +99,52 @@ export function UploadModal({
     }
   }, [archiveFolderName, archiveCustomSlug]);
 
-  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFiles = e.target.files;
-    if (!selectedFiles || selectedFiles.length === 0) return;
+  const handleFileSelect = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const selectedFiles = e.target.files;
+      if (!selectedFiles || selectedFiles.length === 0) return;
 
-    const newFiles: UploadFile[] = [];
-    
-    for (let i = 0; i < selectedFiles.length; i++) {
-      const file = selectedFiles[i];
-      // webkitRelativePath is set when selecting folders
-      const relativePath = (file as any).webkitRelativePath || file.name;
-      newFiles.push({
-        file,
-        relativePath,
-        status: "pending",
-      });
-    }
+      const newFiles: UploadFile[] = [];
 
-    // Check if this is an archive at root level
-    if (isAtRoot && newFiles.length === 1 && isArchive(newFiles[0].file.name)) {
-      // Analyze the archive
-      analyzeArchive(newFiles[0].file);
-      return;
-    }
+      for (let i = 0; i < selectedFiles.length; i++) {
+        const file = selectedFiles[i];
+        // webkitRelativePath is set when selecting folders
+        const relativePath = (file as any).webkitRelativePath || file.name;
+        newFiles.push({
+          file,
+          relativePath,
+          status: "pending",
+        });
+      }
 
-    // At root, only archives allowed
-    if (isAtRoot) {
-      const nonArchives = newFiles.filter(f => !isArchive(f.file.name));
-      if (nonArchives.length > 0) {
-        setError("At root level, only archives (PAK, PK3, ZIP) can be uploaded. Create a folder first to upload other files.");
+      // Check if this is an archive at root level
+      if (isAtRoot && newFiles.length === 1 && isArchive(newFiles[0].file.name)) {
+        // Analyze the archive
+        analyzeArchive(newFiles[0].file);
         return;
       }
-    }
 
-    setFiles(newFiles);
-    setError(null);
-  }, [isAtRoot]);
+      // At root, only archives allowed
+      if (isAtRoot) {
+        const nonArchives = newFiles.filter((f) => !isArchive(f.file.name));
+        if (nonArchives.length > 0) {
+          setError(
+            "At root level, only archives (PAK, PK3, ZIP) can be uploaded. Create a folder first to upload other files.",
+          );
+          return;
+        }
+      }
+
+      setFiles(newFiles);
+      setError(null);
+    },
+    [isAtRoot],
+  );
 
   const analyzeArchive = async (file: File) => {
     setError(null);
     setUploading(true);
-    
+
     try {
       const formData = new FormData();
       formData.append("file", file);
@@ -172,13 +172,13 @@ export function UploadModal({
     } catch (err) {
       setError(`Failed to analyze archive: ${err}`);
     }
-    
+
     setUploading(false);
   };
 
   const handleExtractArchive = async () => {
     if (!archiveAnalysis) return;
-    
+
     setError(null);
     setUploading(true);
 
@@ -219,7 +219,7 @@ export function UploadModal({
 
   const handleUpload = async () => {
     if (files.length === 0 || !currentFolder) return;
-    
+
     setError(null);
     setUploading(true);
     setUploadProgress({ done: 0, total: files.length });
@@ -272,7 +272,7 @@ export function UploadModal({
 
   const handleCreateFolder = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!folderName.trim() || !folderSlug.trim()) {
       setError("Folder name and slug are required");
       return;
@@ -393,11 +393,7 @@ export function UploadModal({
                   <div className="upload-file-list">
                     <div className="upload-file-list-header">
                       {files.length} file{files.length !== 1 ? "s" : ""} selected
-                      <button
-                        type="button"
-                        className="btn btn-sm"
-                        onClick={() => setFiles([])}
-                      >
+                      <button type="button" className="btn btn-sm" onClick={() => setFiles([])}>
                         Clear
                       </button>
                     </div>
@@ -432,14 +428,12 @@ export function UploadModal({
                     onClick={handleUpload}
                     disabled={uploading}
                   >
-                    {uploading ? "Uploading..." : `Upload ${files.length} file${files.length !== 1 ? "s" : ""}`}
+                    {uploading
+                      ? "Uploading..."
+                      : `Upload ${files.length} file${files.length !== 1 ? "s" : ""}`}
                   </button>
                 )}
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() => setView("create-folder")}
-                >
+                <button type="button" className="btn" onClick={() => setView("create-folder")}>
                   Create Folder
                 </button>
               </div>
@@ -466,9 +460,7 @@ export function UploadModal({
               <div className="form-group">
                 <label className="form-label">
                   Folder Slug (URL path)
-                  {!customSlug && (
-                    <span style={{ fontWeight: 400, color: "#666" }}> — auto</span>
-                  )}
+                  {!customSlug && <span style={{ fontWeight: 400, color: "#666" }}> — auto</span>}
                 </label>
                 <input
                   type="text"
@@ -480,7 +472,15 @@ export function UploadModal({
                   readOnly={!customSlug}
                   required
                 />
-                <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginTop: "0.5rem", fontSize: "0.875rem" }}>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    marginTop: "0.5rem",
+                    fontSize: "0.875rem",
+                  }}
+                >
                   <input
                     type="checkbox"
                     checked={customSlug}
@@ -497,18 +497,10 @@ export function UploadModal({
               )}
 
               <div className="modal-actions">
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                  disabled={uploading}
-                >
+                <button type="submit" className="btn btn-primary" disabled={uploading}>
                   {uploading ? "Creating..." : "Create Folder"}
                 </button>
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={() => setView("main")}
-                >
+                <button type="button" className="btn" onClick={() => setView("main")}>
                   Back
                 </button>
               </div>
@@ -543,10 +535,7 @@ export function UploadModal({
                   }}
                 >
                   {archiveAnalysis.sampleFiles.map((name, i) => (
-                    <div
-                      key={i}
-                      style={{ padding: "0.25rem", borderBottom: "1px solid #eee" }}
-                    >
+                    <div key={i} style={{ padding: "0.25rem", borderBottom: "1px solid #eee" }}>
                       {name}
                     </div>
                   ))}
@@ -587,7 +576,15 @@ export function UploadModal({
                   readOnly={!archiveCustomSlug}
                   required
                 />
-                <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginTop: "0.5rem", fontSize: "0.875rem" }}>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    marginTop: "0.5rem",
+                    fontSize: "0.875rem",
+                  }}
+                >
                   <input
                     type="checkbox"
                     checked={archiveCustomSlug}

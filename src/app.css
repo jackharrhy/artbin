@@ -9,7 +9,7 @@
 @theme {
   --font-sans: "Times New Roman", Georgia, serif;
   --font-mono: "Courier New", Courier, monospace;
-  
+
   --color-border: #222;
   --color-border-light: #ccc;
   --color-text: #111;
@@ -192,7 +192,7 @@ a:hover {
   left: 0;
   right: 0;
   padding: 0.25rem 0.5rem;
-  background: rgba(255,255,255,0.95);
+  background: rgba(255, 255, 255, 0.95);
   font-size: 0.7rem;
   color: var(--color-text-muted);
   opacity: 0;
@@ -980,7 +980,7 @@ details.archive-item > summary:hover {
     flex-direction: column;
     align-items: stretch;
   }
-  
+
   .form-row .form-group {
     flex: none !important;
   }

@@ -1,11 +1,11 @@
 /**
  * Folder import job handler
- * 
+ *
  * Recursively scans a local folder and imports all supported asset files,
  * preserving the directory structure.
  */
 
-import { db, folders, files, type Job } from "~/db";
+import { db, folders, type Job } from "~/db";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { basename, dirname, join, extname, relative } from "path";
@@ -22,6 +22,7 @@ import {
   ensureDir,
   slugToPath,
   recalculateFolderCounts,
+  insertFileRecord,
 } from "./files.server";
 import { generateFolderPreview } from "./folder-preview.server";
 
@@ -35,21 +36,51 @@ import { generateFolderPreview } from "./folder-preview.server";
  */
 const IMPORTABLE_EXTENSIONS = new Set([
   // Images / Textures
-  "png", "jpg", "jpeg", "gif", "webp",
-  "tga", "bmp", "pcx", "wal", "vtf", "dds",
-  
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "webp",
+  "tga",
+  "bmp",
+  "pcx",
+  "wal",
+  "vtf",
+  "dds",
+
   // Audio
-  "wav", "mp3", "ogg", "flac", "m4a", "aiff",
-  
+  "wav",
+  "mp3",
+  "ogg",
+  "flac",
+  "m4a",
+  "aiff",
+
   // Models (for reference/storage)
-  "gltf", "glb", "obj", "fbx", "md2", "md3", "mdl", "iqm",
-  "md5mesh", "md5anim", "ase", // id Tech 4 formats
-  
+  "gltf",
+  "glb",
+  "obj",
+  "fbx",
+  "md2",
+  "md3",
+  "mdl",
+  "iqm",
+  "md5mesh",
+  "md5anim",
+  "ase", // id Tech 4 formats
+
   // Maps (for reference/storage)
-  "map", "vmf", "rmf",
-  
+  "map",
+  "vmf",
+  "rmf",
+
   // Config files (sometimes useful)
-  "cfg", "def", "mtr", "skin", "gui", "script",
+  "cfg",
+  "def",
+  "mtr",
+  "skin",
+  "gui",
+  "script",
 ]);
 
 /**
@@ -65,9 +96,9 @@ function isImportableFile(filename: string): boolean {
 // ============================================================================
 
 export interface FolderImportJobInput {
-  sourcePath: string;           // Absolute path to source folder
-  targetFolderSlug: string;     // Target folder slug (e.g., "skin-deep")
-  targetFolderName: string;     // Display name for folder
+  sourcePath: string; // Absolute path to source folder
+  targetFolderSlug: string; // Target folder slug (e.g., "skin-deep")
+  targetFolderName: string; // Display name for folder
   userId?: string;
 }
 
@@ -101,17 +132,17 @@ function pathToSlug(path: string): string {
 async function getOrCreateFolder(
   slug: string,
   name: string,
-  parentId: string | null
+  parentId: string | null,
 ): Promise<string> {
   // Check if folder exists
   const existing = await db.query.folders.findFirst({
     where: eq(folders.slug, slug),
   });
-  
+
   if (existing) {
     return existing.id;
   }
-  
+
   // Create folder
   const id = nanoid();
   await db.insert(folders).values({
@@ -120,10 +151,10 @@ async function getOrCreateFolder(
     slug,
     parentId,
   });
-  
+
   // Create directory on disk
   await ensureDir(slugToPath(slug));
-  
+
   return id;
 }
 
@@ -132,26 +163,28 @@ async function getOrCreateFolder(
  */
 async function findImportableFiles(
   basePath: string,
-  currentPath: string = ""
+  currentPath: string = "",
 ): Promise<Array<{ relativePath: string; absolutePath: string; size: number }>> {
   const results: Array<{ relativePath: string; absolutePath: string; size: number }> = [];
   const fullPath = currentPath ? join(basePath, currentPath) : basePath;
-  
+
   try {
     const entries = await readdir(fullPath, { withFileTypes: true });
-    
+
     for (const entry of entries) {
       const entryRelPath = currentPath ? join(currentPath, entry.name) : entry.name;
       const entryAbsPath = join(fullPath, entry.name);
-      
+
       if (entry.isDirectory()) {
         // Skip hidden directories and common non-asset directories
-        if (entry.name.startsWith(".") || 
-            entry.name === "node_modules" ||
-            entry.name === "__pycache__") {
+        if (
+          entry.name.startsWith(".") ||
+          entry.name === "node_modules" ||
+          entry.name === "__pycache__"
+        ) {
           continue;
         }
-        
+
         // Recurse into subdirectory
         const subResults = await findImportableFiles(basePath, entryRelPath);
         results.push(...subResults);
@@ -170,7 +203,7 @@ async function findImportableFiles(
   } catch (error) {
     console.error(`Error scanning directory ${fullPath}:`, error);
   }
-  
+
   return results;
 }
 
@@ -179,7 +212,7 @@ async function findImportableFiles(
  */
 function getDirectoryPaths(files: Array<{ relativePath: string }>): string[] {
   const dirs = new Set<string>();
-  
+
   for (const file of files) {
     const dir = dirname(file.relativePath);
     if (dir !== ".") {
@@ -190,7 +223,7 @@ function getDirectoryPaths(files: Array<{ relativePath: string }>): string[] {
       }
     }
   }
-  
+
   return Array.from(dirs).sort((a, b) => a.split("/").length - b.split("/").length);
 }
 
@@ -200,13 +233,10 @@ function getDirectoryPaths(files: Array<{ relativePath: string }>): string[] {
 
 async function handleFolderImportJob(
   job: Job,
-  input: Record<string, unknown>
+  input: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
-  const {
-    sourcePath,
-    targetFolderSlug,
-    targetFolderName,
-  } = input as unknown as FolderImportJobInput;
+  const { sourcePath, targetFolderSlug, targetFolderName } =
+    input as unknown as FolderImportJobInput;
 
   // Validate source path exists
   if (!existsSync(sourcePath)) {
@@ -222,7 +252,7 @@ async function handleFolderImportJob(
 
   // Find all importable files
   const importableFiles = await findImportableFiles(sourcePath);
-  
+
   if (importableFiles.length === 0) {
     throw new Error("No importable files found in the specified folder");
   }
@@ -236,7 +266,7 @@ async function handleFolderImportJob(
 
   // Create folder structure
   const folderMap = new Map<string, string>(); // relativePath -> folderId
-  
+
   // Create base folder
   const baseFolderId = await getOrCreateFolder(targetFolderSlug, targetFolderName, null);
   folderMap.set("", baseFolderId);
@@ -245,11 +275,11 @@ async function handleFolderImportJob(
   for (const dirPath of dirPaths) {
     const fullSlug = `${targetFolderSlug}/${pathToSlug(dirPath)}`;
     const name = basename(dirPath) || dirPath;
-    
+
     // Find parent folder
     const parentPath = dirname(dirPath);
     const parentId = parentPath === "." ? baseFolderId : folderMap.get(parentPath) || baseFolderId;
-    
+
     const folderId = await getOrCreateFolder(fullSlug, name, parentId);
     folderMap.set(dirPath, folderId);
   }
@@ -269,14 +299,18 @@ async function handleFolderImportJob(
 
       // Determine folder for this file
       const fileDir = dirname(fileInfo.relativePath);
-      const folderSlug = fileDir === "."
-        ? targetFolderSlug
-        : `${targetFolderSlug}/${pathToSlug(fileDir)}`;
+      const folderSlug =
+        fileDir === "." ? targetFolderSlug : `${targetFolderSlug}/${pathToSlug(fileDir)}`;
       const folderId = folderMap.get(fileDir) || folderMap.get("")!;
 
       // Save file to disk
       const fileName = basename(fileInfo.relativePath);
-      const { path: filePath, name: savedName } = await saveFile(buffer, folderSlug, fileName, true);
+      const { path: filePath, name: savedName } = await saveFile(
+        buffer,
+        folderSlug,
+        fileName,
+        true,
+      );
 
       // Detect kind and mime type
       const kind = detectKind(savedName);
@@ -296,7 +330,7 @@ async function handleFolderImportJob(
       }
 
       // Create file record
-      await db.insert(files).values({
+      const inserted = await insertFileRecord({
         id: nanoid(),
         path: filePath,
         name: savedName,
@@ -310,6 +344,7 @@ async function handleFolderImportJob(
         source: "folder-import",
         sourceArchive: sourcePath,
       });
+      if (inserted.isErr()) throw inserted.error;
 
       // Track stats
       filesByKind[kind] = (filesByKind[kind] || 0) + 1;
@@ -321,7 +356,7 @@ async function handleFolderImportJob(
         await updateJobProgress(
           job.id,
           progress,
-          `Imported ${processedFiles}/${totalFiles} files...`
+          `Imported ${processedFiles}/${totalFiles} files...`,
         );
       }
     } catch (error) {

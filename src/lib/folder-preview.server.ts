@@ -1,6 +1,6 @@
 /**
  * Folder preview generation
- * 
+ *
  * Creates a 3x3 grid preview image from textures in a folder using Sharp.
  */
 
@@ -13,9 +13,9 @@ import { unlink } from "fs/promises";
 import { UPLOADS_DIR, getFilePath, slugToPath, ensureDir } from "./files.server";
 
 // Preview configuration
-const GRID_SIZE = 3;          // 3x3 grid
-const THUMB_SIZE = 128;       // Each thumbnail is 128x128
-const PREVIEW_SIZE = GRID_SIZE * THUMB_SIZE;  // 384x384 total
+const GRID_SIZE = 3; // 3x3 grid
+const THUMB_SIZE = 128; // Each thumbnail is 128x128
+const PREVIEW_SIZE = GRID_SIZE * THUMB_SIZE; // 384x384 total
 
 /**
  * Get the preview image path for a folder
@@ -51,8 +51,8 @@ async function getPreviewTextures(folderId: string): Promise<string[]> {
   return textures
     .filter((t) => {
       if (!t.path) return false;
-      const ext = t.path.toLowerCase().split('.').pop();
-      return ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'tga', 'pcx'].includes(ext || '');
+      const ext = t.path.toLowerCase().split(".").pop();
+      return ["png", "jpg", "jpeg", "gif", "webp", "bmp", "tga", "pcx"].includes(ext || "");
     })
     .slice(0, GRID_SIZE * GRID_SIZE)
     .map((t) => {
@@ -69,7 +69,7 @@ async function getPreviewTextures(folderId: string): Promise<string[]> {
  */
 async function getAllDescendantFolderIds(folderId: string): Promise<string[]> {
   const result: string[] = [folderId];
-  
+
   const childFolders = await db.query.folders.findMany({
     where: eq(folders.parentId, folderId),
   });
@@ -109,16 +109,14 @@ async function getPreviewTexturesRecursive(folderId: string): Promise<string[]> 
       hasPreview: files.hasPreview,
     })
     .from(files)
-    .where(
-      inArray(files.folderId, allFolderIds)
-    );
+    .where(inArray(files.folderId, allFolderIds));
 
   // Filter to only image-like files
-  const imageTextures = textures.filter(t => {
+  const imageTextures = textures.filter((t) => {
     if (!t.path) return false;
-    const ext = t.path.toLowerCase().split('.').pop();
+    const ext = t.path.toLowerCase().split(".").pop();
     // Only include known image formats
-    return ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'tga', 'pcx'].includes(ext || '');
+    return ["png", "jpg", "jpeg", "gif", "webp", "bmp", "tga", "pcx"].includes(ext || "");
   });
 
   if (imageTextures.length === 0) {
@@ -130,7 +128,7 @@ async function getPreviewTexturesRecursive(folderId: string): Promise<string[]> 
 
   // Get paths to the actual displayable images
   const paths: string[] = [];
-  
+
   for (const t of shuffled) {
     if (paths.length >= GRID_SIZE * GRID_SIZE) break;
     if (!t.path) continue;
@@ -222,16 +220,15 @@ export async function generateFolderPreview(folderId: string): Promise<string | 
     // Save the preview
     const previewPath = getFolderPreviewPath(folder.slug);
     const fullPath = getFolderPreviewFullPath(folder.slug);
-    
+
     await composite.toFile(fullPath);
 
     // Update folder record with preview path
-    await db
-      .update(folders)
-      .set({ previewPath })
-      .where(eq(folders.id, folderId));
+    await db.update(folders).set({ previewPath }).where(eq(folders.id, folderId));
 
-    console.log(`[FolderPreview] Generated preview for: ${folder.slug} (${thumbnails.length} images)`);
+    console.log(
+      `[FolderPreview] Generated preview for: ${folder.slug} (${thumbnails.length} images)`,
+    );
     return previewPath;
   } catch (err) {
     console.error(`[FolderPreview] Failed to generate preview for ${folder.slug}:`, err);
@@ -256,10 +253,7 @@ export async function deleteFolderPreview(folderId: string): Promise<void> {
     // Ignore if file doesn't exist
   }
 
-  await db
-    .update(folders)
-    .set({ previewPath: null })
-    .where(eq(folders.id, folderId));
+  await db.update(folders).set({ previewPath: null }).where(eq(folders.id, folderId));
 }
 
 /**

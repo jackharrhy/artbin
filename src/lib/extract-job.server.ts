@@ -1,11 +1,11 @@
 /**
  * Archive extraction job handler
- * 
+ *
  * Extracts all files from an archive, preserving directory structure,
  * and creates corresponding folders and file records in the database.
  */
 
-import { db, folders, files, type Job } from "~/db";
+import { db, folders, type Job } from "~/db";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { basename, dirname, join } from "path";
@@ -30,6 +30,7 @@ import {
   ensureDir,
   slugToPath,
   recalculateFolderCounts,
+  insertFileRecord,
 } from "./files.server";
 import { generateFolderPreview } from "./folder-preview.server";
 import { isBSPFile, extractTexturesFromBSP } from "./bsp.server";
@@ -39,21 +40,21 @@ import { isBSPFile, extractTexturesFromBSP } from "./bsp.server";
 // ============================================================================
 
 export interface ExtractJobInput {
-  tempFile: string;           // Path to uploaded archive in temp dir
-  originalName: string;       // Original filename
-  targetFolderSlug: string;   // Target folder slug (e.g., "thirty-flights")
-  targetFolderName: string;   // Display name for folder
+  tempFile: string; // Path to uploaded archive in temp dir
+  originalName: string; // Original filename
+  targetFolderSlug: string; // Target folder slug (e.g., "thirty-flights")
+  targetFolderName: string; // Display name for folder
   parentFolderId?: string | null; // Parent folder ID if extracting into existing folder
   userId?: string;
-  skipTempCleanup?: boolean;  // Don't delete source file (for local imports)
+  skipTempCleanup?: boolean; // Don't delete source file (for local imports)
 }
 
 export interface BatchExtractJobInput {
-  parentFolderSlug: string;   // Parent folder slug (e.g., "thirty-flights")
-  parentFolderName: string;   // Display name for parent folder
+  parentFolderSlug: string; // Parent folder slug (e.g., "thirty-flights")
+  parentFolderName: string; // Display name for parent folder
   archives: Array<{
-    path: string;             // Full path to archive file
-    subfolderSlug: string;    // Slug for subfolder (e.g., "pak0")
+    path: string; // Full path to archive file
+    subfolderSlug: string; // Slug for subfolder (e.g., "pak0")
   }>;
   userId?: string;
 }
@@ -101,17 +102,17 @@ function pathToSlug(path: string): string {
 async function getOrCreateFolder(
   slug: string,
   name: string,
-  parentId: string | null
+  parentId: string | null,
 ): Promise<string> {
   // Check if folder exists
   const existing = await db.query.folders.findFirst({
     where: eq(folders.slug, slug),
   });
-  
+
   if (existing) {
     return existing.id;
   }
-  
+
   // Create folder
   const id = nanoid();
   await db.insert(folders).values({
@@ -120,10 +121,10 @@ async function getOrCreateFolder(
     slug,
     parentId,
   });
-  
+
   // Create directory on disk
   await ensureDir(slugToPath(slug));
-  
+
   return id;
 }
 
@@ -144,29 +145,29 @@ async function createFolderStructure(
   baseSlug: string,
   baseName: string,
   dirPaths: string[],
-  parentFolderId?: string | null
+  parentFolderId?: string | null,
 ): Promise<Map<string, string>> {
   const folderMap = new Map<string, string>(); // path -> folderId
-  
+
   // Create base folder
   const baseId = await getOrCreateFolder(baseSlug, baseName, parentFolderId || null);
   folderMap.set("", baseId);
-  
+
   // Sort paths to ensure parents are created before children
   const sortedPaths = dirPaths.sort((a, b) => a.split("/").length - b.split("/").length);
-  
+
   for (const dirPath of sortedPaths) {
     const fullSlug = `${baseSlug}/${pathToSlug(dirPath)}`;
     const name = basename(dirPath) || dirPath;
-    
+
     // Find parent folder
     const parentPath = dirname(dirPath);
     const parentId = parentPath === "." ? baseId : folderMap.get(parentPath) || baseId;
-    
+
     const folderId = await getOrCreateFolder(fullSlug, name, parentId);
     folderMap.set(dirPath, folderId);
   }
-  
+
   return folderMap;
 }
 
@@ -176,7 +177,7 @@ async function createFolderStructure(
 
 async function handleExtractJob(
   job: Job,
-  input: Record<string, unknown>
+  input: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
   const {
     tempFile,
@@ -186,52 +187,65 @@ async function handleExtractJob(
     parentFolderId,
     skipTempCleanup,
   } = input as unknown as ExtractJobInput;
-  
+
   const archiveName = basename(originalName, "." + originalName.split(".").pop());
-  
+
   await updateJobProgress(job.id, 5, "Parsing archive...");
-  
+
   // Parse archive
   const archive = await parseArchive(tempFile);
   const fileEntries = getFileEntries(archive.entries);
   const dirPaths = getDirectoryPaths(archive.entries);
-  
-  await updateJobProgress(job.id, 10, `Found ${fileEntries.length} files in ${dirPaths.length} directories`);
-  
+
+  await updateJobProgress(
+    job.id,
+    10,
+    `Found ${fileEntries.length} files in ${dirPaths.length} directories`,
+  );
+
   // Create folder structure
   await updateJobProgress(job.id, 15, "Creating folder structure...");
-  const folderMap = await createFolderStructure(targetFolderSlug, targetFolderName, dirPaths, parentFolderId);
-  
+  const folderMap = await createFolderStructure(
+    targetFolderSlug,
+    targetFolderName,
+    dirPaths,
+    parentFolderId,
+  );
+
   // Extract files
   const totalFiles = fileEntries.length;
   let processedFiles = 0;
   const filesByKind: Record<string, number> = {};
-  
+
   for (const entry of fileEntries) {
     try {
       // Extract file content
       const buffer = await extractEntry(tempFile, entry, archive.type);
-      
+
       // Determine folder for this file
       const entryDir = dirname(entry.name);
-      const folderSlug = entryDir === "." 
-        ? targetFolderSlug 
-        : `${targetFolderSlug}/${pathToSlug(entryDir)}`;
+      const folderSlug =
+        entryDir === "." ? targetFolderSlug : `${targetFolderSlug}/${pathToSlug(entryDir)}`;
       const folderId = folderMap.get(entryDir) || folderMap.get("")!;
-      
+
       // Save file to disk
       const fileName = basename(entry.name);
-      const { path: filePath, name: savedName } = await saveFile(buffer, folderSlug, fileName, true);
-      
+      const { path: filePath, name: savedName } = await saveFile(
+        buffer,
+        folderSlug,
+        fileName,
+        true,
+      );
+
       // Detect kind and mime type
       const kind = detectKind(savedName);
       const mimeType = await getMimeType(savedName, buffer);
-      
+
       // Process images to get dimensions and generate previews
       let width: number | null = null;
       let height: number | null = null;
       let hasPreview = false;
-      
+
       if (isImageKind(kind)) {
         const imageInfo = await processImage(filePath);
         if (imageInfo.isErr()) throw imageInfo.error;
@@ -239,9 +253,9 @@ async function handleExtractJob(
         height = imageInfo.value.height;
         hasPreview = imageInfo.value.hasPreview;
       }
-      
+
       // Create file record
-      await db.insert(files).values({
+      const inserted = await insertFileRecord({
         id: nanoid(),
         path: filePath,
         name: savedName,
@@ -255,7 +269,8 @@ async function handleExtractJob(
         source: `extracted-${archive.type}`,
         sourceArchive: originalName,
       });
-      
+      if (inserted.isErr()) throw inserted.error;
+
       // Track stats
       filesByKind[kind] = (filesByKind[kind] || 0) + 1;
       processedFiles++;
@@ -264,7 +279,7 @@ async function handleExtractJob(
       if (savedName.toLowerCase().endsWith(".bsp") && isBSPFile(buffer)) {
         try {
           const bspTextures = await extractTexturesFromBSP(buffer);
-          
+
           if (bspTextures.length > 0) {
             // Create a textures subfolder for this BSP
             const bspBaseName = savedName.replace(/\.bsp$/i, "");
@@ -272,22 +287,22 @@ async function handleExtractJob(
             const texFolderName = `${bspBaseName} textures`;
             const texFolderId = await getOrCreateFolder(texFolderSlug, texFolderName, folderId);
             folderMap.set(`${entryDir}/${bspBaseName}-textures`, texFolderId);
-            
+
             for (const tex of bspTextures) {
               try {
                 const texFileName = `${tex.name}.png`;
                 const { path: texFilePath, name: texSavedName } = await saveFile(
-                  tex.pngBuffer, 
-                  texFolderSlug, 
-                  texFileName, 
-                  true
+                  tex.pngBuffer,
+                  texFolderSlug,
+                  texFileName,
+                  true,
                 );
-                
+
                 // Process for preview
                 const texImageInfo = await processImage(texFilePath);
                 if (texImageInfo.isErr()) throw texImageInfo.error;
-                
-                await db.insert(files).values({
+
+                const texInserted = await insertFileRecord({
                   id: nanoid(),
                   path: texFilePath,
                   name: texSavedName,
@@ -301,27 +316,28 @@ async function handleExtractJob(
                   source: `bsp-extracted`,
                   sourceArchive: savedName,
                 });
-                
+                if (texInserted.isErr()) throw texInserted.error;
+
                 filesByKind["texture"] = (filesByKind["texture"] || 0) + 1;
               } catch (texError) {
                 console.error(`Failed to save BSP texture ${tex.name}:`, texError);
               }
             }
-            
+
             console.log(`Extracted ${bspTextures.length} textures from ${savedName}`);
           }
         } catch (bspError) {
           console.error(`Failed to extract textures from BSP ${savedName}:`, bspError);
         }
       }
-      
+
       // Update progress
       const progress = 15 + Math.floor((processedFiles / totalFiles) * 80);
       if (processedFiles % 10 === 0 || processedFiles === totalFiles) {
         await updateJobProgress(
           job.id,
           progress,
-          `Extracted ${processedFiles}/${totalFiles} files...`
+          `Extracted ${processedFiles}/${totalFiles} files...`,
         );
       }
     } catch (error) {
@@ -329,7 +345,7 @@ async function handleExtractJob(
       // Continue with other files
     }
   }
-  
+
   // Clean up temp file (unless it's a local import)
   if (!skipTempCleanup) {
     await updateJobProgress(job.id, 95, "Cleaning up...");
@@ -339,7 +355,7 @@ async function handleExtractJob(
       // Ignore cleanup errors
     }
   }
-  
+
   // Recalculate file counts for all created folders
   await updateJobProgress(job.id, 96, "Updating folder counts...");
   await recalculateFolderCounts(Array.from(folderMap.values()));
@@ -354,7 +370,7 @@ async function handleExtractJob(
       // Continue with other folders
     }
   }
-  
+
   return {
     folderId: folderMap.get("")!,
     folderSlug: targetFolderSlug,
@@ -373,21 +389,17 @@ registerJobHandler("extract-archive", handleExtractJob);
 
 async function handleBatchExtractJob(
   job: Job,
-  input: Record<string, unknown>
+  input: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
-  const {
-    parentFolderSlug,
-    parentFolderName,
-    archives,
-  } = input as unknown as BatchExtractJobInput;
+  const { parentFolderSlug, parentFolderName, archives } = input as unknown as BatchExtractJobInput;
 
   await updateJobProgress(job.id, 2, "Creating parent folder...");
 
   // Create parent folder
   const parentFolderId = await getOrCreateFolder(parentFolderSlug, parentFolderName, null);
-  
+
   // Get the actual parent folder slug (may differ from input if folder existed)
-  const actualParentSlug = await getFolderSlug(parentFolderId) || parentFolderSlug;
+  const actualParentSlug = (await getFolderSlug(parentFolderId)) || parentFolderSlug;
 
   const totalArchives = archives.length;
   let processedArchives = 0;
@@ -396,13 +408,17 @@ async function handleBatchExtractJob(
 
   for (const archiveInfo of archives) {
     const archiveName = basename(archiveInfo.path);
-    const subfolderName = archiveInfo.path.split("/").pop()?.replace(/\.[^.]+$/, "") || archiveInfo.subfolderSlug;
+    const subfolderName =
+      archiveInfo.path
+        .split("/")
+        .pop()
+        ?.replace(/\.[^.]+$/, "") || archiveInfo.subfolderSlug;
     const subfolderSlug = `${actualParentSlug}/${archiveInfo.subfolderSlug}`;
 
     await updateJobProgress(
       job.id,
       5 + Math.floor((processedArchives / totalArchives) * 90),
-      `Extracting ${archiveName} (${processedArchives + 1}/${totalArchives})...`
+      `Extracting ${archiveName} (${processedArchives + 1}/${totalArchives})...`,
     );
 
     try {
@@ -416,7 +432,7 @@ async function handleBatchExtractJob(
         subfolderSlug,
         subfolderName,
         dirPaths,
-        parentFolderId
+        parentFolderId,
       );
 
       // Extract files
@@ -429,14 +445,18 @@ async function handleBatchExtractJob(
 
           // Determine folder for this file
           const entryDir = dirname(entry.name);
-          const folderSlug = entryDir === "."
-            ? subfolderSlug
-            : `${subfolderSlug}/${pathToSlug(entryDir)}`;
+          const folderSlug =
+            entryDir === "." ? subfolderSlug : `${subfolderSlug}/${pathToSlug(entryDir)}`;
           const folderId = folderMap.get(entryDir) || folderMap.get("")!;
 
           // Save file to disk
           const fileName = basename(entry.name);
-          const { path: filePath, name: savedName } = await saveFile(buffer, folderSlug, fileName, true);
+          const { path: filePath, name: savedName } = await saveFile(
+            buffer,
+            folderSlug,
+            fileName,
+            true,
+          );
 
           // Detect kind and mime type
           const kind = detectKind(savedName);
@@ -456,7 +476,7 @@ async function handleBatchExtractJob(
           }
 
           // Create file record
-          await db.insert(files).values({
+          const inserted = await insertFileRecord({
             id: nanoid(),
             path: filePath,
             name: savedName,
@@ -470,6 +490,7 @@ async function handleBatchExtractJob(
             source: `extracted-${archive.type}`,
             sourceArchive: archiveName,
           });
+          if (inserted.isErr()) throw inserted.error;
 
           filesExtracted++;
 
@@ -477,7 +498,7 @@ async function handleBatchExtractJob(
           if (savedName.toLowerCase().endsWith(".bsp") && isBSPFile(buffer)) {
             try {
               const bspTextures = await extractTexturesFromBSP(buffer);
-              
+
               if (bspTextures.length > 0) {
                 // Create a textures subfolder for this BSP
                 const bspBaseName = savedName.replace(/\.bsp$/i, "");
@@ -485,22 +506,22 @@ async function handleBatchExtractJob(
                 const texFolderName = `${bspBaseName} textures`;
                 const texFolderId = await getOrCreateFolder(texFolderSlug, texFolderName, folderId);
                 folderMap.set(`${entryDir}/${bspBaseName}-textures`, texFolderId);
-                
+
                 for (const tex of bspTextures) {
                   try {
                     const texFileName = `${tex.name}.png`;
                     const { path: texFilePath, name: texSavedName } = await saveFile(
-                      tex.pngBuffer, 
-                      texFolderSlug, 
-                      texFileName, 
-                      true
+                      tex.pngBuffer,
+                      texFolderSlug,
+                      texFileName,
+                      true,
                     );
-                    
+
                     // Process for preview
                     const texImageInfo = await processImage(texFilePath);
                     if (texImageInfo.isErr()) throw texImageInfo.error;
-                    
-                    await db.insert(files).values({
+
+                    const texInserted = await insertFileRecord({
                       id: nanoid(),
                       path: texFilePath,
                       name: texSavedName,
@@ -514,13 +535,14 @@ async function handleBatchExtractJob(
                       source: `bsp-extracted`,
                       sourceArchive: savedName,
                     });
-                    
+                    if (texInserted.isErr()) throw texInserted.error;
+
                     filesExtracted++;
                   } catch (texError) {
                     console.error(`Failed to save BSP texture ${tex.name}:`, texError);
                   }
                 }
-                
+
                 console.log(`Extracted ${bspTextures.length} textures from ${savedName}`);
               }
             } catch (bspError) {
@@ -592,9 +614,9 @@ registerJobHandler("batch-extract-archive", handleBatchExtractJob);
 import { readFile } from "fs/promises";
 
 export interface ExtractBSPJobInput {
-  bspPath: string;              // Path to BSP file on disk
-  targetFolderSlug: string;     // Target folder slug
-  targetFolderName: string;     // Display name for folder
+  bspPath: string; // Path to BSP file on disk
+  targetFolderSlug: string; // Target folder slug
+  targetFolderName: string; // Display name for folder
   userId?: string;
 }
 
@@ -610,13 +632,9 @@ export interface ExtractBSPJobOutput {
  */
 async function handleExtractBSPJob(
   job: Job,
-  input: Record<string, unknown>
+  input: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
-  const {
-    bspPath,
-    targetFolderSlug,
-    targetFolderName,
-  } = input as unknown as ExtractBSPJobInput;
+  const { bspPath, targetFolderSlug, targetFolderName } = input as unknown as ExtractBSPJobInput;
 
   const bspName = basename(bspPath);
   const bspBaseName = bspName.replace(/\.bsp$/i, "");
@@ -653,14 +671,14 @@ async function handleExtractBSPJob(
         tex.pngBuffer,
         targetFolderSlug,
         texFileName,
-        true
+        true,
       );
 
       // Process for preview
       const texImageInfo = await processImage(texFilePath);
       if (texImageInfo.isErr()) throw texImageInfo.error;
 
-      await db.insert(files).values({
+      const inserted = await insertFileRecord({
         id: nanoid(),
         path: texFilePath,
         name: texSavedName,
@@ -674,6 +692,7 @@ async function handleExtractBSPJob(
         source: "bsp-extracted",
         sourceArchive: bspName,
       });
+      if (inserted.isErr()) throw inserted.error;
 
       savedTextures++;
 
@@ -683,7 +702,7 @@ async function handleExtractBSPJob(
         await updateJobProgress(
           job.id,
           progress,
-          `Saved ${savedTextures}/${bspTextures.length} textures...`
+          `Saved ${savedTextures}/${bspTextures.length} textures...`,
         );
       }
     } catch (texError) {
@@ -743,21 +762,18 @@ export interface BatchExtractBSPJobOutput {
  */
 async function handleBatchExtractBSPJob(
   job: Job,
-  input: Record<string, unknown>
+  input: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
-  const {
-    parentFolderSlug,
-    parentFolderName,
-    bspFiles,
-  } = input as unknown as BatchExtractBSPJobInput;
+  const { parentFolderSlug, parentFolderName, bspFiles } =
+    input as unknown as BatchExtractBSPJobInput;
 
   await updateJobProgress(job.id, 2, "Creating parent folder...");
 
   // Create parent folder
   const parentFolderId = await getOrCreateFolder(parentFolderSlug, parentFolderName, null);
-  
+
   // Get the actual parent folder slug (may differ from input if folder existed)
-  const actualParentSlug = await getFolderSlug(parentFolderId) || parentFolderSlug;
+  const actualParentSlug = (await getFolderSlug(parentFolderId)) || parentFolderSlug;
 
   const totalBSPs = bspFiles.length;
   let processedBSPs = 0;
@@ -772,7 +788,7 @@ async function handleBatchExtractBSPJob(
     await updateJobProgress(
       job.id,
       5 + Math.floor((processedBSPs / totalBSPs) * 90),
-      `Extracting ${bspName} (${processedBSPs + 1}/${totalBSPs})...`
+      `Extracting ${bspName} (${processedBSPs + 1}/${totalBSPs})...`,
     );
 
     try {
@@ -810,14 +826,14 @@ async function handleBatchExtractBSPJob(
             tex.pngBuffer,
             subfolderSlug,
             texFileName,
-            true
+            true,
           );
 
           // Process for preview
           const texImageInfo = await processImage(texFilePath);
           if (texImageInfo.isErr()) throw texImageInfo.error;
 
-          await db.insert(files).values({
+          const texInserted = await insertFileRecord({
             id: nanoid(),
             path: texFilePath,
             name: texSavedName,
@@ -831,6 +847,7 @@ async function handleBatchExtractBSPJob(
             source: "bsp-extracted",
             sourceArchive: bspName,
           });
+          if (texInserted.isErr()) throw texInserted.error;
 
           texturesExtracted++;
         } catch (texError) {

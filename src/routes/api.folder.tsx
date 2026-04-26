@@ -1,5 +1,4 @@
 import type { Route } from "./+types/api.folder";
-import { Result } from "better-result";
 import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
 import { createFolder } from "~/lib/core/folders.server";
 
@@ -22,7 +21,7 @@ export async function action({ request }: Route.ActionArgs) {
       ownerId: user.id,
     });
 
-    if (Result.isError(result)) {
+    if (result.isErr()) {
       return Response.json({ error: result.error.message });
     }
 
