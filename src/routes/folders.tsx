@@ -52,8 +52,8 @@ export async function loader({ request }: Route.LoaderArgs) {
       const descendantCounts = await db
         .select({ total: sql<number>`SUM(file_count)` })
         .from(folders)
-        .where(sql`slug LIKE ${folder.slug + '%'}`);
-      
+        .where(sql`slug LIKE ${folder.slug + "%"}`);
+
       folderCounts[folder.id] = descendantCounts[0]?.total || 0;
     }
 
@@ -102,7 +102,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     view,
     query,
     tagSlug,
-    folders: [] as typeof folders.$inferSelect[],
+    folders: [] as (typeof folders.$inferSelect)[],
     folderCounts: {} as Record<string, number>,
     fileCounts: { ...fileCounts, folders: folderCount } as Record<string, number>,
     tags: allTags,
@@ -214,11 +214,7 @@ export default function Folders() {
               <div className="empty-state">
                 <p>No folders yet</p>
                 <p style={{ marginTop: "1rem" }}>
-                  <button
-                    type="button"
-                    className="btn"
-                    onClick={() => setShowUploadModal(true)}
-                  >
+                  <button type="button" className="btn" onClick={() => setShowUploadModal(true)}>
                     Import an archive
                   </button>{" "}
                   to create a folder
@@ -234,11 +230,7 @@ export default function Folders() {
                   >
                     {folder.previewPath ? (
                       <div className="folder-preview">
-                        <img 
-                          src={`/uploads/${folder.previewPath}`} 
-                          alt="" 
-                          loading="lazy"
-                        />
+                        <img src={`/uploads/${folder.previewPath}`} alt="" loading="lazy" />
                       </div>
                     ) : (
                       <div className="folder-preview folder-preview-empty">
@@ -247,9 +239,7 @@ export default function Folders() {
                     )}
                     <div className="folder-info">
                       <div className="folder-name">{folder.name}</div>
-                      <div className="folder-meta">
-                        {folderCounts[folder.id] || 0} files
-                      </div>
+                      <div className="folder-meta">{folderCounts[folder.id] || 0} files</div>
                     </div>
                   </a>
                 ))}
@@ -260,12 +250,7 @@ export default function Folders() {
 
         {/* Texture grid view */}
         {isTextureView && (
-          <FileGrid
-            files={files}
-            hasMore={!!nextCursor}
-            onLoadMore={loadMore}
-            loading={loading}
-          />
+          <FileGrid files={files} hasMore={!!nextCursor} onLoadMore={loadMore} loading={loading} />
         )}
 
         {/* List view for models, sounds, all */}

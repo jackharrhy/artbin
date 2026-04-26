@@ -326,7 +326,11 @@ export async function createFolderAndMoveChildren(
   let totalMovedFiles = 0;
 
   for (const childId of childFolderIds) {
-    const moveResult = await moveFolder(childId, newFolderId, { ...deps, db: database, uploadsDir });
+    const moveResult = await moveFolder(childId, newFolderId, {
+      ...deps,
+      db: database,
+      uploadsDir,
+    });
 
     if (moveResult.isErr()) {
       return Result.err(moveResult.error);

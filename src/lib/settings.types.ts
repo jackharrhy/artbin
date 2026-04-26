@@ -1,6 +1,6 @@
 /**
  * Shared types for settings
- * 
+ *
  * This file can be imported by both client and server code.
  */
 

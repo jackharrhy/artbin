@@ -1,6 +1,6 @@
 /**
  * Sadgrl Tiled Backgrounds import job handler
- * 
+ *
  * Imports tiled backgrounds from sadgrl.online archived collection.
  * Images are hosted on sadhost.neocities.org/images/tiles/
  */
@@ -19,6 +19,7 @@ import {
   ensureDir,
   slugToPath,
   recalculateFolderCounts,
+  insertFileRecord,
 } from "./files.server";
 import { generateFolderPreview } from "./folder-preview.server";
 
@@ -27,8 +28,8 @@ import { generateFolderPreview } from "./folder-preview.server";
 // ============================================================================
 
 interface Category {
-  name: string;      // Display name
-  slug: string;      // URL slug for folder
+  name: string; // Display name
+  slug: string; // URL slug for folder
 }
 
 export interface SadgrlImportInput {
@@ -46,7 +47,8 @@ export interface SadgrlImportOutput {
 // Configuration
 // ============================================================================
 
-const PAGE_URL = "https://sadgrlonline.github.io/archived-sadgrl.online/webmastery/downloads/tiledbgs.html";
+const PAGE_URL =
+  "https://sadgrlonline.github.io/archived-sadgrl.online/webmastery/downloads/tiledbgs.html";
 const PARENT_SLUG = "sadgrl-tiled-backgrounds";
 const PARENT_NAME = "Sadgrl Tiled Backgrounds";
 
@@ -73,27 +75,26 @@ const CATEGORIES: Category[] = [
  */
 function parseImagesByCategory(html: string): Map<string, string[]> {
   const result = new Map<string, string[]>();
-  
+
   // Split by category headers
   // Pattern: <strong>CategoryName</strong><br><br> followed by images until next <strong> or end
-  const categoryPattern = /<strong>([^<]+)<\/strong>\s*<br>\s*<br>([\s\S]*?)(?=<br>\s*<br>\s*<strong>|<\/div>)/gi;
-  
+  const categoryPattern =
+    /<strong>([^<]+)<\/strong>\s*<br>\s*<br>([\s\S]*?)(?=<br>\s*<br>\s*<strong>|<\/div>)/gi;
+
   let match;
   while ((match = categoryPattern.exec(html)) !== null) {
     const categoryName = match[1].trim();
     const imageSection = match[2];
-    
+
     // Find the matching category
-    const category = CATEGORIES.find(c => 
-      c.name.toLowerCase() === categoryName.toLowerCase()
-    );
-    
+    const category = CATEGORIES.find((c) => c.name.toLowerCase() === categoryName.toLowerCase());
+
     if (!category) continue;
-    
+
     // Extract image URLs from this section
     const imgPattern = /src="(https:\/\/sadhost\.neocities\.org\/images\/tiles\/[^"]+)"/gi;
     const images: string[] = [];
-    
+
     let imgMatch;
     while ((imgMatch = imgPattern.exec(imageSection)) !== null) {
       const url = imgMatch[1];
@@ -101,10 +102,10 @@ function parseImagesByCategory(html: string): Map<string, string[]> {
         images.push(url);
       }
     }
-    
+
     result.set(category.slug, images);
   }
-  
+
   return result;
 }
 
@@ -112,7 +113,7 @@ function parseImagesByCategory(html: string): Map<string, string[]> {
  * Get filename from URL
  */
 function getFilenameFromUrl(url: string): string {
-  const parts = url.split('/');
+  const parts = url.split("/");
   return parts[parts.length - 1];
 }
 
@@ -121,11 +122,11 @@ function getFilenameFromUrl(url: string): string {
  */
 async function downloadImage(url: string): Promise<Buffer> {
   const res = await fetch(url);
-  
+
   if (!res.ok) {
     throw new Error(`Failed to download ${url}: ${res.status}`);
   }
-  
+
   const arrayBuffer = await res.arrayBuffer();
   return Buffer.from(arrayBuffer);
 }
@@ -158,12 +159,9 @@ async function getOrCreateParentFolder(): Promise<string> {
 /**
  * Get or create a category folder
  */
-async function getOrCreateCategoryFolder(
-  category: Category,
-  parentId: string
-): Promise<string> {
+async function getOrCreateCategoryFolder(category: Category, parentId: string): Promise<string> {
   const slug = `${PARENT_SLUG}/${category.slug}`;
-  
+
   const existing = await db.query.folders.findFirst({
     where: eq(folders.slug, slug),
   });
@@ -192,7 +190,7 @@ async function getOrCreateCategoryFolder(
 
 async function handleSadgrlImport(
   job: Job,
-  input: Record<string, unknown>
+  input: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
   const { userId } = input as unknown as SadgrlImportInput;
 
@@ -209,7 +207,7 @@ async function handleSadgrlImport(
 
   // Parse images by category
   const imagesByCategory = parseImagesByCategory(html);
-  
+
   // Count total images
   let totalFiles = 0;
   for (const images of imagesByCategory.values()) {
@@ -219,13 +217,13 @@ async function handleSadgrlImport(
   await updateJobProgress(
     job.id,
     10,
-    `Found ${totalFiles} images in ${imagesByCategory.size} categories`
+    `Found ${totalFiles} images in ${imagesByCategory.size} categories`,
   );
 
   // Create parent folder
   const parentFolderId = await getOrCreateParentFolder();
   const createdFolderIds: string[] = [parentFolderId];
-  
+
   let processedFiles = 0;
   let importedFiles = 0;
   const errors: string[] = [];
@@ -239,12 +237,12 @@ async function handleSadgrlImport(
     const folderId = await getOrCreateCategoryFolder(category, parentFolderId);
     createdFolderIds.push(folderId);
     categoriesImported.push(category.name);
-    
+
     const folderSlug = `${PARENT_SLUG}/${category.slug}`;
 
     for (const imageUrl of images) {
       const filename = getFilenameFromUrl(imageUrl);
-      
+
       try {
         // Check if file already exists
         const filePath = `${folderSlug}/${filename}`;
@@ -265,7 +263,7 @@ async function handleSadgrlImport(
           buffer,
           folderSlug,
           filename,
-          true
+          true,
         );
 
         // Detect kind and mime type
@@ -291,7 +289,7 @@ async function handleSadgrlImport(
         }
 
         // Create file record
-        await db.insert(files).values({
+        const inserted = await insertFileRecord({
           id: nanoid(),
           path: savedPath,
           name: savedName,
@@ -306,6 +304,7 @@ async function handleSadgrlImport(
           source: "sadgrl",
           sourceArchive: null,
         });
+        if (inserted.isErr()) throw inserted.error;
 
         importedFiles++;
       } catch (error) {
@@ -322,7 +321,7 @@ async function handleSadgrlImport(
         await updateJobProgress(
           job.id,
           progress,
-          `Imported ${importedFiles}/${processedFiles} images (${category.name})...`
+          `Imported ${importedFiles}/${processedFiles} images (${category.name})...`,
         );
       }
     }

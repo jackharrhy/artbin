@@ -1,6 +1,6 @@
 /**
  * TextureTown import job handler
- * 
+ *
  * Imports textures from TextureTown (textures.neocities.org) into artbin.
  * Creates folders for each category and downloads all textures.
  */
@@ -19,6 +19,7 @@ import {
   ensureDir,
   slugToPath,
   recalculateFolderCounts,
+  insertFileRecord,
 } from "./files.server";
 import { generateFolderPreview } from "./folder-preview.server";
 
@@ -40,7 +41,7 @@ interface TextureTownManifest {
 }
 
 export interface TextureTownImportInput {
-  categories?: string[];  // If empty/undefined, import all categories
+  categories?: string[]; // If empty/undefined, import all categories
   userId?: string;
 }
 
@@ -76,7 +77,10 @@ const TEXTURETOWN_PARENT_NAME = "TextureTown";
  * Create slug from category name (nested under parent)
  */
 function categoryToSlug(categoryName: string): string {
-  const catSlug = categoryName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  const catSlug = categoryName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
   return `${TEXTURETOWN_PARENT_SLUG}/${catSlug}`;
 }
 
@@ -111,7 +115,7 @@ async function getOrCreateParentFolder(): Promise<string> {
 async function getOrCreateCategoryFolder(
   slug: string,
   name: string,
-  parentId: string
+  parentId: string,
 ): Promise<string> {
   const existing = await db.query.folders.findFirst({
     where: eq(folders.slug, slug),
@@ -142,15 +146,15 @@ async function downloadTexture(
   baseUrl: string,
   texturesFolder: string,
   categoryName: string,
-  fileName: string
+  fileName: string,
 ): Promise<Buffer> {
   const url = `${baseUrl}/${texturesFolder}/${categoryName}/${fileName}`;
   const res = await fetch(url);
-  
+
   if (!res.ok) {
     throw new Error(`Failed to download ${url}: ${res.status}`);
   }
-  
+
   const arrayBuffer = await res.arrayBuffer();
   return Buffer.from(arrayBuffer);
 }
@@ -161,7 +165,7 @@ async function downloadTexture(
 
 async function handleTextureTownImport(
   job: Job,
-  input: Record<string, unknown>
+  input: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
   const { categories: requestedCategories, userId } = input as unknown as TextureTownImportInput;
 
@@ -173,9 +177,7 @@ async function handleTextureTownImport(
   // Filter categories if specific ones were requested
   let categoriesToImport = manifest.catalogue;
   if (requestedCategories && requestedCategories.length > 0) {
-    categoriesToImport = manifest.catalogue.filter((cat) =>
-      requestedCategories.includes(cat.name)
-    );
+    categoriesToImport = manifest.catalogue.filter((cat) => requestedCategories.includes(cat.name));
   }
 
   if (categoriesToImport.length === 0) {
@@ -192,7 +194,7 @@ async function handleTextureTownImport(
   await updateJobProgress(
     job.id,
     5,
-    `Found ${totalFiles} textures in ${categoriesToImport.length} categories`
+    `Found ${totalFiles} textures in ${categoriesToImport.length} categories`,
   );
 
   // Create parent TextureTown folder
@@ -219,19 +221,14 @@ async function handleTextureTownImport(
         }
 
         // Download the texture
-        const buffer = await downloadTexture(
-          base_url,
-          textures_folder,
-          category.name,
-          fileName
-        );
+        const buffer = await downloadTexture(base_url, textures_folder, category.name, fileName);
 
         // Save file to disk
         const { path: savedPath, name: savedName } = await saveFile(
           buffer,
           folderSlug,
           fileName,
-          true
+          true,
         );
 
         // Detect kind and mime type
@@ -252,7 +249,7 @@ async function handleTextureTownImport(
         }
 
         // Create file record
-        await db.insert(files).values({
+        const inserted = await insertFileRecord({
           id: nanoid(),
           path: savedPath,
           name: savedName,
@@ -267,6 +264,7 @@ async function handleTextureTownImport(
           source: "texturetown",
           sourceArchive: null,
         });
+        if (inserted.isErr()) throw inserted.error;
 
         importedFiles++;
       } catch (error) {
@@ -283,7 +281,7 @@ async function handleTextureTownImport(
         await updateJobProgress(
           job.id,
           progress,
-          `Imported ${importedFiles}/${processedFiles} textures (${category.niceName})...`
+          `Imported ${importedFiles}/${processedFiles} textures (${category.niceName})...`,
         );
       }
     }

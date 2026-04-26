@@ -32,7 +32,7 @@ export function SearchBar({
     if (currentView !== "folders") params.set("view", currentView);
     if (query.trim()) params.set("q", query.trim());
     if (currentTag) params.set("tag", currentTag);
-    
+
     const search = params.toString();
     navigate(`${baseUrl}${search ? `?${search}` : ""}`);
   };
@@ -42,7 +42,7 @@ export function SearchBar({
     if (currentView !== "folders") params.set("view", currentView);
     if (query.trim()) params.set("q", query.trim());
     if (tagSlug) params.set("tag", tagSlug);
-    
+
     const search = params.toString();
     navigate(`${baseUrl}${search ? `?${search}` : ""}`);
   };
@@ -50,7 +50,7 @@ export function SearchBar({
   const clearFilters = () => {
     const params = new URLSearchParams();
     if (currentView !== "folders") params.set("view", currentView);
-    
+
     const search = params.toString();
     navigate(`${baseUrl}${search ? `?${search}` : ""}`);
   };

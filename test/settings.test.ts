@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, test } from "vitest";
-import { Result } from "better-result";
 import { setDbForTesting } from "~/db";
 import {
   getScanSettings,
@@ -30,7 +29,9 @@ describe("settings", () => {
 
     expect(await getSetting("missing", ["fallback"])).toEqual(["fallback"]);
 
-    await currentDb!.sqlite.prepare("INSERT INTO settings (key, value) VALUES (?, ?)").run("bad", "not-json");
+    await currentDb!.sqlite
+      .prepare("INSERT INTO settings (key, value) VALUES (?, ?)")
+      .run("bad", "not-json");
     expect(await getSetting("bad", ["fallback"])).toEqual(["fallback"]);
   });
 
@@ -64,7 +65,7 @@ describe("settings", () => {
       knownGameDirs: ["id1"],
     });
 
-    expect(Result.isOk(result)).toBe(true);
+    expect(result.isOk()).toBe(true);
     expect(result.unwrap()).toEqual({
       excludeDirs: ["tmp"],
       excludeFilenames: ["locale.pak"],
@@ -91,7 +92,7 @@ describe("settings", () => {
 
     const result = await resetScanSettings();
 
-    expect(Result.isOk(result)).toBe(true);
+    expect(result.isOk()).toBe(true);
     expect(result.unwrap().excludeDirs).toContain("node_modules");
     expect(result.unwrap().excludeDirs).not.toContain("custom");
   });

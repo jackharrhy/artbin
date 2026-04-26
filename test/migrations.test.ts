@@ -8,9 +8,9 @@ describe("database migrations", () => {
     try {
       applyMigrations(sqlite);
 
-      const folderColumns = sqlite
-        .prepare("PRAGMA table_info(folders)")
-        .all() as Array<{ name: string }>;
+      const folderColumns = sqlite.prepare("PRAGMA table_info(folders)").all() as Array<{
+        name: string;
+      }>;
       const tables = sqlite
         .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
         .all() as Array<{ name: string }>;

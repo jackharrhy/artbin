@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, test } from "vitest";
-import { Result } from "better-result";
 import { eq } from "drizzle-orm";
 import { jobs, users } from "~/db/schema";
 import { setDbForTesting } from "~/db";
@@ -58,7 +57,7 @@ describe("job lifecycle", () => {
     const completed = await getJob(job.id);
     expect(completed?.status).toBe("completed");
     expect(completed?.progress).toBe(100);
-    expect(JSON.parse(completed?.output ?? "{}")) .toEqual({ ok: true });
+    expect(JSON.parse(completed?.output ?? "{}")).toEqual({ ok: true });
 
     const failedJob = await createJob({ type: "example", input: {} });
     await failJob(failedJob.id, "boom");
@@ -74,7 +73,7 @@ describe("job lifecycle", () => {
     await startJob(running.id);
 
     const cancelPending = await cancelJob(pending.id);
-    expect(Result.isOk(cancelPending)).toBe(true);
+    expect(cancelPending.isOk()).toBe(true);
     expect(cancelPending.unwrap().status).toBe("cancelled");
 
     const cancelRunning = await cancelJob(running.id);
@@ -93,7 +92,7 @@ describe("job lifecycle", () => {
       .where(eq(jobs.id, running.id));
 
     const reset = await resetStuckJob(running.id, 30);
-    expect(Result.isOk(reset)).toBe(true);
+    expect(reset.isOk()).toBe(true);
     expect(reset.unwrap().status).toBe("pending");
     expect(reset.unwrap().progress).toBe(0);
 
@@ -107,7 +106,11 @@ describe("job lifecycle", () => {
   test("detects stuck jobs", async () => {
     setupDatabase();
     const job = await createJob({ type: "example", input: {} });
-    const runningJob = { ...job, status: "running" as const, startedAt: new Date(Date.now() - 31 * 60 * 1000) };
+    const runningJob = {
+      ...job,
+      status: "running" as const,
+      startedAt: new Date(Date.now() - 31 * 60 * 1000),
+    };
 
     expect(isJobStuck(runningJob, 30)).toBe(true);
     expect(isJobStuck({ ...runningJob, startedAt: new Date() }, 30)).toBe(false);
@@ -137,10 +140,10 @@ describe("processJob", () => {
 
     const result = await processJob(job);
 
-    expect(Result.isOk(result)).toBe(true);
+    expect(result.isOk()).toBe(true);
     const persisted = await getJob(job.id);
     expect(persisted?.status).toBe("completed");
-    expect(JSON.parse(persisted?.output ?? "{}")) .toEqual({ received: 42 });
+    expect(JSON.parse(persisted?.output ?? "{}")).toEqual({ received: 42 });
   });
 
   test("converts handler exceptions into Result errors and failed jobs", async () => {

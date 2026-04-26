@@ -73,9 +73,7 @@ export function MoveFolderModal({
   };
 
   const descendantIds = getDescendantIds(folder.id);
-  const availableFolders = allFolders.filter(
-    (f) => f.id !== folder.id && !descendantIds.has(f.id)
-  );
+  const availableFolders = allFolders.filter((f) => f.id !== folder.id && !descendantIds.has(f.id));
 
   // Build indented folder list
   const buildFolderOptions = () => {
@@ -118,7 +116,7 @@ export function MoveFolderModal({
           parentId: selectedParentId || "",
           childFolderIds: JSON.stringify([folder.id]),
         },
-        { method: "post", action: "/api/folder/move" }
+        { method: "post", action: "/api/folder/move" },
       );
     } else {
       // Just move to selected parent
@@ -133,7 +131,7 @@ export function MoveFolderModal({
           folderId: folder.id,
           newParentId: selectedParentId || "",
         },
-        { method: "post", action: "/api/folder/move" }
+        { method: "post", action: "/api/folder/move" },
       );
     }
   };

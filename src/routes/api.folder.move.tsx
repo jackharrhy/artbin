@@ -1,5 +1,4 @@
 import type { Route } from "./+types/api.folder.move";
-import { Result } from "better-result";
 import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
 import { createFolderAndMoveChildren, moveFolder } from "~/lib/core/folders.server";
 
@@ -28,7 +27,7 @@ export async function action({ request }: Route.ActionArgs) {
 
     const result = await moveFolder(folderId, parentId);
 
-    if (Result.isError(result)) {
+    if (result.isErr()) {
       return Response.json({ error: result.error.message }, { status: 400 });
     }
 
@@ -64,7 +63,7 @@ export async function action({ request }: Route.ActionArgs) {
 
     const result = await createFolderAndMoveChildren(name, effectiveParentId, childFolderIds);
 
-    if (Result.isError(result)) {
+    if (result.isErr()) {
       return Response.json({ error: result.error.message }, { status: 400 });
     }
 

@@ -37,7 +37,7 @@ export function FileGrid({ files, hasMore, onLoadMore, loading }: FileGridProps)
           onLoadMore();
         }
       },
-      { threshold: 0.1 }
+      { threshold: 0.1 },
     );
 
     if (loaderRef.current) {
@@ -55,16 +55,8 @@ export function FileGrid({ files, hasMore, onLoadMore, loading }: FileGridProps)
     <div>
       <div className="texture-grid">
         {files.map((file) => (
-          <a
-            key={file.id}
-            href={`/file/${file.path}`}
-            className="texture-card"
-          >
-            <img
-              src={getDisplayUrl(file)}
-              alt={file.name}
-              loading="lazy"
-            />
+          <a key={file.id} href={`/file/${file.path}`} className="texture-card">
+            <img src={getDisplayUrl(file)} alt={file.name} loading="lazy" />
             <div className="texture-card-info">
               {file.name}
               {file.width && file.height && (
@@ -80,11 +72,7 @@ export function FileGrid({ files, hasMore, onLoadMore, loading }: FileGridProps)
       {/* Infinite scroll trigger */}
       {hasMore && (
         <div ref={loaderRef} className="load-more-trigger">
-          {loading ? (
-            <span>Loading...</span>
-          ) : (
-            <span>Scroll for more</span>
-          )}
+          {loading ? <span>Loading...</span> : <span>Scroll for more</span>}
         </div>
       )}
 

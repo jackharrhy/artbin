@@ -1,6 +1,6 @@
 /**
  * Background job system for artbin
- * 
+ *
  * Jobs are stored in the database and processed by a simple polling loop.
  * This is a simple implementation suitable for single-server deployments.
  */
@@ -25,7 +25,7 @@ export interface CreateJobInput {
  */
 export async function createJob(params: CreateJobInput): Promise<Job> {
   const id = nanoid();
-  
+
   const [job] = await db
     .insert(jobs)
     .values({
@@ -36,7 +36,7 @@ export async function createJob(params: CreateJobInput): Promise<Job> {
       status: "pending",
     })
     .returning();
-  
+
   return job;
 }
 
@@ -76,7 +76,7 @@ export async function getAllJobs(limit = 100): Promise<Job[]> {
 export async function updateJobProgress(
   id: string,
   progress: number,
-  message?: string
+  message?: string,
 ): Promise<void> {
   await db
     .update(jobs)
@@ -103,10 +103,7 @@ export async function startJob(id: string): Promise<void> {
 /**
  * Mark job as completed
  */
-export async function completeJob(
-  id: string,
-  output: Record<string, unknown>
-): Promise<void> {
+export async function completeJob(id: string, output: Record<string, unknown>): Promise<void> {
   await db
     .update(jobs)
     .set({
@@ -151,7 +148,7 @@ export async function cancelJob(id: string) {
       completedAt: new Date(),
     })
     .where(and(eq(jobs.id, id), eq(jobs.status, "pending")));
-  
+
   if (result.changes === 0) {
     return Result.err(new Error("Job could not be cancelled"));
   }
@@ -264,12 +261,12 @@ async function getNextJob(): Promise<Job | undefined> {
  */
 export async function processJob(job: Job) {
   const handler = jobHandlers.get(job.type);
-  
+
   if (!handler) {
     await failJob(job.id, `Unknown job type: ${job.type}`);
     return Result.err(new Error(`Unknown job type: ${job.type}`));
   }
-  
+
   try {
     await startJob(job.id);
     const input = JSON.parse(job.input) as Record<string, unknown>;
@@ -297,13 +294,13 @@ let pollInterval: NodeJS.Timeout | null = null;
  */
 export function startJobRunner(intervalMs = 2000): void {
   if (isRunning) return;
-  
+
   isRunning = true;
   console.log("[JobRunner] Started");
-  
+
   const poll = async () => {
     if (!isRunning) return;
-    
+
     try {
       const job = await getNextJob();
       if (job) {
@@ -313,12 +310,12 @@ export function startJobRunner(intervalMs = 2000): void {
     } catch (error) {
       console.error("[JobRunner] Error:", error);
     }
-    
+
     if (isRunning) {
       pollInterval = setTimeout(poll, intervalMs);
     }
   };
-  
+
   // Start polling
   poll();
 }
@@ -351,16 +348,16 @@ export function isJobRunnerActive(): boolean {
  */
 export async function cleanupOldJobs(daysOld = 7): Promise<number> {
   const cutoff = new Date(Date.now() - daysOld * 24 * 60 * 60 * 1000);
-  
+
   const result = await db
     .delete(jobs)
     .where(
       and(
         or(eq(jobs.status, "completed"), eq(jobs.status, "failed"), eq(jobs.status, "cancelled")),
-        lt(jobs.completedAt, cutoff)
-      )
+        lt(jobs.completedAt, cutoff),
+      ),
     );
-  
+
   return result.changes;
 }
 
@@ -369,11 +366,11 @@ export async function cleanupOldJobs(daysOld = 7): Promise<number> {
  */
 export async function resetStuckJobs(minutesOld = 30): Promise<number> {
   const cutoff = new Date(Date.now() - minutesOld * 60 * 1000);
-  
+
   const result = await db
     .update(jobs)
     .set({ status: "pending", startedAt: null })
     .where(and(eq(jobs.status, "running"), lt(jobs.startedAt, cutoff)));
-  
+
   return result.changes;
 }

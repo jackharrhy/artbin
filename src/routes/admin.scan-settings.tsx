@@ -1,6 +1,5 @@
 import { Form, redirect, useLoaderData, useActionData } from "react-router";
 import type { Route } from "./+types/admin.scan-settings";
-import { Result } from "better-result";
 import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
 import { Header } from "~/components/Header";
 import type { ScanSettings } from "~/lib/settings.types";
@@ -19,7 +18,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 
   // Import server module inside loader
   const { initializeScanSettings } = await import("~/lib/settings.server");
-  
+
   // Initialize settings if they don't exist, then get them
   const settings = await initializeScanSettings();
 
@@ -50,24 +49,24 @@ export async function action({ request }: Route.ActionArgs) {
 
   if (intent === "save") {
     // Parse the textarea values (one item per line)
-    const excludeDirs = (formData.get("excludeDirs") as string || "")
+    const excludeDirs = ((formData.get("excludeDirs") as string) || "")
       .split("\n")
-      .map(s => s.trim())
+      .map((s) => s.trim())
       .filter(Boolean);
-    
-    const excludeFilenames = (formData.get("excludeFilenames") as string || "")
+
+    const excludeFilenames = ((formData.get("excludeFilenames") as string) || "")
       .split("\n")
-      .map(s => s.trim())
+      .map((s) => s.trim())
       .filter(Boolean);
-    
-    const excludePathPatterns = (formData.get("excludePathPatterns") as string || "")
+
+    const excludePathPatterns = ((formData.get("excludePathPatterns") as string) || "")
       .split("\n")
-      .map(s => s.trim())
+      .map((s) => s.trim())
       .filter(Boolean);
-    
-    const knownGameDirs = (formData.get("knownGameDirs") as string || "")
+
+    const knownGameDirs = ((formData.get("knownGameDirs") as string) || "")
       .split("\n")
-      .map(s => s.trim())
+      .map((s) => s.trim())
       .filter(Boolean);
 
     const result = await updateScanSettings({
@@ -77,7 +76,7 @@ export async function action({ request }: Route.ActionArgs) {
       knownGameDirs,
     });
 
-    if (Result.isError(result)) {
+    if (result.isErr()) {
       return { error: result.error.message };
     }
 
@@ -111,7 +110,8 @@ export default function AdminScanSettings() {
 
         <h1 className="page-title">Archive Scan Settings</h1>
         <p style={{ marginBottom: "1.5rem", color: "#666" }}>
-          Configure which files and directories are included or excluded when scanning for game archives.
+          Configure which files and directories are included or excluded when scanning for game
+          archives.
         </p>
 
         {actionData?.error && (
@@ -138,7 +138,12 @@ export default function AdminScanSettings() {
               <textarea
                 name="excludeDirs"
                 className="input"
-                style={{ width: "100%", minHeight: "200px", fontFamily: "var(--font-mono)", fontSize: "0.8125rem" }}
+                style={{
+                  width: "100%",
+                  minHeight: "200px",
+                  fontFamily: "var(--font-mono)",
+                  fontSize: "0.8125rem",
+                }}
                 defaultValue={settings.excludeDirs.join("\n")}
               />
             </div>
@@ -153,7 +158,12 @@ export default function AdminScanSettings() {
               <textarea
                 name="excludeFilenames"
                 className="input"
-                style={{ width: "100%", minHeight: "120px", fontFamily: "var(--font-mono)", fontSize: "0.8125rem" }}
+                style={{
+                  width: "100%",
+                  minHeight: "120px",
+                  fontFamily: "var(--font-mono)",
+                  fontSize: "0.8125rem",
+                }}
                 defaultValue={settings.excludeFilenames.join("\n")}
               />
             </div>
@@ -168,7 +178,12 @@ export default function AdminScanSettings() {
               <textarea
                 name="excludePathPatterns"
                 className="input"
-                style={{ width: "100%", minHeight: "120px", fontFamily: "var(--font-mono)", fontSize: "0.8125rem" }}
+                style={{
+                  width: "100%",
+                  minHeight: "120px",
+                  fontFamily: "var(--font-mono)",
+                  fontSize: "0.8125rem",
+                }}
                 defaultValue={settings.excludePathPatterns.join("\n")}
               />
             </div>
@@ -178,12 +193,18 @@ export default function AdminScanSettings() {
             <div className="form-group">
               <label className="form-label">Known Game Directories</label>
               <p className="form-help" style={{ marginBottom: "0.5rem" }}>
-                Directory names that indicate game content. ZIP files are only included if found in one of these directories.
+                Directory names that indicate game content. ZIP files are only included if found in
+                one of these directories.
               </p>
               <textarea
                 name="knownGameDirs"
                 className="input"
-                style={{ width: "100%", minHeight: "150px", fontFamily: "var(--font-mono)", fontSize: "0.8125rem" }}
+                style={{
+                  width: "100%",
+                  minHeight: "150px",
+                  fontFamily: "var(--font-mono)",
+                  fontSize: "0.8125rem",
+                }}
                 defaultValue={settings.knownGameDirs.join("\n")}
               />
             </div>

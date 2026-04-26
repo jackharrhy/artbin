@@ -47,7 +47,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   const [{ total: fileCount }] = await db.select({ total: count() }).from(files);
   const [{ total: folderCount }] = await db.select({ total: count() }).from(folders);
   const [{ total: totalSize }] = await db.select({ total: sum(files.size) }).from(files);
-  
+
   // Get size by kind
   const sizeByKind = await db
     .select({
@@ -65,7 +65,7 @@ export async function loader({ request }: Route.LoaderArgs) {
       fileCount,
       folderCount,
       totalSize: Number(totalSize) || 0,
-      byKind: sizeByKind.map(k => ({
+      byKind: sizeByKind.map((k) => ({
         kind: k.kind,
         size: Number(k.size) || 0,
         count: k.count,
@@ -119,7 +119,7 @@ export async function action({ request }: Route.ActionArgs) {
   if (intent === "folder-import") {
     const folderPath = formData.get("folderPath") as string;
     const folderName = formData.get("folderName") as string;
-    
+
     if (!folderPath || !folderPath.trim()) {
       return { error: "Please enter a folder path" };
     }
@@ -210,35 +210,49 @@ export default function AdminImport() {
 
         <h1 className="page-title">Import</h1>
 
-        {actionData?.error && (
-          <div className="alert alert-error">{actionData.error}</div>
-        )}
+        {actionData?.error && <div className="alert alert-error">{actionData.error}</div>}
 
         {actionData?.success && actionData.action === "texturetown" && (
           <div className="alert alert-success">
-            <p><strong>TextureTown import started!</strong></p>
-            <p><a href="/admin/jobs">View job progress</a></p>
+            <p>
+              <strong>TextureTown import started!</strong>
+            </p>
+            <p>
+              <a href="/admin/jobs">View job progress</a>
+            </p>
           </div>
         )}
 
         {actionData?.success && actionData.action === "texture-station" && (
           <div className="alert alert-success">
-            <p><strong>Texture Station import started!</strong></p>
-            <p><a href="/admin/jobs">View job progress</a></p>
+            <p>
+              <strong>Texture Station import started!</strong>
+            </p>
+            <p>
+              <a href="/admin/jobs">View job progress</a>
+            </p>
           </div>
         )}
 
         {actionData?.success && actionData.action === "sadgrl" && (
           <div className="alert alert-success">
-            <p><strong>Sadgrl Tiled Backgrounds import started!</strong></p>
-            <p><a href="/admin/jobs">View job progress</a></p>
+            <p>
+              <strong>Sadgrl Tiled Backgrounds import started!</strong>
+            </p>
+            <p>
+              <a href="/admin/jobs">View job progress</a>
+            </p>
           </div>
         )}
 
         {actionData?.success && actionData.action === "folder-import" && (
           <div className="alert alert-success">
-            <p><strong>Folder import started: {actionData.folderName}</strong></p>
-            <p><a href="/admin/jobs">View job progress</a></p>
+            <p>
+              <strong>Folder import started: {actionData.folderName}</strong>
+            </p>
+            <p>
+              <a href="/admin/jobs">View job progress</a>
+            </p>
           </div>
         )}
 
@@ -253,11 +267,19 @@ export default function AdminImport() {
             <dt>Total Folders</dt>
             <dd>{stats.folderCount.toLocaleString()}</dd>
           </dl>
-          
+
           {stats.byKind.length > 0 && (
             <div style={{ marginTop: "1rem", paddingTop: "1rem", borderTop: "1px solid #eee" }}>
-              <h3 style={{ fontWeight: 500, fontSize: "0.875rem", marginBottom: "0.5rem" }}>By Type</h3>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: "0.5rem" }}>
+              <h3 style={{ fontWeight: 500, fontSize: "0.875rem", marginBottom: "0.5rem" }}>
+                By Type
+              </h3>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
+                  gap: "0.5rem",
+                }}
+              >
                 {stats.byKind
                   .sort((a, b) => b.size - a.size)
                   .map((k) => (
@@ -277,18 +299,17 @@ export default function AdminImport() {
         {/* Local Folder Import */}
         <section className="section">
           <h2 className="section-title">Local Folder</h2>
-          
+
           <div className="card" style={{ marginBottom: "1rem" }}>
-            <h3 style={{ fontWeight: 500, marginBottom: "0.5rem" }}>
-              Import from Folder Path
-            </h3>
+            <h3 style={{ fontWeight: 500, marginBottom: "0.5rem" }}>Import from Folder Path</h3>
             <p style={{ fontSize: "0.875rem", color: "#666", marginBottom: "1rem" }}>
-              Recursively import all supported files from a local folder (images, audio, models, etc.)
+              Recursively import all supported files from a local folder (images, audio, models,
+              etc.)
             </p>
-            
+
             <Form method="post">
               <input type="hidden" name="intent" value="folder-import" />
-              
+
               <div style={{ marginBottom: "0.75rem" }}>
                 <label style={{ display: "block", fontSize: "0.875rem", marginBottom: "0.25rem" }}>
                   Folder Path
@@ -306,7 +327,7 @@ export default function AdminImport() {
                   }}
                 />
               </div>
-              
+
               <div style={{ marginBottom: "1rem" }}>
                 <label style={{ display: "block", fontSize: "0.875rem", marginBottom: "0.25rem" }}>
                   Collection Name (optional)
@@ -323,8 +344,10 @@ export default function AdminImport() {
                   }}
                 />
               </div>
-              
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+
+              <div
+                style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
+              >
                 <span style={{ fontSize: "0.75rem", color: "#888" }}>
                   Supports: png, jpg, tga, bmp, wav, ogg, mp3, obj, md5mesh, etc.
                 </span>
@@ -333,13 +356,19 @@ export default function AdminImport() {
                   className="btn btn-primary"
                   onClick={(e) => {
                     const form = e.currentTarget.form;
-                    const pathInput = form?.querySelector('input[name="folderPath"]') as HTMLInputElement;
+                    const pathInput = form?.querySelector(
+                      'input[name="folderPath"]',
+                    ) as HTMLInputElement;
                     if (!pathInput?.value.trim()) {
                       e.preventDefault();
                       alert("Please enter a folder path");
                       return;
                     }
-                    if (!confirm(`Import all supported files from:\n${pathInput.value}\n\nThis may take a while for large folders.`)) {
+                    if (
+                      !confirm(
+                        `Import all supported files from:\n${pathInput.value}\n\nThis may take a while for large folders.`,
+                      )
+                    ) {
                       e.preventDefault();
                     }
                   }}
@@ -354,9 +383,16 @@ export default function AdminImport() {
         {/* Local Archives */}
         <section className="section">
           <h2 className="section-title">Local Archives</h2>
-          
+
           <div className="card" style={{ marginBottom: "1rem" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "1rem" }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "flex-start",
+                gap: "1rem",
+              }}
+            >
               <div>
                 <h3 style={{ fontWeight: 500, marginBottom: "0.25rem" }}>
                   Scan & Import Local Archives
@@ -383,7 +419,14 @@ export default function AdminImport() {
 
           {sources.map((source) => (
             <div key={source.id} className="card" style={{ marginBottom: "1rem" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "1rem" }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "flex-start",
+                  gap: "1rem",
+                }}
+              >
                 <div>
                   <h3 style={{ fontWeight: 500, marginBottom: "0.25rem" }}>
                     <a href={source.url} target="_blank" rel="noopener noreferrer">
@@ -415,8 +458,7 @@ export default function AdminImport() {
         </section>
 
         <p style={{ marginTop: "2rem", fontSize: "0.875rem", color: "#666" }}>
-          <a href="/admin/jobs">View Jobs</a> |{" "}
-          <a href="/folders">Browse Folders</a>
+          <a href="/admin/jobs">View Jobs</a> | <a href="/folders">Browse Folders</a>
         </p>
       </main>
     </div>

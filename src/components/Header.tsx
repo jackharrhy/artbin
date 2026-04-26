@@ -16,22 +16,24 @@ export function Header({ user, onUploadClick }: HeaderProps) {
       <nav className="header-nav">
         {user ? (
           <>
-            <a href="/folders" className="header-link">folders</a>
+            <a href="/folders" className="header-link">
+              folders
+            </a>
             {onUploadClick && (
-              <button
-                type="button"
-                className="btn btn-sm"
-                onClick={onUploadClick}
-              >
+              <button type="button" className="btn btn-sm" onClick={onUploadClick}>
                 upload
               </button>
             )}
-            <a href="/settings" className="header-link">@{user.username}</a>
+            <a href="/settings" className="header-link">
+              @{user.username}
+            </a>
             {user.isAdmin && <span className="badge-admin">admin</span>}
           </>
         ) : (
           <>
-            <a href="/login" className="header-link">login</a>
+            <a href="/login" className="header-link">
+              login
+            </a>
           </>
         )}
       </nav>

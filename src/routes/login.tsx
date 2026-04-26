@@ -1,6 +1,5 @@
 import { Form, redirect, useActionData, useSearchParams } from "react-router";
 import type { Route } from "./+types/login";
-import { Result } from "better-result";
 import { login, getSessionCookie, parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
 import { Header } from "~/components/Header";
 
@@ -20,7 +19,7 @@ export async function action({ request }: Route.ActionArgs) {
 
   const result = await login(email, password);
 
-  if (Result.isError(result)) {
+  if (result.isErr()) {
     return { error: result.error.message };
   }
 
@@ -53,13 +52,13 @@ export default function Login() {
       <main className="auth-container">
         <h1 className="auth-title">Login</h1>
 
-        {errorMessage && (
-          <div className="alert alert-error">{errorMessage}</div>
-        )}
+        {errorMessage && <div className="alert alert-error">{errorMessage}</div>}
 
         <Form method="post">
           <div className="form-group">
-            <label htmlFor="email" className="form-label">Email</label>
+            <label htmlFor="email" className="form-label">
+              Email
+            </label>
             <input
               type="email"
               id="email"
@@ -71,7 +70,9 @@ export default function Login() {
           </div>
 
           <div className="form-group">
-            <label htmlFor="password" className="form-label">Password</label>
+            <label htmlFor="password" className="form-label">
+              Password
+            </label>
             <input
               type="password"
               id="password"

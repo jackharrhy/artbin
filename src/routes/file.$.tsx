@@ -10,7 +10,7 @@ import { readFile } from "fs/promises";
 import { getFilePath } from "~/lib/files.server";
 
 // Audio formats that browsers can play natively
-const WEB_PLAYABLE_AUDIO = ["mp3", "ogg", "wav", "m4a", "webm", "aac"];
+const WEB_PLAYABLE_AUDIO = new Set(["mp3", "ogg", "wav", "m4a", "webm", "aac"]);
 
 // Browser-compatible path utilities
 function getExtname(filename: string): string {
@@ -21,7 +21,7 @@ function getExtname(filename: string): string {
 
 function isWebPlayableAudio(filename: string): boolean {
   const ext = getExtname(filename).toLowerCase().slice(1);
-  return WEB_PLAYABLE_AUDIO.includes(ext);
+  return WEB_PLAYABLE_AUDIO.has(ext);
 }
 
 // Check if mime type is text-based and we should show inline preview
@@ -57,6 +57,14 @@ function getModelFormat(filename: string): ModelFormat {
 // Max size to load for text preview (100KB)
 const MAX_TEXT_PREVIEW_SIZE = 100 * 1024;
 
+// Helper to get texture URL from a file record
+function getTextureUrl(textureFile: { path: string; hasPreview: boolean | null }): string {
+  if (textureFile.hasPreview) {
+    return `/uploads/${textureFile.path}.preview.png`;
+  }
+  return `/uploads/${textureFile.path}`;
+}
+
 export async function loader({ request, params }: Route.LoaderArgs) {
   const sessionId = parseSessionCookie(request.headers.get("Cookie"));
   const user = await getUserFromSession(sessionId);
@@ -83,12 +91,12 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   // Get folder and build ancestor chain for breadcrumbs
   let folder = null;
   const ancestors: { id: string; name: string; slug: string }[] = [];
-  
+
   if (file.folderId) {
     folder = await db.query.folders.findFirst({
       where: eq(folders.id, file.folderId),
     });
-    
+
     // Build ancestor chain
     if (folder) {
       let currentParentId = folder.parentId;
@@ -115,7 +123,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   // Load text content for text files (if small enough)
   let textContent: string | null = null;
   let textTruncated = false;
-  
+
   if (isTextMimeType(file.mimeType) && file.size <= MAX_TEXT_PREVIEW_SIZE) {
     try {
       const fullPath = getFilePath(file.path);
@@ -130,48 +138,36 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   // For model files, look for associated texture/material files
   let modelTexture: string | null = null;
   let modelMtl: string | null = null;
-  
+
   if (file.kind === "model" && file.folderId) {
     const textureExts = ["tga", "png", "jpg", "jpeg", "pcx", "bmp"];
-    
-    // Helper to get texture URL from a file record
-    const getTextureUrl = (textureFile: { path: string; hasPreview: boolean | null }) => {
-      if (textureFile.hasPreview) {
-        return `/uploads/${textureFile.path}.preview.png`;
-      }
-      return `/uploads/${textureFile.path}`;
-    };
-    
+
     // Get all files in the same folder for smart matching
     const siblingFiles = await db.query.files.findMany({
       where: eq(files.folderId, file.folderId),
     });
-    
-    const siblingTextures = siblingFiles.filter(f => f.kind === "texture");
-    const siblingConfigs = siblingFiles.filter(f => 
-      f.name.endsWith(".script") || f.name.endsWith(".skin") || f.name.endsWith(".mtr")
+
+    const siblingTextures = siblingFiles.filter((f) => f.kind === "texture");
+    const siblingConfigs = siblingFiles.filter(
+      (f) => f.name.endsWith(".script") || f.name.endsWith(".skin") || f.name.endsWith(".mtr"),
     );
-    
+
     // Strategy 1: Look for texture with same base name as model
     const baseName = file.name.replace(/\.[^.]+$/, "").toLowerCase();
     for (const ext of textureExts) {
-      const match = siblingTextures.find(f => 
-        f.name.toLowerCase() === `${baseName}.${ext}`
-      );
+      const match = siblingTextures.find((f) => f.name.toLowerCase() === `${baseName}.${ext}`);
       if (match) {
         modelTexture = getTextureUrl(match);
         break;
       }
     }
-    
+
     // Strategy 2: Look for common MD2 skin naming conventions
     if (!modelTexture) {
       const skinNames = ["skin", "skin1", "skin0", "default", baseName + "_skin"];
       for (const skinName of skinNames) {
         for (const ext of textureExts) {
-          const match = siblingTextures.find(f => 
-            f.name.toLowerCase() === `${skinName}.${ext}`
-          );
+          const match = siblingTextures.find((f) => f.name.toLowerCase() === `${skinName}.${ext}`);
           if (match) {
             modelTexture = getTextureUrl(match);
             break;
@@ -180,14 +176,14 @@ export async function loader({ request, params }: Route.LoaderArgs) {
         if (modelTexture) break;
       }
     }
-    
+
     // Strategy 3: Parse .script/.skin/.mtr files for texture references
     if (!modelTexture && siblingConfigs.length > 0) {
       for (const configFile of siblingConfigs) {
         try {
           const configPath = getFilePath(configFile.path);
           const content = await readFile(configPath, "utf-8");
-          
+
           // Look for texture path references in the config
           // Common patterns: "models/path/texture.jpg", map models/path/texture
           const texturePatterns = [
@@ -195,7 +191,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
             /["']([^"']+\.(?:tga|png|jpg|jpeg))["']/gi,
             /\s(models\/[^\s]+\.(?:tga|png|jpg|jpeg))/gi,
           ];
-          
+
           for (const pattern of texturePatterns) {
             const matches = content.matchAll(pattern);
             for (const match of matches) {
@@ -203,9 +199,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
               // Try to find this texture - could be relative or absolute path
               const texName = texPath.split("/").pop()?.toLowerCase();
               if (texName) {
-                const foundTex = siblingTextures.find(f => 
-                  f.name.toLowerCase() === texName
-                );
+                const foundTex = siblingTextures.find((f) => f.name.toLowerCase() === texName);
                 if (foundTex) {
                   modelTexture = getTextureUrl(foundTex);
                   break;
@@ -220,22 +214,22 @@ export async function loader({ request, params }: Route.LoaderArgs) {
         if (modelTexture) break;
       }
     }
-    
+
     // Strategy 4: If there's only one texture in the folder, use it
     if (!modelTexture && siblingTextures.length === 1) {
       modelTexture = getTextureUrl(siblingTextures[0]);
     }
-    
+
     // Strategy 5: If there are few textures, prefer ones that look like diffuse maps
     if (!modelTexture && siblingTextures.length > 0 && siblingTextures.length <= 5) {
       // Avoid normal maps, glow maps, spec maps
       const avoidPatterns = /_(?:normal|nrm|bump|spec|specular|glow|emit|ao|height|rough)/i;
-      const diffuseCandidate = siblingTextures.find(f => !avoidPatterns.test(f.name));
+      const diffuseCandidate = siblingTextures.find((f) => !avoidPatterns.test(f.name));
       if (diffuseCandidate) {
         modelTexture = getTextureUrl(diffuseCandidate);
       }
     }
-    
+
     // For OBJ files, look for MTL file
     if (file.name.toLowerCase().endsWith(".obj")) {
       const mtlPath = file.path.replace(/\.obj$/i, ".mtl");
@@ -246,29 +240,51 @@ export async function loader({ request, params }: Route.LoaderArgs) {
         modelMtl = `/uploads/${mtlFile.path}`;
       }
     }
-    
+
     // For MD5 mesh files, find sibling animation files
     let modelAnimations: { name: string; url: string }[] = [];
     if (file.name.toLowerCase().endsWith(".md5mesh")) {
-      const siblingAnims = siblingFiles.filter(f => 
-        f.name.toLowerCase().endsWith(".md5anim")
-      );
-      modelAnimations = siblingAnims.map(f => ({
+      const siblingAnims = siblingFiles.filter((f) => f.name.toLowerCase().endsWith(".md5anim"));
+      modelAnimations = siblingAnims.map((f) => ({
         name: f.name.replace(/\.md5anim$/i, ""),
         url: `/uploads/${f.path}`,
       }));
     }
-    
+
     // Return available textures for manual selection
-    const availableTextures = siblingTextures.map(f => ({
+    const availableTextures = siblingTextures.map((f) => ({
       name: f.name,
       url: getTextureUrl(f),
     }));
-    
-    return { user, file, folder, ancestors, tags: fileTags_, textContent, textTruncated, modelTexture, modelMtl, availableTextures, modelAnimations };
+
+    return {
+      user,
+      file,
+      folder,
+      ancestors,
+      tags: fileTags_,
+      textContent,
+      textTruncated,
+      modelTexture,
+      modelMtl,
+      availableTextures,
+      modelAnimations,
+    };
   }
 
-  return { user, file, folder, ancestors, tags: fileTags_, textContent, textTruncated, modelTexture, modelMtl, availableTextures: [], modelAnimations: [] };
+  return {
+    user,
+    file,
+    folder,
+    ancestors,
+    tags: fileTags_,
+    textContent,
+    textTruncated,
+    modelTexture,
+    modelMtl,
+    availableTextures: [],
+    modelAnimations: [],
+  };
 }
 
 export function meta({ data }: Route.MetaArgs) {
@@ -278,10 +294,7 @@ export function meta({ data }: Route.MetaArgs) {
 /**
  * Get display URL for file
  */
-function getDisplayUrl(file: {
-  path: string;
-  hasPreview: boolean | null;
-}): string {
+function getDisplayUrl(file: { path: string; hasPreview: boolean | null }): string {
   if (file.hasPreview) {
     return `/uploads/${file.path}.preview.png`;
   }
@@ -297,11 +310,14 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function gcd(a: number, b: number): number {
+  return b === 0 ? a : gcd(b, a % b);
+}
+
 /**
  * Calculate aspect ratio as a human-readable string
  */
 function getAspectRatio(width: number, height: number): string {
-  const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b));
   const divisor = gcd(width, height);
   const ratioW = width / divisor;
   const ratioH = height / divisor;
@@ -323,8 +339,22 @@ function getAspectRatio(width: number, height: number): string {
 }
 
 export default function FileView() {
-  const { user, file, folder, ancestors, tags, textContent, textTruncated, modelTexture, modelMtl, availableTextures, modelAnimations } = useLoaderData<typeof loader>();
-  const [selectedTexture, setSelectedTexture] = useState<string | undefined>(modelTexture || undefined);
+  const {
+    user,
+    file,
+    folder,
+    ancestors,
+    tags,
+    textContent,
+    textTruncated,
+    modelTexture,
+    modelMtl,
+    availableTextures,
+    modelAnimations,
+  } = useLoaderData<typeof loader>();
+  const [selectedTexture, setSelectedTexture] = useState<string | undefined>(
+    modelTexture || undefined,
+  );
 
   const isImage = file.kind === "texture";
   const isModel = file.kind === "model";
@@ -382,20 +412,24 @@ export default function FileView() {
                   modelUrl={downloadUrl}
                   textureUrl={selectedTexture}
                   mtlUrl={modelMtl || undefined}
-                  animUrls={modelAnimations.length > 0 ? modelAnimations.map(a => a.url) : undefined}
+                  animUrls={
+                    modelAnimations.length > 0 ? modelAnimations.map((a) => a.url) : undefined
+                  }
                   format={modelFormat}
                   height={450}
                 />
                 {availableTextures.length > 1 && (
-                  <div style={{ 
-                    padding: "0.5rem", 
-                    background: "#fff",
-                    borderTop: "1px solid #eee",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.5rem",
-                    fontSize: "0.8125rem",
-                  }}>
+                  <div
+                    style={{
+                      padding: "0.5rem",
+                      background: "#fff",
+                      borderTop: "1px solid #eee",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      fontSize: "0.8125rem",
+                    }}
+                  >
                     <label style={{ color: "#666" }}>Texture:</label>
                     <select
                       value={selectedTexture || ""}
@@ -466,7 +500,9 @@ export default function FileView() {
                 }}
               >
                 <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>🔊</div>
-                <div style={{ marginBottom: "0.5rem" }}>{getExtname(file.name).slice(1).toUpperCase()} Audio</div>
+                <div style={{ marginBottom: "0.5rem" }}>
+                  {getExtname(file.name).slice(1).toUpperCase()} Audio
+                </div>
                 <div style={{ fontSize: "0.875rem", color: "#666", marginBottom: "1rem" }}>
                   This format cannot be played in the browser
                 </div>
@@ -527,11 +563,7 @@ export default function FileView() {
                 }}
               >
                 <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>
-                  {file.kind === "map"
-                    ? "🗺️"
-                    : file.kind === "archive"
-                    ? "📁"
-                    : "📎"}
+                  {file.kind === "map" ? "🗺️" : file.kind === "archive" ? "📁" : "📎"}
                 </div>
                 <div style={{ marginBottom: "1rem" }}>{file.kind || "File"}</div>
                 <a href={downloadUrl} className="btn btn-primary">

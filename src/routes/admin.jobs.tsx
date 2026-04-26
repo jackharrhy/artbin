@@ -1,6 +1,5 @@
 import { useLoaderData, redirect, useRevalidator, Form, useNavigation } from "react-router";
 import type { Route } from "./+types/admin.jobs";
-import { Result } from "better-result";
 import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
 import { getAllJobs, deleteJob, cancelJob, resetStuckJob, isJobStuck } from "~/lib/jobs.server";
 import { useEffect } from "react";
@@ -53,14 +52,14 @@ export async function action({ request }: Route.ActionArgs) {
 
     case "cancel":
       const cancel = await cancelJob(jobId);
-      if (Result.isError(cancel)) {
+      if (cancel.isErr()) {
         return { error: cancel.error.message };
       }
       return { success: true, action: "cancelled" };
 
     case "reset":
       const reset = await resetStuckJob(jobId, STUCK_THRESHOLD_MINUTES);
-      if (Result.isError(reset)) {
+      if (reset.isErr()) {
         return { error: reset.error.message };
       }
       return { success: true, action: "reset" };
@@ -230,7 +229,10 @@ export default function AdminJobs() {
                         )}
                         {job.status === "completed" && output && (
                           <span style={{ fontSize: "0.75rem" }}>
-                            {(output as any).totalFiles ?? (output as any).categoriesImported?.length ?? "-"} files
+                            {(output as any).totalFiles ??
+                              (output as any).categoriesImported?.length ??
+                              "-"}{" "}
+                            files
                           </span>
                         )}
                         {job.status === "failed" && (
@@ -251,9 +253,7 @@ export default function AdminJobs() {
                           </span>
                         )}
                         {job.status === "completed" && job.startedAt && job.completedAt && (
-                          <span>
-                            {formatDuration(job.startedAt).replace(/s$/, "")}
-                          </span>
+                          <span>{formatDuration(job.startedAt).replace(/s$/, "")}</span>
                         )}
                         {job.status === "pending" && <span style={{ color: "#999" }}>waiting</span>}
                         {(job.status === "failed" || job.status === "cancelled") && "-"}
@@ -267,11 +267,7 @@ export default function AdminJobs() {
                             <Form method="post" style={{ display: "inline" }}>
                               <input type="hidden" name="intent" value="cancel" />
                               <input type="hidden" name="jobId" value={job.id} />
-                              <button
-                                type="submit"
-                                className="btn btn-sm"
-                                disabled={isSubmitting}
-                              >
+                              <button type="submit" className="btn btn-sm" disabled={isSubmitting}>
                                 Cancel
                               </button>
                             </Form>
@@ -319,10 +315,8 @@ export default function AdminJobs() {
         )}
 
         <p style={{ marginTop: "2rem", fontSize: "0.875rem" }}>
-          <a href="/admin/import">Import</a> |{" "}
-          <a href="/upload">Upload</a> |{" "}
-          <a href="/folders">Folders</a> |{" "}
-          <a href="/settings">Settings</a>
+          <a href="/admin/import">Import</a> | <a href="/upload">Upload</a> |{" "}
+          <a href="/folders">Folders</a> | <a href="/settings">Settings</a>
         </p>
       </main>
     </div>

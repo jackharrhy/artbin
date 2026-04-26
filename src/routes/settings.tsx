@@ -1,12 +1,12 @@
 import { redirect, useLoaderData, useActionData, Form } from "react-router";
 import type { Route } from "./+types/settings";
-import { 
-  parseSessionCookie, 
-  getUserFromSession, 
-  createInviteCode, 
-  deleteInviteCode, 
+import {
+  parseSessionCookie,
+  getUserFromSession,
+  createInviteCode,
+  deleteInviteCode,
   toggleInviteCode,
-  getClearSessionCookie 
+  getClearSessionCookie,
 } from "~/lib/auth.server";
 import { db, inviteCodes } from "~/db";
 import { eq, desc } from "drizzle-orm";
@@ -90,12 +90,8 @@ export default function Settings() {
       <main className="main-content" style={{ maxWidth: "600px" }}>
         <h1 className="page-title">Settings</h1>
 
-        {actionData?.error && (
-          <div className="alert alert-error">{actionData.error}</div>
-        )}
-        {actionData?.success && (
-          <div className="alert alert-success">{actionData.success}</div>
-        )}
+        {actionData?.error && <div className="alert alert-error">{actionData.error}</div>}
+        {actionData?.success && <div className="alert alert-success">{actionData.success}</div>}
 
         {/* Account Info */}
         <section className="section">
@@ -122,17 +118,20 @@ export default function Settings() {
         <section className="section">
           <h2 className="section-title">Invite Links</h2>
           <p className="form-help" style={{ marginBottom: "1rem" }}>
-            Share these links to invite others. Links can be used multiple times unless you set a limit.
+            Share these links to invite others. Links can be used multiple times unless you set a
+            limit.
           </p>
 
           <Form method="post" className="card" style={{ marginBottom: "1rem" }}>
             <input type="hidden" name="intent" value="createInvite" />
             <div className="form-group">
-              <label className="form-label" htmlFor="maxUses">Usage Limit (optional)</label>
-              <input 
-                type="number" 
+              <label className="form-label" htmlFor="maxUses">
+                Usage Limit (optional)
+              </label>
+              <input
+                type="number"
                 id="maxUses"
-                name="maxUses" 
+                name="maxUses"
                 min="1"
                 placeholder="Leave empty for unlimited"
                 className="input"
@@ -145,9 +144,7 @@ export default function Settings() {
           </Form>
 
           {invites.length === 0 ? (
-            <div className="empty-state">
-              No invite links yet
-            </div>
+            <div className="empty-state">No invite links yet</div>
           ) : (
             <div>
               {invites.map((invite) => (
@@ -198,8 +195,12 @@ export default function Settings() {
           <section className="section">
             <h2 className="section-title">Admin</h2>
             <div className="card" style={{ display: "flex", gap: "0.5rem" }}>
-              <a href="/admin/jobs" className="btn btn-sm">View Jobs</a>
-              <a href="/admin/import" className="btn btn-sm">Import Textures</a>
+              <a href="/admin/jobs" className="btn btn-sm">
+                View Jobs
+              </a>
+              <a href="/admin/import" className="btn btn-sm">
+                Import Textures
+              </a>
             </div>
           </section>
         )}

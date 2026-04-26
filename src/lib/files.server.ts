@@ -1,6 +1,6 @@
 /**
  * File utilities for artbin
- * 
+ *
  * Handles file storage, mime type detection, preview generation, and path management.
  */
 
@@ -30,7 +30,21 @@ export const TEMP_DIR = join(process.cwd(), "tmp", "uploads");
 
 const KIND_EXTENSIONS: Record<FileKind, string[]> = {
   texture: ["png", "jpg", "jpeg", "gif", "webp", "tga", "bmp", "pcx", "wal", "vtf", "dds"],
-  model: ["gltf", "glb", "obj", "fbx", "md2", "md3", "mdl", "md5mesh", "md5anim", "ase", "lwo", "iqm", "blend"],
+  model: [
+    "gltf",
+    "glb",
+    "obj",
+    "fbx",
+    "md2",
+    "md3",
+    "mdl",
+    "md5mesh",
+    "md5anim",
+    "ase",
+    "lwo",
+    "iqm",
+    "blend",
+  ],
   audio: ["wav", "mp3", "ogg", "flac", "m4a", "aiff"],
   map: ["bsp", "map", "vmf", "rmf"],
   archive: ["pk3", "pk4", "pak", "wad", "zip", "7z", "rar", "tar", "gz"],
@@ -43,13 +57,13 @@ const KIND_EXTENSIONS: Record<FileKind, string[]> = {
  */
 export function detectKind(filename: string): FileKind {
   const ext = extname(filename).toLowerCase().slice(1);
-  
+
   for (const [kind, extensions] of Object.entries(KIND_EXTENSIONS)) {
     if (extensions.includes(ext)) {
       return kind as FileKind;
     }
   }
-  
+
   return "other";
 }
 
@@ -90,14 +104,14 @@ const CUSTOM_MIME_TYPES: Record<string, string> = {
   tga: "image/x-tga",
   vtf: "image/x-vtf",
   dds: "image/x-dds",
-  
+
   // Archives
   bsp: "application/x-bsp",
   pak: "application/x-pak",
   pk3: "application/x-pk3",
   pk4: "application/x-pk4",
   wad: "application/x-wad",
-  
+
   // Models
   mdl: "model/x-mdl",
   md2: "model/x-md2",
@@ -107,7 +121,7 @@ const CUSTOM_MIME_TYPES: Record<string, string> = {
   ase: "model/x-ase",
   iqm: "model/x-iqm",
   lwo: "model/x-lwo",
-  
+
   // Text/config files (game-specific)
   cfg: "text/plain",
   def: "text/plain",
@@ -128,12 +142,12 @@ const CUSTOM_MIME_TYPES: Record<string, string> = {
   glsl: "text/plain",
   vert: "text/x-glsl",
   frag: "text/x-glsl",
-  
+
   // Source map formats
   map: "text/plain",
   vmf: "text/plain",
   rmf: "application/x-rmf",
-  
+
   // Compiled formats
   proc: "application/x-proc",
   cm: "application/x-cm",
@@ -151,18 +165,18 @@ const CUSTOM_MIME_TYPES: Record<string, string> = {
  */
 function looksLikeText(buffer: Buffer): boolean {
   if (buffer.length === 0) return false;
-  
+
   // Sample the first 8KB max
   const sampleSize = Math.min(buffer.length, 8192);
   const sample = buffer.subarray(0, sampleSize);
-  
+
   let nullCount = 0;
   let controlCount = 0;
   let printableCount = 0;
-  
+
   for (let i = 0; i < sample.length; i++) {
     const byte = sample[i];
-    
+
     // Null bytes are a strong binary indicator
     if (byte === 0) {
       nullCount++;
@@ -178,13 +192,13 @@ function looksLikeText(buffer: Buffer): boolean {
       printableCount++;
     }
   }
-  
+
   // If more than 5% control characters, probably binary
   if (controlCount > sampleSize * 0.05) return false;
-  
+
   // If less than 70% printable, probably binary
-  if (printableCount < sampleSize * 0.70) return false;
-  
+  if (printableCount < sampleSize * 0.7) return false;
+
   return true;
 }
 
@@ -193,12 +207,12 @@ function looksLikeText(buffer: Buffer): boolean {
  */
 export async function getMimeType(filename: string, buffer?: Buffer): Promise<string> {
   const ext = extname(filename).toLowerCase().slice(1);
-  
+
   // Check custom mappings first (game formats we know about)
   if (CUSTOM_MIME_TYPES[ext]) {
     return CUSTOM_MIME_TYPES[ext];
   }
-  
+
   // Try magic bytes if buffer provided
   if (buffer) {
     const detected = await fileTypeFromBuffer(buffer);
@@ -206,19 +220,19 @@ export async function getMimeType(filename: string, buffer?: Buffer): Promise<st
       return detected.mime;
     }
   }
-  
+
   // Fall back to extension-based lookup
   const mimeType = mime.lookup(filename);
   if (mimeType) {
     return mimeType;
   }
-  
+
   // If we have buffer content and couldn't identify it,
   // check if it looks like text
   if (buffer && looksLikeText(buffer)) {
     return "text/plain";
   }
-  
+
   return "application/octet-stream";
 }
 
@@ -267,11 +281,11 @@ export async function ensureDir(dirPath: string): Promise<void> {
 export function sanitizeFilename(filename: string): string {
   // Replace problematic characters but keep extension
   return filename
-    .replace(/[<>:"/\\|?*\x00-\x1f]/g, "_")  // Windows forbidden chars
-    .replace(/\s+/g, "_")                      // Spaces to underscores
-    .replace(/_+/g, "_")                       // Collapse multiple underscores
-    .replace(/^\.+/, "")                       // Remove leading dots
-    .slice(0, 255);                            // Max filename length
+    .replace(/[<>:"/\\|?*\x00-\x1f]/g, "_") // Windows forbidden chars
+    .replace(/\s+/g, "_") // Spaces to underscores
+    .replace(/_+/g, "_") // Collapse multiple underscores
+    .replace(/^\.+/, "") // Remove leading dots
+    .slice(0, 255); // Max filename length
 }
 
 /**
@@ -279,21 +293,21 @@ export function sanitizeFilename(filename: string): string {
  */
 export async function getUniqueFilename(dirPath: string, filename: string): Promise<string> {
   const fullPath = join(dirPath, filename);
-  
+
   if (!existsSync(fullPath)) {
     return filename;
   }
-  
+
   const ext = extname(filename);
   const base = basename(filename, ext);
   let counter = 1;
   let newFilename: string;
-  
+
   do {
     newFilename = `${base}_${counter}${ext}`;
     counter++;
   } while (existsSync(join(dirPath, newFilename)));
-  
+
   return newFilename;
 }
 
@@ -308,18 +322,18 @@ export async function saveFile(
   buffer: Buffer,
   folderSlug: string,
   filename: string,
-  overwrite = true
+  overwrite = true,
 ): Promise<{ path: string; name: string }> {
   const sanitized = sanitizeFilename(filename);
   const dirPath = slugToPath(folderSlug);
-  
+
   await ensureDir(dirPath);
-  
+
   const finalName = overwrite ? sanitized : await getUniqueFilename(dirPath, sanitized);
   const fullPath = join(dirPath, finalName);
-  
+
   await writeFile(fullPath, buffer);
-  
+
   return {
     path: join(folderSlug, finalName),
     name: finalName,
@@ -332,13 +346,13 @@ export async function saveFile(
 export async function deleteFile(filePath: string): Promise<void> {
   const fullPath = getFilePath(filePath);
   const previewPath = getPreviewPath(filePath);
-  
+
   try {
     await unlink(fullPath);
   } catch {
     // File may not exist
   }
-  
+
   try {
     await unlink(previewPath);
   } catch {
@@ -352,14 +366,14 @@ export async function deleteFile(filePath: string): Promise<void> {
 export async function moveFile(fromPath: string, toPath: string): Promise<void> {
   const fullFromPath = getFilePath(fromPath);
   const fullToPath = getFilePath(toPath);
-  
+
   await ensureDir(dirname(fullToPath));
   await rename(fullFromPath, fullToPath);
-  
+
   // Also move preview if it exists
   const fromPreview = getPreviewPath(fromPath);
   const toPreview = getPreviewPath(toPath);
-  
+
   try {
     await rename(fromPreview, toPreview);
   } catch {
@@ -372,11 +386,11 @@ export async function moveFile(fromPath: string, toPath: string): Promise<void> 
  */
 export async function deleteFolder(folderSlug: string): Promise<void> {
   const dirPath = slugToPath(folderSlug);
-  
+
   if (!existsSync(dirPath)) {
     return;
   }
-  
+
   // Use rm -rf for simplicity
   await execAsync(`rm -rf "${dirPath}"`);
 }
@@ -389,12 +403,10 @@ export async function deleteFolder(folderSlug: string): Promise<void> {
  * Get image dimensions using ImageMagick
  */
 export async function getImageDimensions(
-  filePath: string
+  filePath: string,
 ): Promise<Result<{ width: number; height: number }, Error>> {
   try {
-    const { stdout } = await execAsync(
-      `magick identify -format "%w %h" "${filePath}[0]"`
-    );
+    const { stdout } = await execAsync(`magick identify -format "%w %h" "${filePath}[0]"`);
     const [width, height] = stdout.trim().split(" ").map(Number);
     if (width && height) {
       return Result.ok({ width, height });
@@ -410,7 +422,7 @@ export async function getImageDimensions(
  */
 export async function generatePreview(inputPath: string): Promise<Result<boolean, Error>> {
   const outputPath = inputPath + ".preview.png";
-  
+
   try {
     await execAsync(`magick "${inputPath}" "${outputPath}"`);
     return Result.ok(true);
@@ -424,14 +436,19 @@ export async function generatePreview(inputPath: string): Promise<Result<boolean
  * - Get dimensions
  * - Generate preview if needed
  */
-export async function processImage(filePath: string): Promise<Result<{
-  width: number | null;
-  height: number | null;
-  hasPreview: boolean;
-}, Error>> {
+export async function processImage(filePath: string): Promise<
+  Result<
+    {
+      width: number | null;
+      height: number | null;
+      hasPreview: boolean;
+    },
+    Error
+  >
+> {
   const fullPath = getFilePath(filePath);
   let hasPreview = false;
-  
+
   // Generate preview for legacy formats
   if (needsPreview(filePath)) {
     const preview = await generatePreview(fullPath);
@@ -440,11 +457,11 @@ export async function processImage(filePath: string): Promise<Result<{
     }
     hasPreview = preview.value;
   }
-  
+
   // Get dimensions from preview if it exists, otherwise from original
   const dimensionPath = hasPreview ? fullPath + ".preview.png" : fullPath;
   const dims = await getImageDimensions(dimensionPath);
-  
+
   return Result.ok({
     width: dims.isOk() ? dims.value.width : null,
     height: dims.isOk() ? dims.value.height : null,
@@ -483,10 +500,10 @@ export async function cleanupTempFile(tempPath: string): Promise<void> {
  */
 export async function cleanupOldTempFiles(): Promise<void> {
   if (!existsSync(TEMP_DIR)) return;
-  
+
   const files = await readdir(TEMP_DIR);
   const oneHourAgo = Date.now() - 60 * 60 * 1000;
-  
+
   for (const file of files) {
     const filePath = join(TEMP_DIR, file);
     try {
@@ -508,12 +525,12 @@ import { db, files, folders, fileTags, tags } from "~/db";
 import { eq, like, and, or, inArray, desc, lt, sql } from "drizzle-orm";
 
 export interface SearchFilesOptions {
-  kind?: FileKind | FileKind[];  // Filter by file kind(s)
-  query?: string;                 // Search filename
-  tagSlug?: string;               // Filter by tag
-  folderIds?: string[];           // Limit to these folders (for subtree queries)
-  cursor?: string;                // Cursor for pagination (file ID)
-  limit?: number;                 // Results per page
+  kind?: FileKind | FileKind[]; // Filter by file kind(s)
+  query?: string; // Search filename
+  tagSlug?: string; // Filter by tag
+  folderIds?: string[]; // Limit to these folders (for subtree queries)
+  cursor?: string; // Cursor for pagination (file ID)
+  limit?: number; // Results per page
 }
 
 export interface SearchFilesResult {
@@ -537,14 +554,7 @@ export interface SearchFilesResult {
  * Search and filter files with pagination
  */
 export async function searchFiles(options: SearchFilesOptions): Promise<SearchFilesResult> {
-  const {
-    kind,
-    query,
-    tagSlug,
-    folderIds,
-    cursor,
-    limit = 50,
-  } = options;
+  const { kind, query, tagSlug, folderIds, cursor, limit = 50 } = options;
 
   // Build conditions array
   const conditions: any[] = [];
@@ -573,14 +583,14 @@ export async function searchFiles(options: SearchFilesOptions): Promise<SearchFi
     const tag = await db.query.tags.findFirst({
       where: eq(tags.slug, tagSlug),
     });
-    
+
     if (tag) {
       const taggedFileIds = await db
         .select({ fileId: fileTags.fileId })
         .from(fileTags)
         .where(eq(fileTags.tagId, tag.id));
-      
-      const ids = taggedFileIds.map(r => r.fileId);
+
+      const ids = taggedFileIds.map((r) => r.fileId);
       if (ids.length > 0) {
         conditions.push(inArray(files.id, ids));
       } else {
@@ -603,11 +613,8 @@ export async function searchFiles(options: SearchFilesOptions): Promise<SearchFi
       conditions.push(
         or(
           lt(files.createdAt, cursorFile.createdAt),
-          and(
-            eq(files.createdAt, cursorFile.createdAt),
-            lt(files.id, cursor)
-          )
-        )
+          and(eq(files.createdAt, cursorFile.createdAt), lt(files.id, cursor)),
+        ),
       );
     }
   }
@@ -639,7 +646,7 @@ export async function searchFiles(options: SearchFilesOptions): Promise<SearchFi
     return !cursor || i < conditions.length - 1;
   });
   const countWhere = countConditions.length > 0 ? and(...countConditions) : undefined;
-  
+
   const [{ count: total }] = await db
     .select({ count: sql<number>`count(*)` })
     .from(files)
@@ -662,18 +669,18 @@ export async function searchFiles(options: SearchFilesOptions): Promise<SearchFi
  */
 export async function getDescendantFolderIds(folderId: string): Promise<string[]> {
   const result: string[] = [folderId];
-  
+
   async function collectChildren(parentId: string) {
     const children = await db.query.folders.findMany({
       where: eq(folders.parentId, parentId),
     });
-    
+
     for (const child of children) {
       result.push(child.id);
       await collectChildren(child.id);
     }
   }
-  
+
   await collectChildren(folderId);
   return result;
 }
@@ -682,9 +689,8 @@ export async function getDescendantFolderIds(folderId: string): Promise<string[]
  * Get counts of files by kind, optionally scoped to folder IDs
  */
 export async function getFileCountsByKind(folderIds?: string[]): Promise<Record<string, number>> {
-  const condition = folderIds && folderIds.length > 0
-    ? inArray(files.folderId, folderIds)
-    : undefined;
+  const condition =
+    folderIds && folderIds.length > 0 ? inArray(files.folderId, folderIds) : undefined;
 
   const results = await db
     .select({
@@ -822,10 +828,7 @@ export async function recalculateFolderCounts(folderIds: string[]): Promise<void
       .select({ c: sql<number>`count(*)` })
       .from(files)
       .where(eq(files.folderId, folderId));
-    
-    await db
-      .update(folders)
-      .set({ fileCount: c })
-      .where(eq(folders.id, folderId));
+
+    await db.update(folders).set({ fileCount: c }).where(eq(folders.id, folderId));
   }
 }

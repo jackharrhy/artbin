@@ -113,7 +113,12 @@ export async function action({ request }: Route.ActionArgs) {
         userId: user.id,
       });
 
-      return { success: true, jobId: job.id, action: "import-bsp", archiveName: archivePath.split("/").pop() };
+      return {
+        success: true,
+        jobId: job.id,
+        action: "import-bsp",
+        archiveName: archivePath.split("/").pop(),
+      };
     }
 
     const job = await createJob({
@@ -129,7 +134,12 @@ export async function action({ request }: Route.ActionArgs) {
       userId: user.id,
     });
 
-    return { success: true, jobId: job.id, action: "import-archive", archiveName: archivePath.split("/").pop() };
+    return {
+      success: true,
+      jobId: job.id,
+      action: "import-archive",
+      archiveName: archivePath.split("/").pop(),
+    };
   }
 
   if (intent === "batch-import") {
@@ -167,13 +177,22 @@ export async function action({ request }: Route.ActionArgs) {
           parentFolderName: folderName,
           archives: regularArchivePaths.map((path) => ({
             path,
-            subfolderSlug: slugify(path.split("/").pop()?.replace(/\.[^.]+$/, "") || "archive"),
+            subfolderSlug: slugify(
+              path
+                .split("/")
+                .pop()
+                ?.replace(/\.[^.]+$/, "") || "archive",
+            ),
           })),
           userId: user.id,
         },
         userId: user.id,
       });
-      results.push({ jobId: archiveJob.id, action: "batch-archive", count: regularArchivePaths.length });
+      results.push({
+        jobId: archiveJob.id,
+        action: "batch-archive",
+        count: regularArchivePaths.length,
+      });
     }
 
     // Create job for BSP files if any
@@ -185,7 +204,12 @@ export async function action({ request }: Route.ActionArgs) {
           parentFolderName: folderName,
           bspFiles: bspPaths.map((path) => ({
             path,
-            subfolderSlug: slugify(path.split("/").pop()?.replace(/\.[^.]+$/, "") || "bsp"),
+            subfolderSlug: slugify(
+              path
+                .split("/")
+                .pop()
+                ?.replace(/\.[^.]+$/, "") || "bsp",
+            ),
           })),
           userId: user.id,
         },
@@ -194,10 +218,10 @@ export async function action({ request }: Route.ActionArgs) {
       results.push({ jobId: bspJob.id, action: "batch-bsp", count: bspPaths.length });
     }
 
-    return { 
-      success: true, 
+    return {
+      success: true,
       jobIds: results.map((r) => r.jobId),
-      action: "batch-import", 
+      action: "batch-import",
       count: archivePaths.length,
       bspCount: bspPaths.length,
       archiveCount: regularArchivePaths.length,
@@ -246,7 +270,7 @@ function buildTree(archives: FoundArchive[]): TreeNode {
 
     for (const part of parts) {
       currentPath += "/" + part;
-      
+
       if (!current.children.has(part)) {
         current.children.set(part, {
           name: part,
@@ -289,31 +313,28 @@ function getAllArchivePaths(node: TreeNode): string[] {
 /**
  * Recursively render tree nodes, collapsing paths with single children
  */
-function TreeNodeView({ 
-  node, 
+function TreeNodeView({
+  node,
   depth = 0,
   selectedPaths,
   onToggleArchive,
   onToggleFolder,
-}: { 
-  node: TreeNode; 
+}: {
+  node: TreeNode;
   depth?: number;
   selectedPaths: Set<string>;
   onToggleArchive: (path: string) => void;
   onToggleFolder: (paths: string[], selected: boolean) => void;
 }) {
   const archiveCount = countArchives(node);
-  
+
   if (archiveCount === 0) return null;
 
   // Collect path segments that have only one child and no archives
   let displayNode = node;
   let displayPath = node.name;
-  
-  while (
-    displayNode.children.size === 1 &&
-    displayNode.archives.length === 0
-  ) {
+
+  while (displayNode.children.size === 1 && displayNode.archives.length === 0) {
     const onlyChild = Array.from(displayNode.children.values())[0];
     displayPath += "/" + onlyChild.name;
     displayNode = onlyChild;
@@ -324,13 +345,11 @@ function TreeNodeView({
 
   // Sort children by name
   const sortedChildren = Array.from(displayNode.children.values()).sort((a, b) =>
-    a.name.localeCompare(b.name)
+    a.name.localeCompare(b.name),
   );
 
   // Sort archives by name
-  const sortedArchives = [...displayNode.archives].sort((a, b) =>
-    a.name.localeCompare(b.name)
-  );
+  const sortedArchives = [...displayNode.archives].sort((a, b) => a.name.localeCompare(b.name));
 
   // Calculate folder selection state
   const allPaths = getAllArchivePaths(displayNode);
@@ -353,42 +372,44 @@ function TreeNodeView({
         <summary className="tree-folder-header">
           <span className="tree-folder-icon">{hasChildren || hasArchives ? "📁" : "📂"}</span>
           <span className="tree-folder-name">{displayPath}</span>
-          <span className="tree-folder-count">{archiveCount} archive{archiveCount !== 1 ? "s" : ""}</span>
+          <span className="tree-folder-count">
+            {archiveCount} archive{archiveCount !== 1 ? "s" : ""}
+          </span>
         </summary>
-      
-      <div className="tree-folder-content">
-        {/* Child folders */}
-        {sortedChildren.map((child) => (
-          <TreeNodeView 
-            key={child.path} 
-            node={child} 
-            depth={depth + 1}
-            selectedPaths={selectedPaths}
-            onToggleArchive={onToggleArchive}
-            onToggleFolder={onToggleFolder}
-          />
-        ))}
 
-        {/* Archives in this folder */}
-        {sortedArchives.map((archive) => (
-          <ArchiveItem 
-            key={archive.path} 
-            archive={archive}
-            isSelected={selectedPaths.has(archive.path)}
-            onToggle={() => onToggleArchive(archive.path)}
-          />
-        ))}
-      </div>
-    </details>
+        <div className="tree-folder-content">
+          {/* Child folders */}
+          {sortedChildren.map((child) => (
+            <TreeNodeView
+              key={child.path}
+              node={child}
+              depth={depth + 1}
+              selectedPaths={selectedPaths}
+              onToggleArchive={onToggleArchive}
+              onToggleFolder={onToggleFolder}
+            />
+          ))}
+
+          {/* Archives in this folder */}
+          {sortedArchives.map((archive) => (
+            <ArchiveItem
+              key={archive.path}
+              archive={archive}
+              isSelected={selectedPaths.has(archive.path)}
+              onToggle={() => onToggleArchive(archive.path)}
+            />
+          ))}
+        </div>
+      </details>
     </div>
   );
 }
 
-function ArchiveItem({ 
+function ArchiveItem({
   archive,
   isSelected,
   onToggle,
-}: { 
+}: {
   archive: FoundArchive;
   isSelected: boolean;
   onToggle: () => void;
@@ -399,12 +420,7 @@ function ArchiveItem({
 
   return (
     <div className={`tree-archive-wrapper ${isSelected ? "tree-archive-selected" : ""}`}>
-      <input
-        type="checkbox"
-        className="tree-checkbox"
-        checked={isSelected}
-        onChange={onToggle}
-      />
+      <input type="checkbox" className="tree-checkbox" checked={isSelected} onChange={onToggle} />
       <details className="tree-archive">
         <summary className="tree-archive-header">
           <span className="tree-archive-icon">
@@ -454,7 +470,11 @@ function ArchiveItem({
                 />
               </div>
 
-              <button type="submit" className="btn btn-primary btn-sm" style={{ alignSelf: "flex-end" }}>
+              <button
+                type="submit"
+                className="btn btn-primary btn-sm"
+                style={{ alignSelf: "flex-end" }}
+              >
                 Import
               </button>
             </div>
@@ -487,11 +507,7 @@ function BatchImportButton({
   return (
     <>
       {/* Fixed button in bottom right */}
-      <button
-        type="button"
-        className="batch-import-fab"
-        onClick={() => setIsOpen(true)}
-      >
+      <button type="button" className="batch-import-fab" onClick={() => setIsOpen(true)}>
         Import {selectedPaths.size} selected
       </button>
 
@@ -507,13 +523,17 @@ function BatchImportButton({
             </div>
             <div className="modal-body">
               <p style={{ marginBottom: "1rem", color: "#666" }}>
-                Import <strong>{selectedPaths.size}</strong> archives as subfolders of a new parent folder.
-                Each archive will become a subfolder named after its filename.
+                Import <strong>{selectedPaths.size}</strong> archives as subfolders of a new parent
+                folder. Each archive will become a subfolder named after its filename.
               </p>
 
               <Form method="post" onSubmit={() => setIsOpen(false)}>
                 <input type="hidden" name="intent" value="batch-import" />
-                <input type="hidden" name="archivePaths" value={JSON.stringify([...selectedPaths])} />
+                <input
+                  type="hidden"
+                  name="archivePaths"
+                  value={JSON.stringify([...selectedPaths])}
+                />
 
                 <div className="form-group">
                   <label className="form-label">Parent Folder Name</label>
@@ -548,7 +568,11 @@ function BatchImportButton({
                   <button type="button" className="btn" onClick={onClear}>
                     Clear Selection
                   </button>
-                  <button type="submit" className="btn btn-primary" disabled={!folderName || !folderSlug}>
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    disabled={!folderName || !folderSlug}
+                  >
                     Import as Subfolders
                   </button>
                 </div>
@@ -562,7 +586,8 @@ function BatchImportButton({
 }
 
 export default function AdminArchives() {
-  const { user, archives, totalArchives, scanJobStatus, scanJobProgress, scanJobMessage } = useLoaderData<typeof loader>();
+  const { user, archives, totalArchives, scanJobStatus, scanJobProgress, scanJobMessage } =
+    useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const revalidator = useRevalidator();
 
@@ -593,7 +618,7 @@ export default function AdminArchives() {
   // Get top-level nodes (skip the root "/" node)
   const topLevelNodes = useMemo(
     () => Array.from(tree.children.values()).sort((a, b) => a.name.localeCompare(b.name)),
-    [tree]
+    [tree],
   );
 
   const handleToggleArchive = (path: string) => {
@@ -642,7 +667,8 @@ export default function AdminArchives() {
 
         <h1 className="page-title">Local Archives</h1>
         <p style={{ marginBottom: "1.5rem", color: "#666" }}>
-          Scan your computer for game archives (PAK, PK3, WAD, ZIP) and BSP maps to extract textures.
+          Scan your computer for game archives (PAK, PK3, WAD, ZIP) and BSP maps to extract
+          textures.
         </p>
 
         {/* Alerts */}
@@ -661,25 +687,34 @@ export default function AdminArchives() {
 
         {actionData?.success && actionData.action === "import-bsp" && (
           <div className="alert alert-success" style={{ marginBottom: "1rem" }}>
-            <strong>BSP extraction started!</strong> Extracting textures from {actionData.archiveName}.{" "}
-            <a href="/admin/jobs">View progress</a>
+            <strong>BSP extraction started!</strong> Extracting textures from{" "}
+            {actionData.archiveName}. <a href="/admin/jobs">View progress</a>
           </div>
         )}
 
         {actionData?.success && actionData.action === "batch-import" && (
           <div className="alert alert-success" style={{ marginBottom: "1rem" }}>
             <strong>Batch import started!</strong>{" "}
-            {(actionData.archiveCount ?? 0) > 0 && `${actionData.archiveCount} archive${actionData.archiveCount !== 1 ? "s" : ""}`}
+            {(actionData.archiveCount ?? 0) > 0 &&
+              `${actionData.archiveCount} archive${actionData.archiveCount !== 1 ? "s" : ""}`}
             {(actionData.archiveCount ?? 0) > 0 && (actionData.bspCount ?? 0) > 0 && " and "}
-            {(actionData.bspCount ?? 0) > 0 && `${actionData.bspCount} BSP map${actionData.bspCount !== 1 ? "s" : ""}`}
-            {" "}will be processed into "{actionData.folderName}".{" "}
+            {(actionData.bspCount ?? 0) > 0 &&
+              `${actionData.bspCount} BSP map${actionData.bspCount !== 1 ? "s" : ""}`}{" "}
+            will be processed into "{actionData.folderName}".{" "}
             <a href="/admin/jobs">View progress</a>
           </div>
         )}
 
         {/* Scan Controls */}
         <div className="card" style={{ marginBottom: "1.5rem" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem" }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: "1rem",
+            }}
+          >
             <div>
               <strong>Scan Home Directory</strong>
               <p style={{ fontSize: "0.875rem", color: "#666", margin: 0 }}>
@@ -696,10 +731,27 @@ export default function AdminArchives() {
 
           {isScanning && (
             <div style={{ marginTop: "1rem" }}>
-              <div style={{ width: "100%", height: "6px", background: "#eee", borderRadius: "3px", overflow: "hidden" }}>
-                <div style={{ width: `${scanJobProgress || 0}%`, height: "100%", background: "#4CAF50", transition: "width 0.3s" }} />
+              <div
+                style={{
+                  width: "100%",
+                  height: "6px",
+                  background: "#eee",
+                  borderRadius: "3px",
+                  overflow: "hidden",
+                }}
+              >
+                <div
+                  style={{
+                    width: `${scanJobProgress || 0}%`,
+                    height: "100%",
+                    background: "#4CAF50",
+                    transition: "width 0.3s",
+                  }}
+                />
               </div>
-              <p style={{ fontSize: "0.75rem", color: "#666", marginTop: "0.5rem", marginBottom: 0 }}>
+              <p
+                style={{ fontSize: "0.75rem", color: "#666", marginTop: "0.5rem", marginBottom: 0 }}
+              >
                 {scanJobMessage || "Starting scan..."}
               </p>
             </div>
@@ -710,13 +762,13 @@ export default function AdminArchives() {
         {totalArchives > 0 ? (
           <div className="archive-tree">
             <div style={{ marginBottom: "1rem", color: "#666", fontSize: "0.875rem" }}>
-              Found {totalArchives} archive{totalArchives !== 1 ? "s" : ""}. 
-              Use checkboxes to select multiple, or click archives to import individually.
+              Found {totalArchives} archive{totalArchives !== 1 ? "s" : ""}. Use checkboxes to
+              select multiple, or click archives to import individually.
             </div>
 
             {topLevelNodes.map((node) => (
-              <TreeNodeView 
-                key={node.path} 
+              <TreeNodeView
+                key={node.path}
                 node={node}
                 selectedPaths={selectedPaths}
                 onToggleArchive={handleToggleArchive}
@@ -735,15 +787,11 @@ export default function AdminArchives() {
         ) : null}
 
         <p style={{ marginTop: "2rem", fontSize: "0.875rem", color: "#666" }}>
-          <a href="/admin/import">← Back to Import</a> |{" "}
-          <a href="/admin/jobs">View Jobs</a>
+          <a href="/admin/import">← Back to Import</a> | <a href="/admin/jobs">View Jobs</a>
         </p>
       </main>
 
-      <BatchImportButton
-        selectedPaths={selectedPaths}
-        onClear={handleClearSelection}
-      />
+      <BatchImportButton selectedPaths={selectedPaths} onClear={handleClearSelection} />
     </div>
   );
 }

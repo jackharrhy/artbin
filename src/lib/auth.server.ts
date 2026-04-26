@@ -19,7 +19,7 @@ export async function createUser(
   email: string,
   username: string,
   password: string,
-  inviteCode?: string
+  inviteCode?: string,
 ) {
   // Check if invite code is valid (if provided)
   let invitedBy: string | null = null;
@@ -84,10 +84,7 @@ export async function createUser(
   return Result.ok(user);
 }
 
-export async function login(
-  email: string,
-  password: string
-) {
+export async function login(email: string, password: string) {
   const user = await db.query.users.findFirst({
     where: eq(users.email, email),
   });

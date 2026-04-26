@@ -1,6 +1,6 @@
 /**
  * Texture Station (TheJang) import job handler
- * 
+ *
  * Imports textures from thejang.com/textures/ into artbin.
  * Scrapes HTML pages to find texture images, creates folders for each category.
  */
@@ -19,6 +19,7 @@ import {
   ensureDir,
   slugToPath,
   recalculateFolderCounts,
+  insertFileRecord,
 } from "./files.server";
 import { generateFolderPreview } from "./folder-preview.server";
 
@@ -27,13 +28,13 @@ import { generateFolderPreview } from "./folder-preview.server";
 // ============================================================================
 
 interface Category {
-  page: string;      // HTML page filename
-  name: string;      // Display name
-  slug: string;      // URL slug for folder
+  page: string; // HTML page filename
+  name: string; // Display name
+  slug: string; // URL slug for folder
 }
 
 export interface TextureStationImportInput {
-  categories?: string[];  // If empty/undefined, import all categories
+  categories?: string[]; // If empty/undefined, import all categories
   userId?: string;
 }
 
@@ -77,11 +78,11 @@ const CATEGORIES: Category[] = [
  */
 function parseTextureImages(html: string): string[] {
   const images: string[] = [];
-  
+
   // Match IMG tags with SRC pointing to i2/ directory
   // Pattern: <IMG SRC="i2/Texture_xxx_nnn.jpg" or .gif
   const imgRegex = /SRC="(i2\/Texture_[^"]+\.(?:jpg|gif))"/gi;
-  
+
   let match;
   while ((match = imgRegex.exec(html)) !== null) {
     const imgPath = match[1];
@@ -91,7 +92,7 @@ function parseTextureImages(html: string): string[] {
       images.push(filename);
     }
   }
-  
+
   return images;
 }
 
@@ -101,11 +102,11 @@ function parseTextureImages(html: string): string[] {
 async function fetchCategoryTextures(page: string): Promise<string[]> {
   const url = `${BASE_URL}/${page}`;
   const res = await fetch(url);
-  
+
   if (!res.ok) {
     throw new Error(`Failed to fetch ${url}: ${res.status} ${res.statusText}`);
   }
-  
+
   const html = await res.text();
   return parseTextureImages(html);
 }
@@ -116,11 +117,11 @@ async function fetchCategoryTextures(page: string): Promise<string[]> {
 async function downloadTexture(filename: string): Promise<Buffer> {
   const url = `${BASE_URL}/i2/${filename}`;
   const res = await fetch(url);
-  
+
   if (!res.ok) {
     throw new Error(`Failed to download ${url}: ${res.status}`);
   }
-  
+
   const arrayBuffer = await res.arrayBuffer();
   return Buffer.from(arrayBuffer);
 }
@@ -153,12 +154,9 @@ async function getOrCreateParentFolder(): Promise<string> {
 /**
  * Get or create a category folder
  */
-async function getOrCreateCategoryFolder(
-  category: Category,
-  parentId: string
-): Promise<string> {
+async function getOrCreateCategoryFolder(category: Category, parentId: string): Promise<string> {
   const slug = `${PARENT_SLUG}/${category.slug}`;
-  
+
   const existing = await db.query.folders.findFirst({
     where: eq(folders.slug, slug),
   });
@@ -187,7 +185,7 @@ async function getOrCreateCategoryFolder(
 
 async function handleTextureStationImport(
   job: Job,
-  input: Record<string, unknown>
+  input: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
   const { categories: requestedCategories, userId } = input as unknown as TextureStationImportInput;
 
@@ -196,9 +194,7 @@ async function handleTextureStationImport(
   // Filter categories if specific ones were requested
   let categoriesToImport = CATEGORIES;
   if (requestedCategories && requestedCategories.length > 0) {
-    categoriesToImport = CATEGORIES.filter((cat) =>
-      requestedCategories.includes(cat.slug)
-    );
+    categoriesToImport = CATEGORIES.filter((cat) => requestedCategories.includes(cat.slug));
   }
 
   if (categoriesToImport.length === 0) {
@@ -207,10 +203,10 @@ async function handleTextureStationImport(
 
   // First pass: fetch all category pages to count total textures
   await updateJobProgress(job.id, 5, "Fetching category pages...");
-  
+
   const categoryTextures: Map<Category, string[]> = new Map();
   let totalFiles = 0;
-  
+
   for (const category of categoriesToImport) {
     try {
       const textures = await fetchCategoryTextures(category.page);
@@ -225,13 +221,13 @@ async function handleTextureStationImport(
   await updateJobProgress(
     job.id,
     10,
-    `Found ${totalFiles} textures in ${categoriesToImport.length} categories`
+    `Found ${totalFiles} textures in ${categoriesToImport.length} categories`,
   );
 
   // Create parent folder
   const parentFolderId = await getOrCreateParentFolder();
   const createdFolderIds: string[] = [parentFolderId];
-  
+
   let processedFiles = 0;
   let importedFiles = 0;
   const errors: string[] = [];
@@ -245,7 +241,7 @@ async function handleTextureStationImport(
     const folderId = await getOrCreateCategoryFolder(category, parentFolderId);
     createdFolderIds.push(folderId);
     categoriesImported.push(category.name);
-    
+
     const folderSlug = `${PARENT_SLUG}/${category.slug}`;
 
     for (const filename of textures) {
@@ -269,7 +265,7 @@ async function handleTextureStationImport(
           buffer,
           folderSlug,
           filename,
-          true
+          true,
         );
 
         // Detect kind and mime type
@@ -290,7 +286,7 @@ async function handleTextureStationImport(
         }
 
         // Create file record
-        await db.insert(files).values({
+        const inserted = await insertFileRecord({
           id: nanoid(),
           path: savedPath,
           name: savedName,
@@ -305,6 +301,7 @@ async function handleTextureStationImport(
           source: "texture-station",
           sourceArchive: null,
         });
+        if (inserted.isErr()) throw inserted.error;
 
         importedFiles++;
       } catch (error) {
@@ -321,7 +318,7 @@ async function handleTextureStationImport(
         await updateJobProgress(
           job.id,
           progress,
-          `Imported ${importedFiles}/${processedFiles} textures (${category.name})...`
+          `Imported ${importedFiles}/${processedFiles} textures (${category.name})...`,
         );
       }
     }
