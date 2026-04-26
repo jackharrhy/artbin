@@ -1,5 +1,6 @@
 import { Form, redirect, useLoaderData, useActionData } from "react-router";
 import type { Route } from "./+types/admin.scan-settings";
+import { Result } from "better-result";
 import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
 import { Header } from "~/components/Header";
 import type { ScanSettings } from "~/lib/settings.types";
@@ -69,28 +70,16 @@ export async function action({ request }: Route.ActionArgs) {
       .map(s => s.trim())
       .filter(Boolean);
 
-    // Validate regex patterns
-    const invalidPatterns: string[] = [];
-    for (const pattern of excludePathPatterns) {
-      try {
-        new RegExp(pattern);
-      } catch {
-        invalidPatterns.push(pattern);
-      }
-    }
-
-    if (invalidPatterns.length > 0) {
-      return { 
-        error: `Invalid regex patterns: ${invalidPatterns.join(", ")}`,
-      };
-    }
-
-    await updateScanSettings({
+    const result = await updateScanSettings({
       excludeDirs,
       excludeFilenames,
       excludePathPatterns,
       knownGameDirs,
     });
+
+    if (Result.isError(result)) {
+      return { error: result.error.message };
+    }
 
     return { success: true, message: "Settings saved" };
   }
