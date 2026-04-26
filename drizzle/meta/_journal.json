@@ -5,29 +5,8 @@
     {
       "idx": 0,
       "version": "6",
-      "when": 1768755023451,
-      "tag": "0000_complete_adam_destine",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1768765667387,
-      "tag": "0001_great_iron_fist",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1768766529020,
-      "tag": "0002_lovely_wonder_man",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "6",
-      "when": 1777229052384,
-      "tag": "0003_clever_spot",
+      "when": 1777236541068,
+      "tag": "0000_wooden_terror",
       "breakpoints": true
     }
   ]

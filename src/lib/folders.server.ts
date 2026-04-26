@@ -5,8 +5,8 @@ import { eq } from "drizzle-orm";
 import { existsSync } from "fs";
 import { rename } from "fs/promises";
 import { db as appDb, files, folders, type AppDb, type Folder } from "~/db";
-import { ensureDir as ensureUploadsDir, UPLOADS_DIR } from "../files.server";
-import { generateFolderPreview } from "../folder-preview.server";
+import { ensureDir as ensureUploadsDir, UPLOADS_DIR } from "./files.server";
+import { generateFolderPreview } from "./folder-preview.server";
 
 export interface CreateFolderInput {
   name: string;

@@ -544,7 +544,7 @@ export interface SearchFilesResult {
     width: number | null;
     height: number | null;
     hasPreview: boolean | null;
-    folderId: string | null;
+    folderId: string;
   }[];
   nextCursor: string | null;
   total: number;
@@ -737,7 +737,7 @@ export interface CreateFileRecord {
   width?: number | null;
   height?: number | null;
   hasPreview?: boolean;
-  folderId: string | null;
+  folderId: string;
   uploaderId?: string | null;
   source?: string | null;
   sourceArchive?: string | null;

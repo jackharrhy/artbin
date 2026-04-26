@@ -91,7 +91,13 @@ describe("file record count sync", () => {
   });
 
   test("returns an error when inserting a duplicate file record fails", async () => {
-    setupDatabase();
+    const db = setupDatabase();
+
+    await db.insert(folders).values({
+      id: "folder-1",
+      name: "Textures",
+      slug: "textures",
+    });
 
     const record = {
       id: "file-1",
@@ -100,7 +106,7 @@ describe("file record count sync", () => {
       mimeType: "image/png",
       size: 123,
       kind: "texture" as const,
-      folderId: null,
+      folderId: "folder-1",
     };
 
     expect((await insertFileRecord(record)).isOk()).toBe(true);

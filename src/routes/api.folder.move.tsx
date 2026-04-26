@@ -1,6 +1,6 @@
 import type { Route } from "./+types/api.folder.move";
 import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
-import { createFolderAndMoveChildren, moveFolder } from "~/lib/core/folders.server";
+import { createFolderAndMoveChildren, moveFolder } from "~/lib/folders.server";
 
 export async function action({ request }: Route.ActionArgs) {
   const sessionId = parseSessionCookie(request.headers.get("Cookie"));

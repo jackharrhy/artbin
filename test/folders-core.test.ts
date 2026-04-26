@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "vitest";
 import { eq } from "drizzle-orm";
 import { files, folders, users } from "~/db/schema";
 import { setDbForTesting } from "~/db";
-import { createFolder, createFolderAndMoveChildren, moveFolder } from "~/lib/core/folders.server";
+import { createFolder, createFolderAndMoveChildren, moveFolder } from "~/lib/folders.server";
 import { applyMigrations, createTestDatabase, type TestDatabase } from "./db";
 
 let currentDb: TestDatabase | undefined;

@@ -13,10 +13,6 @@
 
 import * as THREE from "three";
 
-// ============================================================================
-// Types
-// ============================================================================
-
 interface MD5Joint {
   name: string;
   parent: number;
@@ -79,10 +75,6 @@ interface MD5AnimFile {
   frames: MD5AnimFrame[];
 }
 
-// ============================================================================
-// Quaternion Utilities
-// ============================================================================
-
 /**
  * Compute quaternion W component from XYZ
  * MD5 stores quaternions as xyz with w computed to make unit quaternion
@@ -92,19 +84,11 @@ function computeQuaternionW(x: number, y: number, z: number): number {
   return t < 0 ? 0 : -Math.sqrt(t);
 }
 
-// ============================================================================
-// Parser
-// ============================================================================
-
 class MD5Parser {
-  /**
-   * Parse an MD5 mesh file
-   */
   static parseMesh(source: string): MD5MeshFile {
     const joints: MD5Joint[] = [];
     const meshes: MD5MeshData[] = [];
 
-    // Parse joints section
     const jointsMatch = source.match(/joints\s*\{([^}]+)\}/);
     if (jointsMatch) {
       const jointsBlock = jointsMatch[1];
@@ -121,25 +105,27 @@ class MD5Parser {
         joints.push({
           name: match[1],
           parent: parseInt(match[2], 10),
-          position: [parseFloat(match[3]), parseFloat(match[4]), parseFloat(match[5])],
+          position: [
+            parseFloat(match[3]),
+            parseFloat(match[4]),
+            parseFloat(match[5]),
+          ],
           orientation: [x, y, z, w],
         });
       }
     }
 
-    // Parse mesh sections
     const meshRegex = /mesh\s*\{([^}]+(?:\{[^}]*\}[^}]*)*)\}/g;
     let meshMatch;
     while ((meshMatch = meshRegex.exec(source)) !== null) {
       const meshBlock = meshMatch[1];
 
-      // Shader
       const shaderMatch = meshBlock.match(/shader\s+"([^"]+)"/);
       const shader = shaderMatch ? shaderMatch[1] : "";
 
-      // Vertices
       const vertices: MD5Vertex[] = [];
-      const vertRegex = /vert\s+(\d+)\s+\(\s*([^\s]+)\s+([^\s]+)\s*\)\s+(\d+)\s+(\d+)/g;
+      const vertRegex =
+        /vert\s+(\d+)\s+\(\s*([^\s]+)\s+([^\s]+)\s*\)\s+(\d+)\s+(\d+)/g;
       let vertMatch;
       while ((vertMatch = vertRegex.exec(meshBlock)) !== null) {
         vertices.push({
@@ -150,7 +136,6 @@ class MD5Parser {
         });
       }
 
-      // Triangles
       const triangles: MD5Triangle[] = [];
       const triRegex = /tri\s+\d+\s+(\d+)\s+(\d+)\s+(\d+)/g;
       let triMatch;
@@ -164,7 +149,6 @@ class MD5Parser {
         });
       }
 
-      // Weights
       const weights: MD5Weight[] = [];
       const weightRegex =
         /weight\s+(\d+)\s+(\d+)\s+([^\s]+)\s+\(\s*([^\s]+)\s+([^\s]+)\s+([^\s]+)\s*\)/g;
@@ -188,19 +172,13 @@ class MD5Parser {
     return { joints, meshes };
   }
 
-  /**
-   * Parse an MD5 animation file
-   */
   static parseAnim(source: string): MD5AnimFile {
-    // Frame rate
     const frameRateMatch = source.match(/frameRate\s+(\d+)/);
     const frameRate = frameRateMatch ? parseInt(frameRateMatch[1], 10) : 24;
 
-    // Num frames
     const numFramesMatch = source.match(/numFrames\s+(\d+)/);
     const numFrames = numFramesMatch ? parseInt(numFramesMatch[1], 10) : 0;
 
-    // Hierarchy
     const hierarchy: MD5AnimHierarchy[] = [];
     const hierMatch = source.match(/hierarchy\s*\{([^}]+)\}/);
     if (hierMatch) {
@@ -216,7 +194,6 @@ class MD5Parser {
       }
     }
 
-    // Base frame
     const baseFrame: MD5AnimBaseFrame[] = [];
     const baseMatch = source.match(/baseframe\s*\{([^}]+)\}/);
     if (baseMatch) {
@@ -225,13 +202,20 @@ class MD5Parser {
       let match;
       while ((match = baseRegex.exec(baseMatch[1])) !== null) {
         baseFrame.push({
-          position: [parseFloat(match[1]), parseFloat(match[2]), parseFloat(match[3])],
-          orientation: [parseFloat(match[4]), parseFloat(match[5]), parseFloat(match[6])],
+          position: [
+            parseFloat(match[1]),
+            parseFloat(match[2]),
+            parseFloat(match[3]),
+          ],
+          orientation: [
+            parseFloat(match[4]),
+            parseFloat(match[5]),
+            parseFloat(match[6]),
+          ],
         });
       }
     }
 
-    // Frames
     const frames: MD5AnimFrame[] = [];
     const frameRegex = /frame\s+(\d+)\s*\{([^}]+)\}/g;
     let frameMatch;
@@ -248,10 +232,6 @@ class MD5Parser {
     return { frameRate, numFrames, hierarchy, baseFrame, frames };
   }
 }
-
-// ============================================================================
-// MD5Loader
-// ============================================================================
 
 export interface MD5LoadResult {
   mesh: THREE.SkinnedMesh;
@@ -277,7 +257,10 @@ export class MD5Loader {
   /**
    * Load an MD5 animation file and create a Three.js AnimationClip
    */
-  async loadAnim(url: string, skeleton: THREE.Skeleton): Promise<THREE.AnimationClip> {
+  async loadAnim(
+    url: string,
+    skeleton: THREE.Skeleton,
+  ): Promise<THREE.AnimationClip> {
     const response = await fetch(url);
     if (!response.ok) {
       throw new Error(`Failed to load MD5 anim: ${response.statusText}`);
@@ -296,7 +279,6 @@ export class MD5Loader {
    * Build a Three.js SkinnedMesh from parsed MD5 mesh data
    */
   private buildMesh(data: MD5MeshFile, textureUrl?: string): MD5LoadResult {
-    // Create bones
     const bones: THREE.Bone[] = [];
     for (let i = 0; i < data.joints.length; i++) {
       const joint = data.joints[i];
@@ -305,7 +287,6 @@ export class MD5Loader {
       bones.push(bone);
     }
 
-    // Build bone hierarchy
     for (let i = 0; i < data.joints.length; i++) {
       const joint = data.joints[i];
       if (joint.parent >= 0 && joint.parent < bones.length) {
@@ -313,14 +294,17 @@ export class MD5Loader {
       }
     }
 
-    // Set bone positions and rotations (bind pose)
     for (let i = 0; i < data.joints.length; i++) {
       const joint = data.joints[i];
       const bone = bones[i];
 
       if (joint.parent < 0) {
         // Root bone - use world position
-        bone.position.set(joint.position[0], joint.position[1], joint.position[2]);
+        bone.position.set(
+          joint.position[0],
+          joint.position[1],
+          joint.position[2],
+        );
         bone.quaternion.set(
           joint.orientation[0],
           joint.orientation[1],
@@ -345,7 +329,11 @@ export class MD5Loader {
         );
 
         // Compute local position
-        const worldPos = new THREE.Vector3(joint.position[0], joint.position[1], joint.position[2]);
+        const worldPos = new THREE.Vector3(
+          joint.position[0],
+          joint.position[1],
+          joint.position[2],
+        );
         const localPos = worldPos.clone().sub(parentPos);
         localPos.applyQuaternion(parentQuat.clone().invert());
         bone.position.copy(localPos);
@@ -362,7 +350,6 @@ export class MD5Loader {
       }
     }
 
-    // Create skeleton
     const skeleton = new THREE.Skeleton(bones);
 
     // Combine all meshes into one geometry
@@ -376,7 +363,6 @@ export class MD5Loader {
     let vertexOffset = 0;
 
     for (const meshData of data.meshes) {
-      // Compute vertex positions from weights
       for (const vertex of meshData.vertices) {
         const pos = new THREE.Vector3(0, 0, 0);
 
@@ -388,7 +374,6 @@ export class MD5Loader {
           const weight = meshData.weights[vertex.startWeight + w];
           const joint = data.joints[weight.joint];
 
-          // Transform weight position by joint
           const jointQuat = new THREE.Quaternion(
             joint.orientation[0],
             joint.orientation[1],
@@ -434,8 +419,18 @@ export class MD5Loader {
           }
         }
 
-        allSkinIndices.push(skinJoints[0], skinJoints[1], skinJoints[2], skinJoints[3]);
-        allSkinWeights.push(skinWeights[0], skinWeights[1], skinWeights[2], skinWeights[3]);
+        allSkinIndices.push(
+          skinJoints[0],
+          skinJoints[1],
+          skinJoints[2],
+          skinJoints[3],
+        );
+        allSkinWeights.push(
+          skinWeights[0],
+          skinWeights[1],
+          skinWeights[2],
+          skinWeights[3],
+        );
       }
 
       // Add triangles with offset
@@ -450,19 +445,28 @@ export class MD5Loader {
       vertexOffset += meshData.vertices.length;
     }
 
-    // Create geometry
     const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute("position", new THREE.Float32BufferAttribute(allPositions, 3));
-    geometry.setAttribute("normal", new THREE.Float32BufferAttribute(allNormals, 3));
+    geometry.setAttribute(
+      "position",
+      new THREE.Float32BufferAttribute(allPositions, 3),
+    );
+    geometry.setAttribute(
+      "normal",
+      new THREE.Float32BufferAttribute(allNormals, 3),
+    );
     geometry.setAttribute("uv", new THREE.Float32BufferAttribute(allUvs, 2));
-    geometry.setAttribute("skinIndex", new THREE.Uint16BufferAttribute(allSkinIndices, 4));
-    geometry.setAttribute("skinWeight", new THREE.Float32BufferAttribute(allSkinWeights, 4));
+    geometry.setAttribute(
+      "skinIndex",
+      new THREE.Uint16BufferAttribute(allSkinIndices, 4),
+    );
+    geometry.setAttribute(
+      "skinWeight",
+      new THREE.Float32BufferAttribute(allSkinWeights, 4),
+    );
     geometry.setIndex(allIndices);
 
-    // Compute proper normals
     geometry.computeVertexNormals();
 
-    // Create material
     let material: THREE.Material;
     if (textureUrl) {
       const texture = new THREE.TextureLoader().load(textureUrl);
@@ -472,7 +476,6 @@ export class MD5Loader {
       material = new THREE.MeshLambertMaterial({ color: 0x888888 });
     }
 
-    // Create skinned mesh
     const mesh = new THREE.SkinnedMesh(geometry, material);
 
     // Find root bones and add to mesh
@@ -513,7 +516,6 @@ export class MD5Loader {
         const time = frameIdx / data.frameRate;
         times.push(time);
 
-        // Start with base frame values
         const baseJoint = data.baseFrame[jointIdx];
         let px = baseJoint.position[0];
         let py = baseJoint.position[1];
@@ -522,7 +524,6 @@ export class MD5Loader {
         let qy = baseJoint.orientation[1];
         let qz = baseJoint.orientation[2];
 
-        // Apply animated components based on flags
         let componentIdx = hier.startIndex;
         const flags = hier.flags;
 
@@ -537,7 +538,6 @@ export class MD5Loader {
 
         // Convert world transform to local transform
         if (hier.parent >= 0) {
-          // Get parent's world transform for this frame
           const parentHier = data.hierarchy[hier.parent];
           const parentBase = data.baseFrame[hier.parent];
 
@@ -560,14 +560,12 @@ export class MD5Loader {
 
           const pqw = computeQuaternionW(pqx, pqy, pqz);
 
-          // Compute local position
           const parentQuat = new THREE.Quaternion(pqx, pqy, pqz, pqw);
           const parentPos = new THREE.Vector3(ppx, ppy, ppz);
           const worldPos = new THREE.Vector3(px, py, pz);
           const localPos = worldPos.clone().sub(parentPos);
           localPos.applyQuaternion(parentQuat.clone().invert());
 
-          // Compute local rotation
           const worldQuat = new THREE.Quaternion(qx, qy, qz, qw);
           const localQuat = parentQuat.clone().invert().multiply(worldQuat);
 
@@ -580,10 +578,17 @@ export class MD5Loader {
         }
       }
 
-      // Create tracks
       const boneName = bone.name;
-      tracks.push(new THREE.VectorKeyframeTrack(`${boneName}.position`, times, positions));
-      tracks.push(new THREE.QuaternionKeyframeTrack(`${boneName}.quaternion`, times, quaternions));
+      tracks.push(
+        new THREE.VectorKeyframeTrack(`${boneName}.position`, times, positions),
+      );
+      tracks.push(
+        new THREE.QuaternionKeyframeTrack(
+          `${boneName}.quaternion`,
+          times,
+          quaternions,
+        ),
+      );
     }
 
     return new THREE.AnimationClip(name, duration, tracks);

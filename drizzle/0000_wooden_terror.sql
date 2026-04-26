@@ -16,7 +16,7 @@ CREATE TABLE `files` (
 	`width` integer,
 	`height` integer,
 	`has_preview` integer DEFAULT false,
-	`folder_id` text,
+	`folder_id` text NOT NULL,
 	`uploader_id` text,
 	`source` text,
 	`source_archive` text,
@@ -26,20 +26,26 @@ CREATE TABLE `files` (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `files_path_unique` ON `files` (`path`);--> statement-breakpoint
+CREATE INDEX `idx_files_folder_id` ON `files` (`folder_id`);--> statement-breakpoint
+CREATE INDEX `idx_files_kind` ON `files` (`kind`);--> statement-breakpoint
+CREATE INDEX `idx_files_created_at` ON `files` (`created_at`);--> statement-breakpoint
+CREATE INDEX `idx_files_kind_created` ON `files` (`kind`,`created_at`);--> statement-breakpoint
 CREATE TABLE `folders` (
 	`id` text PRIMARY KEY NOT NULL,
 	`name` text NOT NULL,
 	`slug` text NOT NULL,
 	`description` text,
+	`preview_path` text,
 	`parent_id` text,
 	`owner_id` text,
-	`visibility` text DEFAULT 'public',
+	`file_count` integer DEFAULT 0,
 	`created_at` integer,
 	FOREIGN KEY (`parent_id`) REFERENCES `folders`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`owner_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE set null
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `folders_slug_unique` ON `folders` (`slug`);--> statement-breakpoint
+CREATE INDEX `idx_folders_parent_id` ON `folders` (`parent_id`);--> statement-breakpoint
 CREATE TABLE `invite_codes` (
 	`id` text PRIMARY KEY NOT NULL,
 	`code` text NOT NULL,
@@ -68,31 +74,8 @@ CREATE TABLE `jobs` (
 	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE set null
 );
 --> statement-breakpoint
-CREATE TABLE `moodboard_items` (
-	`id` text PRIMARY KEY NOT NULL,
-	`moodboard_id` text NOT NULL,
-	`file_id` text,
-	`type` text NOT NULL,
-	`content` text,
-	`position_x` integer DEFAULT 0,
-	`position_y` integer DEFAULT 0,
-	`width` integer DEFAULT 200,
-	`height` integer DEFAULT 200,
-	`created_at` integer,
-	FOREIGN KEY (`moodboard_id`) REFERENCES `moodboards`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`file_id`) REFERENCES `files`(`id`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
-CREATE TABLE `moodboards` (
-	`id` text PRIMARY KEY NOT NULL,
-	`name` text NOT NULL,
-	`description` text,
-	`owner_id` text NOT NULL,
-	`visibility` text DEFAULT 'private',
-	`created_at` integer,
-	FOREIGN KEY (`owner_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
+CREATE INDEX `idx_jobs_status` ON `jobs` (`status`);--> statement-breakpoint
+CREATE INDEX `idx_jobs_created_at` ON `jobs` (`created_at`);--> statement-breakpoint
 CREATE TABLE `sessions` (
 	`id` text PRIMARY KEY NOT NULL,
 	`user_id` text NOT NULL,
@@ -101,11 +84,16 @@ CREATE TABLE `sessions` (
 	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
+CREATE TABLE `settings` (
+	`key` text PRIMARY KEY NOT NULL,
+	`value` text NOT NULL,
+	`updated_at` integer
+);
+--> statement-breakpoint
 CREATE TABLE `tags` (
 	`id` text PRIMARY KEY NOT NULL,
 	`name` text NOT NULL,
-	`slug` text NOT NULL,
-	`category` text
+	`slug` text NOT NULL
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `tags_name_unique` ON `tags` (`name`);--> statement-breakpoint
@@ -117,7 +105,8 @@ CREATE TABLE `users` (
 	`password_hash` text NOT NULL,
 	`is_admin` integer DEFAULT false,
 	`invited_by` text,
-	`created_at` integer
+	`created_at` integer,
+	FOREIGN KEY (`invited_by`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE set null
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `users_email_unique` ON `users` (`email`);--> statement-breakpoint

@@ -1,1 +1,0 @@
-ALTER TABLE `folders` ADD `preview_path` text;

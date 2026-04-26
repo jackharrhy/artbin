@@ -10,7 +10,7 @@ export const users = sqliteTable("users", {
   username: text("username").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
   isAdmin: integer("is_admin", { mode: "boolean" }).default(false),
-  invitedBy: text("invited_by"),
+  invitedBy: text("invited_by").references((): any => users.id, { onDelete: "set null" }),
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn((): Date => new Date()),
 });
 
@@ -49,7 +49,6 @@ export const folders = sqliteTable(
     previewPath: text("preview_path"), // Path to 3x3 preview image (relative to uploads)
     parentId: text("parent_id").references((): any => folders.id, { onDelete: "cascade" }),
     ownerId: text("owner_id").references(() => users.id, { onDelete: "set null" }),
-    visibility: text("visibility", { enum: ["public", "private", "unlisted"] }).default("public"),
     fileCount: integer("file_count").default(0), // Direct file count (not including subfolders)
     createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn((): Date => new Date()),
   },
@@ -95,7 +94,9 @@ export const files = sqliteTable(
     hasPreview: integer("has_preview", { mode: "boolean" }).default(false), // true if .preview.png exists
 
     // Relationships
-    folderId: text("folder_id").references(() => folders.id, { onDelete: "cascade" }),
+    folderId: text("folder_id")
+      .notNull()
+      .references(() => folders.id, { onDelete: "cascade" }),
     uploaderId: text("uploader_id").references(() => users.id, { onDelete: "set null" }),
 
     // Source tracking
@@ -120,7 +121,6 @@ export const tags = sqliteTable("tags", {
   id: text("id").primaryKey(),
   name: text("name").notNull().unique(), // Display: "Seamless"
   slug: text("slug").notNull().unique(), // URL-safe: "seamless"
-  category: text("category"), // Optional grouping: "material", "style", etc.
 });
 
 export const fileTags = sqliteTable(
@@ -173,6 +173,7 @@ export const jobs = sqliteTable(
   },
   (table) => ({
     statusIdx: index("idx_jobs_status").on(table.status),
+    createdAtIdx: index("idx_jobs_created_at").on(table.createdAt),
   }),
 );
 
