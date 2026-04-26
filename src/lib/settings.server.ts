@@ -6,6 +6,7 @@
 
 import { db, settings } from "~/db";
 import { eq } from "drizzle-orm";
+import { Result } from "better-result";
 
 // ============================================================================
 // Default Values
@@ -165,7 +166,20 @@ export async function initializeScanSettings(): Promise<ScanSettings> {
 /**
  * Update scan settings
  */
-export async function updateScanSettings(updates: Partial<ScanSettings>): Promise<ScanSettings> {
+export async function updateScanSettings(updates: Partial<ScanSettings>) {
+  const invalidPatterns = (updates.excludePathPatterns ?? []).filter((pattern) => {
+    try {
+      new RegExp(pattern);
+      return false;
+    } catch {
+      return true;
+    }
+  });
+
+  if (invalidPatterns.length > 0) {
+    return Result.err(new Error(`Invalid regex patterns: ${invalidPatterns.join(", ")}`));
+  }
+
   const promises: Promise<void>[] = [];
 
   if (updates.excludeDirs !== undefined) {
@@ -183,13 +197,13 @@ export async function updateScanSettings(updates: Partial<ScanSettings>): Promis
 
   await Promise.all(promises);
 
-  return getScanSettings();
+  return Result.ok(await getScanSettings());
 }
 
 /**
  * Reset scan settings to defaults
  */
-export async function resetScanSettings(): Promise<ScanSettings> {
+export async function resetScanSettings() {
   await Promise.all([
     setSetting("scan.excludeDirs", DEFAULT_EXCLUDE_DIRS),
     setSetting("scan.excludeFilenames", DEFAULT_EXCLUDE_FILENAMES),
@@ -197,5 +211,5 @@ export async function resetScanSettings(): Promise<ScanSettings> {
     setSetting("scan.knownGameDirs", DEFAULT_KNOWN_GAME_DIRS),
   ]);
 
-  return getScanSettings();
+  return Result.ok(await getScanSettings());
 }
