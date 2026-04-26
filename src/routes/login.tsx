@@ -1,5 +1,6 @@
 import { Form, redirect, useActionData, useSearchParams } from "react-router";
 import type { Route } from "./+types/login";
+import { Result } from "better-result";
 import { login, getSessionCookie, parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
 import { Header } from "~/components/Header";
 
@@ -19,13 +20,13 @@ export async function action({ request }: Route.ActionArgs) {
 
   const result = await login(email, password);
 
-  if (result.error) {
-    return { error: result.error };
+  if (Result.isError(result)) {
+    return { error: result.error.message };
   }
 
   return redirect("/folders", {
     headers: {
-      "Set-Cookie": getSessionCookie(result.session!.id),
+      "Set-Cookie": getSessionCookie(result.value.id),
     },
   });
 }

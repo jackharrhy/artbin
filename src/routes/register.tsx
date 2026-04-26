@@ -1,5 +1,6 @@
 import { Form, redirect, useActionData, useSearchParams, useLoaderData } from "react-router";
 import type { Route } from "./+types/register";
+import { Result } from "better-result";
 import { createUser, getSessionCookie, login, parseSessionCookie, getUserFromSession, getInviteByCode } from "~/lib/auth.server";
 import { Header } from "~/components/Header";
 
@@ -40,20 +41,20 @@ export async function action({ request }: Route.ActionArgs) {
 
   const result = await createUser(email, username, password, inviteCode);
 
-  if (result.error) {
-    return { error: result.error };
+  if (Result.isError(result)) {
+    return { error: result.error.message };
   }
 
   // Auto-login after registration
   const loginResult = await login(email, password);
 
-  if (loginResult.error) {
+  if (Result.isError(loginResult)) {
     return redirect("/login");
   }
 
   return redirect("/folders", {
     headers: {
-      "Set-Cookie": getSessionCookie(loginResult.session!.id),
+      "Set-Cookie": getSessionCookie(loginResult.value.id),
     },
   });
 }

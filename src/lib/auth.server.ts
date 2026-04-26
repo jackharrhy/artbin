@@ -1,6 +1,7 @@
 import { db, users, sessions, inviteCodes } from "~/db";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import { Result } from "better-result";
 import bcrypt from "bcrypt";
 
 const SESSION_COOKIE = "artbin_session";
@@ -19,7 +20,7 @@ export async function createUser(
   username: string,
   password: string,
   inviteCode?: string
-): Promise<{ user?: typeof users.$inferSelect; error?: string }> {
+) {
   // Check if invite code is valid (if provided)
   let invitedBy: string | null = null;
   if (inviteCode) {
@@ -27,13 +28,13 @@ export async function createUser(
       where: eq(inviteCodes.code, inviteCode),
     });
     if (!invite) {
-      return { error: "Invalid invite code" };
+      return Result.err(new Error("Invalid invite code"));
     }
     if (!invite.isActive) {
-      return { error: "Invite code is no longer active" };
+      return Result.err(new Error("Invite code is no longer active"));
     }
     if (invite.maxUses !== null && (invite.useCount ?? 0) >= invite.maxUses) {
-      return { error: "Invite code has reached its usage limit" };
+      return Result.err(new Error("Invite code has reached its usage limit"));
     }
     invitedBy = invite.createdBy;
   }
@@ -43,14 +44,14 @@ export async function createUser(
     where: eq(users.email, email),
   });
   if (existingEmail) {
-    return { error: "Email already registered" };
+    return Result.err(new Error("Email already registered"));
   }
 
   const existingUsername = await db.query.users.findFirst({
     where: eq(users.username, username),
   });
   if (existingUsername) {
-    return { error: "Username already taken" };
+    return Result.err(new Error("Username already taken"));
   }
 
   const id = nanoid();
@@ -80,24 +81,24 @@ export async function createUser(
     }
   }
 
-  return { user };
+  return Result.ok(user);
 }
 
 export async function login(
   email: string,
   password: string
-): Promise<{ session?: typeof sessions.$inferSelect; error?: string }> {
+) {
   const user = await db.query.users.findFirst({
     where: eq(users.email, email),
   });
 
   if (!user) {
-    return { error: "Invalid email or password" };
+    return Result.err(new Error("Invalid email or password"));
   }
 
   const valid = await verifyPassword(password, user.passwordHash);
   if (!valid) {
-    return { error: "Invalid email or password" };
+    return Result.err(new Error("Invalid email or password"));
   }
 
   // Create session
@@ -113,7 +114,7 @@ export async function login(
     })
     .returning();
 
-  return { session };
+  return Result.ok(session);
 }
 
 export async function logout(sessionId: string): Promise<void> {
