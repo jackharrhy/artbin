@@ -142,4 +142,22 @@ describe("processJob", () => {
     expect(persisted?.status).toBe("completed");
     expect(JSON.parse(persisted?.output ?? "{}")) .toEqual({ received: 42 });
   });
+
+  test("converts handler exceptions into Result errors and failed jobs", async () => {
+    setupDatabase();
+    registerJobHandler("throwing-handler", async () => {
+      throw new Error("handler exploded");
+    });
+    const job = await createJob({ type: "throwing-handler", input: {} });
+
+    const result = await processJob(job);
+
+    expect(result.isErr()).toBe(true);
+    if (!result.isErr()) throw new Error("Expected throwing handler to fail");
+    expect(result.error.message).toBe("handler exploded");
+
+    const persisted = await getJob(job.id);
+    expect(persisted?.status).toBe("failed");
+    expect(persisted?.error).toBe("handler exploded");
+  });
 });
