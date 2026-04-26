@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useSearchParams, useNavigate } from "react-router";
+import { useNavigate } from "react-router";
 
 const EMPTY_TAGS: { id: string; name: string; slug: string }[] = [];
 
@@ -60,14 +60,14 @@ export function SearchBar({
   const hasFilters = query.trim() || currentTag;
 
   return (
-    <div className="search-bar">
-      <form onSubmit={handleSubmit} className="search-form">
+    <div className="flex gap-2 items-center flex-wrap mb-4">
+      <form onSubmit={handleSubmit} className="flex gap-2 flex-1 min-w-[200px] max-w-[400px]">
         <input
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={placeholder}
-          className="input search-input"
+          className="input flex-1"
         />
         <button type="submit" className="btn">
           Search
@@ -78,7 +78,7 @@ export function SearchBar({
         <select
           value={currentTag || ""}
           onChange={(e) => handleTagChange(e.target.value)}
-          className="input tag-select"
+          className="input min-w-[120px]"
         >
           <option value="">All tags</option>
           {tags.map((tag) => (
@@ -90,40 +90,10 @@ export function SearchBar({
       )}
 
       {hasFilters && (
-        <button onClick={clearFilters} className="btn btn-sm clear-btn">
+        <button onClick={clearFilters} className="btn btn-sm text-text-muted">
           Clear filters
         </button>
       )}
-
-      <style>{`
-        .search-bar {
-          display: flex;
-          gap: 0.5rem;
-          align-items: center;
-          flex-wrap: wrap;
-          margin-bottom: 1rem;
-        }
-
-        .search-form {
-          display: flex;
-          gap: 0.5rem;
-          flex: 1;
-          min-width: 200px;
-          max-width: 400px;
-        }
-
-        .search-input {
-          flex: 1;
-        }
-
-        .tag-select {
-          min-width: 120px;
-        }
-
-        .clear-btn {
-          color: var(--color-text-muted);
-        }
-      `}</style>
     </div>
   );
 }

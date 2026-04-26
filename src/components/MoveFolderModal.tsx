@@ -153,30 +153,25 @@ export function MoveFolderModal({
 
         <form onSubmit={handleSubmit}>
           <div className="modal-body">
-            {error && (
-              <div className="alert alert-error" style={{ marginBottom: "1rem" }}>
-                {error}
-              </div>
-            )}
+            {error && <div className="alert alert-error mb-4">{error}</div>}
 
-            <div className="form-group">
-              <label className="form-label">
+            <div className="mb-4">
+              <label className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1">
                 <input
                   type="radio"
                   name="moveType"
                   checked={!createNew}
                   onChange={() => setCreateNew(false)}
-                  style={{ marginRight: "0.5rem" }}
+                  className="mr-2"
                 />
                 Move to existing folder
               </label>
             </div>
 
             {!createNew && (
-              <div className="form-group" style={{ marginLeft: "1.5rem" }}>
+              <div className="mb-4 ml-6">
                 <select
-                  className="input"
-                  style={{ width: "100%" }}
+                  className="input w-full"
                   value={selectedParentId || "root"}
                   onChange={(e) =>
                     setSelectedParentId(e.target.value === "root" ? null : e.target.value)
@@ -195,14 +190,14 @@ export function MoveFolderModal({
               </div>
             )}
 
-            <div className="form-group" style={{ marginTop: "1rem" }}>
-              <label className="form-label">
+            <div className="mb-4 mt-4">
+              <label className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1">
                 <input
                   type="radio"
                   name="moveType"
                   checked={createNew}
                   onChange={() => setCreateNew(true)}
-                  style={{ marginRight: "0.5rem" }}
+                  className="mr-2"
                 />
                 Create new parent folder
               </label>
@@ -210,12 +205,13 @@ export function MoveFolderModal({
 
             {createNew && (
               <>
-                <div className="form-group" style={{ marginLeft: "1.5rem" }}>
-                  <label className="form-label">New folder name</label>
+                <div className="mb-4 ml-6">
+                  <label className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1">
+                    New folder name
+                  </label>
                   <input
                     type="text"
-                    className="input"
-                    style={{ width: "100%" }}
+                    className="input w-full"
                     value={newFolderName}
                     onChange={(e) => setNewFolderName(e.target.value)}
                     placeholder="e.g., Quake 2"
@@ -223,11 +219,12 @@ export function MoveFolderModal({
                   />
                 </div>
 
-                <div className="form-group" style={{ marginLeft: "1.5rem" }}>
-                  <label className="form-label">Create in</label>
+                <div className="mb-4 ml-6">
+                  <label className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1">
+                    Create in
+                  </label>
                   <select
-                    className="input"
-                    style={{ width: "100%" }}
+                    className="input w-full"
                     value={selectedParentId || "root"}
                     onChange={(e) =>
                       setSelectedParentId(e.target.value === "root" ? null : e.target.value)
@@ -246,15 +243,7 @@ export function MoveFolderModal({
               </>
             )}
 
-            <div
-              style={{
-                marginTop: "1rem",
-                padding: "0.75rem",
-                background: "#f5f5f5",
-                fontSize: "0.875rem",
-                color: "#666",
-              }}
-            >
+            <div className="mt-4 p-3 bg-bg-hover text-sm text-text-muted">
               <strong>Preview:</strong>{" "}
               {createNew ? (
                 <>

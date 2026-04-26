@@ -9,14 +9,14 @@ interface HeaderProps {
 
 export function Header({ user, onUploadClick }: HeaderProps) {
   return (
-    <header className="header">
-      <a href={user ? "/folders" : "/"} className="header-logo">
+    <header className="sticky top-0 z-100 bg-bg border-b border-border-light flex items-center justify-between h-12 px-4">
+      <a href={user ? "/folders" : "/"} className="text-lg tracking-wide no-underline text-text">
         artbin
       </a>
-      <nav className="header-nav">
+      <nav className="flex items-center gap-4">
         {user ? (
           <>
-            <a href="/folders" className="header-link">
+            <a href="/folders" className="text-sm no-underline text-text-muted hover:text-text">
               folders
             </a>
             {onUploadClick && (
@@ -24,14 +24,14 @@ export function Header({ user, onUploadClick }: HeaderProps) {
                 upload
               </button>
             )}
-            <a href="/settings" className="header-link">
+            <a href="/settings" className="text-sm no-underline text-text-muted hover:text-text">
               @{user.username}
             </a>
             {user.isAdmin && <span className="badge-admin">admin</span>}
           </>
         ) : (
           <>
-            <a href="/login" className="header-link">
+            <a href="/login" className="text-sm no-underline text-text-muted hover:text-text">
               login
             </a>
           </>

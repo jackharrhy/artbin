@@ -350,7 +350,7 @@ export function UploadModal({ isOpen, onClose, currentFolder, onSuccess }: Uploa
                   type="file"
                   multiple
                   onChange={handleFileSelect}
-                  style={{ display: "none" }}
+                  className="hidden"
                 />
                 <input
                   ref={folderInputRef}
@@ -359,7 +359,7 @@ export function UploadModal({ isOpen, onClose, currentFolder, onSuccess }: Uploa
                   // @ts-ignore - webkitdirectory is non-standard but widely supported
                   webkitdirectory=""
                   onChange={handleFileSelect}
-                  style={{ display: "none" }}
+                  className="hidden"
                 />
 
                 {files.length === 0 ? (
@@ -367,7 +367,7 @@ export function UploadModal({ isOpen, onClose, currentFolder, onSuccess }: Uploa
                     {isAtRoot ? (
                       <>
                         <p>Import an archive to create a new folder</p>
-                        <p className="form-help">Supported: PAK, PK3, ZIP</p>
+                        <p className="text-xs text-text-faint mt-1">Supported: PAK, PK3, ZIP</p>
                         <div className="upload-buttons">
                           <button
                             type="button"
@@ -421,7 +421,7 @@ export function UploadModal({ isOpen, onClose, currentFolder, onSuccess }: Uploa
                         </div>
                       ))}
                       {files.length > 10 && (
-                        <div className="upload-file-item" style={{ color: "#666" }}>
+                        <div className="upload-file-item text-text-muted">
                           ... and {files.length - 10} more
                         </div>
                       )}
@@ -454,12 +454,13 @@ export function UploadModal({ isOpen, onClose, currentFolder, onSuccess }: Uploa
           {/* Create folder view */}
           {view === "create-folder" && (
             <form onSubmit={handleCreateFolder}>
-              <div className="form-group">
-                <label className="form-label">Folder Name</label>
+              <div className="mb-4">
+                <label className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1">
+                  Folder Name
+                </label>
                 <input
                   type="text"
-                  className="input"
-                  style={{ width: "100%" }}
+                  className="input w-full"
                   value={folderName}
                   onChange={(e) => setFolderName(e.target.value)}
                   placeholder="My Textures"
@@ -468,30 +469,21 @@ export function UploadModal({ isOpen, onClose, currentFolder, onSuccess }: Uploa
                 />
               </div>
 
-              <div className="form-group">
-                <label className="form-label">
+              <div className="mb-4">
+                <label className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1">
                   Folder Slug (URL path)
-                  {!customSlug && <span style={{ fontWeight: 400, color: "#666" }}> — auto</span>}
+                  {!customSlug && <span className="font-normal text-text-muted"> — auto</span>}
                 </label>
                 <input
                   type="text"
-                  className="input"
-                  style={{ width: "100%", background: customSlug ? undefined : "#f5f5f5" }}
+                  className={`input w-full ${!customSlug ? "bg-bg-hover" : ""}`}
                   value={folderSlug}
                   onChange={(e) => setFolderSlug(e.target.value)}
                   pattern="[a-z0-9-]+"
                   readOnly={!customSlug}
                   required
                 />
-                <label
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.5rem",
-                    marginTop: "0.5rem",
-                    fontSize: "0.875rem",
-                  }}
-                >
+                <label className="flex items-center gap-2 mt-2 text-sm">
                   <input
                     type="checkbox"
                     checked={customSlug}
@@ -502,7 +494,7 @@ export function UploadModal({ isOpen, onClose, currentFolder, onSuccess }: Uploa
               </div>
 
               {currentFolder && (
-                <p className="form-help" style={{ marginBottom: "1rem" }}>
+                <p className="text-xs text-text-faint mt-1 mb-4">
                   Will be created inside: {currentFolder.name}
                 </p>
               )}
@@ -521,81 +513,63 @@ export function UploadModal({ isOpen, onClose, currentFolder, onSuccess }: Uploa
           {/* Archive analysis view */}
           {view === "archive-analysis" && archiveAnalysis && (
             <>
-              <dl className="detail-info">
-                <dt>File</dt>
+              <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm mb-4">
+                <dt className="font-medium text-text-muted">File</dt>
                 <dd>{archiveAnalysis.originalName}</dd>
-                <dt>Type</dt>
-                <dd style={{ textTransform: "uppercase" }}>{archiveAnalysis.archiveType}</dd>
-                <dt>Files</dt>
+                <dt className="font-medium text-text-muted">Type</dt>
+                <dd className="uppercase">{archiveAnalysis.archiveType}</dd>
+                <dt className="font-medium text-text-muted">Files</dt>
                 <dd>{archiveAnalysis.totalFiles.toLocaleString()}</dd>
-                <dt>Directories</dt>
+                <dt className="font-medium text-text-muted">Directories</dt>
                 <dd>{archiveAnalysis.totalDirs.toLocaleString()}</dd>
               </dl>
 
-              <details style={{ marginBottom: "1rem" }}>
-                <summary style={{ cursor: "pointer", fontSize: "0.875rem" }}>
-                  Sample files (first 20)
-                </summary>
-                <div
-                  style={{
-                    maxHeight: "150px",
-                    overflow: "auto",
-                    marginTop: "0.5rem",
-                    fontSize: "0.75rem",
-                    fontFamily: "var(--font-mono)",
-                  }}
-                >
+              <details className="mb-4">
+                <summary className="cursor-pointer text-sm">Sample files (first 20)</summary>
+                <div className="max-h-[150px] overflow-auto mt-2 text-xs font-mono">
                   {archiveAnalysis.sampleFiles.map((name, i) => (
-                    <div key={i} style={{ padding: "0.25rem", borderBottom: "1px solid #eee" }}>
+                    <div key={i} className="p-1 border-b border-bg-subtle">
                       {name}
                     </div>
                   ))}
                   {archiveAnalysis.totalFiles > 20 && (
-                    <div style={{ padding: "0.25rem", color: "#999" }}>
+                    <div className="p-1 text-text-faint">
                       ... and {archiveAnalysis.totalFiles - 20} more
                     </div>
                   )}
                 </div>
               </details>
 
-              <div className="form-group">
-                <label className="form-label">Folder Name</label>
+              <div className="mb-4">
+                <label className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1">
+                  Folder Name
+                </label>
                 <input
                   type="text"
-                  className="input"
-                  style={{ width: "100%" }}
+                  className="input w-full"
                   value={archiveFolderName}
                   onChange={(e) => setArchiveFolderName(e.target.value)}
                   required
                 />
               </div>
 
-              <div className="form-group">
-                <label className="form-label">
+              <div className="mb-4">
+                <label className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1">
                   Folder Slug
                   {!archiveCustomSlug && (
-                    <span style={{ fontWeight: 400, color: "#666" }}> — auto</span>
+                    <span className="font-normal text-text-muted"> — auto</span>
                   )}
                 </label>
                 <input
                   type="text"
-                  className="input"
-                  style={{ width: "100%", background: archiveCustomSlug ? undefined : "#f5f5f5" }}
+                  className={`input w-full ${!archiveCustomSlug ? "bg-bg-hover" : ""}`}
                   value={archiveFolderSlug}
                   onChange={(e) => setArchiveFolderSlug(e.target.value)}
                   pattern="[a-z0-9-]+"
                   readOnly={!archiveCustomSlug}
                   required
                 />
-                <label
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.5rem",
-                    marginTop: "0.5rem",
-                    fontSize: "0.875rem",
-                  }}
-                >
+                <label className="flex items-center gap-2 mt-2 text-sm">
                   <input
                     type="checkbox"
                     checked={archiveCustomSlug}
@@ -606,7 +580,7 @@ export function UploadModal({ isOpen, onClose, currentFolder, onSuccess }: Uploa
               </div>
 
               {currentFolder && (
-                <p className="form-help" style={{ marginBottom: "1rem" }}>
+                <p className="text-xs text-text-faint mt-1 mb-4">
                   Will be created inside: {currentFolder.name}
                 </p>
               )}

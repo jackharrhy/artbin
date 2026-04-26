@@ -508,88 +508,38 @@ export function ModelViewer({
   };
 
   return (
-    <div style={{ position: "relative" }}>
+    <div className="relative">
       <div
         ref={containerRef}
-        style={{
-          width: "100%",
-          height: `${height}px`,
-          background: "#f5f5f5",
-          borderRadius: "4px",
-          overflow: "hidden",
-        }}
+        className="w-full bg-bg-hover overflow-hidden"
+        style={{ height: `${height}px` }}
       />
 
       {/* Loading overlay */}
       {loading && (
-        <div
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            background: "rgba(245, 245, 245, 0.9)",
-          }}
-        >
-          <div style={{ textAlign: "center", color: "#666" }}>
-            <div style={{ fontSize: "1.5rem", marginBottom: "0.5rem" }}>Loading model...</div>
+        <div className="absolute inset-0 flex items-center justify-center bg-[rgba(245,245,245,0.9)]">
+          <div className="text-center text-text-muted">
+            <div className="text-2xl mb-2">Loading model...</div>
           </div>
         </div>
       )}
 
       {/* Error overlay */}
       {error && (
-        <div
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            background: "rgba(245, 245, 245, 0.9)",
-          }}
-        >
-          <div style={{ textAlign: "center", color: "#c00" }}>
-            <div style={{ fontSize: "1.5rem", marginBottom: "0.5rem" }}>Failed to load model</div>
-            <div style={{ fontSize: "0.875rem" }}>{error}</div>
+        <div className="absolute inset-0 flex items-center justify-center bg-[rgba(245,245,245,0.9)]">
+          <div className="text-center text-danger">
+            <div className="text-2xl mb-2">Failed to load model</div>
+            <div className="text-sm">{error}</div>
           </div>
         </div>
       )}
 
       {/* Animation controls */}
       {!loading && !error && animationInfo && animationInfo.clips.length > 0 && (
-        <div
-          style={{
-            position: "absolute",
-            bottom: "10px",
-            left: "10px",
-            right: "10px",
-            display: "flex",
-            alignItems: "center",
-            gap: "0.5rem",
-            padding: "0.5rem",
-            background: "rgba(255, 255, 255, 0.9)",
-            borderRadius: "4px",
-            fontSize: "0.8125rem",
-          }}
-        >
+        <div className="absolute bottom-2.5 left-2.5 right-2.5 flex items-center gap-2 p-2 bg-[rgba(255,255,255,0.9)] text-[0.8125rem]">
           <button
             onClick={handleTogglePlayPause}
-            style={{
-              padding: "0.25rem 0.5rem",
-              border: "1px solid #ccc",
-              background: "#fff",
-              borderRadius: "3px",
-              cursor: "pointer",
-              fontFamily: "monospace",
-            }}
+            className="btn btn-sm font-mono border-border-light"
           >
             {animationInfo.isPlaying ? "||" : ">"}
           </button>
@@ -597,13 +547,7 @@ export function ModelViewer({
           <select
             value={animationInfo.currentIndex}
             onChange={(e) => handlePlayAnimation(parseInt(e.target.value))}
-            style={{
-              flex: 1,
-              padding: "0.25rem",
-              border: "1px solid #ccc",
-              borderRadius: "3px",
-              fontSize: "0.8125rem",
-            }}
+            className="input flex-1 p-1 text-[0.8125rem]"
           >
             {animationInfo.clips.map((clip, index) => (
               <option key={index} value={index}>
@@ -612,7 +556,7 @@ export function ModelViewer({
             ))}
           </select>
 
-          <span style={{ color: "#666", fontSize: "0.75rem" }}>
+          <span className="text-text-muted text-xs">
             {animationInfo.clips.length} animation{animationInfo.clips.length !== 1 ? "s" : ""}
           </span>
         </div>
@@ -620,18 +564,7 @@ export function ModelViewer({
 
       {/* Controls hint */}
       {!loading && !error && (
-        <div
-          style={{
-            position: "absolute",
-            top: "10px",
-            right: "10px",
-            padding: "0.25rem 0.5rem",
-            background: "rgba(255, 255, 255, 0.8)",
-            borderRadius: "3px",
-            fontSize: "0.6875rem",
-            color: "#888",
-          }}
-        >
+        <div className="absolute top-2.5 right-2.5 px-2 py-1 bg-[rgba(255,255,255,0.8)] text-[0.6875rem] text-text-faint">
           Drag to rotate | Scroll to zoom
         </div>
       )}

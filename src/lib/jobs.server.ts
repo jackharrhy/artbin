@@ -89,10 +89,7 @@ export async function startJob(id: string): Promise<void> {
 /**
  * Mark job as completed
  */
-export async function completeJob(
-  id: string,
-  output: Record<string, unknown>,
-): Promise<void> {
+export async function completeJob(id: string, output: Record<string, unknown>): Promise<void> {
   await db
     .update(jobs)
     .set({
@@ -156,10 +153,7 @@ export async function deleteJob(id: string): Promise<boolean> {
   // Try to clean up temp files if the job input contains a tempFile path
   try {
     const input = JSON.parse(job.input) as Record<string, unknown>;
-    if (
-      typeof input.tempFile === "string" &&
-      input.tempFile.includes("/tmp/")
-    ) {
+    if (typeof input.tempFile === "string" && input.tempFile.includes("/tmp/")) {
       const { unlink } = await import("fs/promises");
       try {
         await unlink(input.tempFile);
@@ -182,8 +176,7 @@ export async function deleteJob(id: string): Promise<boolean> {
 export async function resetStuckJob(id: string, stuckThresholdMinutes = 30) {
   const job = await getJob(id);
   if (!job) return Result.err(new Error("Job not found"));
-  if (job.status !== "running")
-    return Result.err(new Error("Job is not running"));
+  if (job.status !== "running") return Result.err(new Error("Job is not running"));
 
   // Check if the job has been running long enough to be considered stuck
   if (job.startedAt) {
@@ -228,10 +221,7 @@ export function isJobStuck(job: Job, thresholdMinutes = 30): boolean {
 // Job Processing
 // ============================================================================
 
-type JobHandler = (
-  job: Job,
-  input: Record<string, unknown>,
-) => Promise<Record<string, unknown>>;
+type JobHandler = (job: Job, input: Record<string, unknown>) => Promise<Record<string, unknown>>;
 
 const jobHandlers = new Map<string, JobHandler>();
 
@@ -349,11 +339,7 @@ export async function cleanupOldJobs(daysOld = 7): Promise<number> {
     .delete(jobs)
     .where(
       and(
-        or(
-          eq(jobs.status, "completed"),
-          eq(jobs.status, "failed"),
-          eq(jobs.status, "cancelled"),
-        ),
+        or(eq(jobs.status, "completed"), eq(jobs.status, "failed"), eq(jobs.status, "cancelled")),
         lt(jobs.completedAt, cutoff),
       ),
     );

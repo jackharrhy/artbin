@@ -53,14 +53,23 @@ export function FileGrid({ files, hasMore, onLoadMore, loading }: FileGridProps)
 
   return (
     <div>
-      <div className="texture-grid">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-2">
         {files.map((file) => (
-          <a key={file.id} href={`/file/${file.path}`} className="texture-card">
-            <img src={getDisplayUrl(file)} alt={file.name} loading="lazy" />
-            <div className="texture-card-info">
+          <a
+            key={file.id}
+            href={`/file/${file.path}`}
+            className="group relative aspect-square overflow-hidden border border-border-light bg-[#f9f9f9] transition-colors hover:border-border"
+          >
+            <img
+              src={getDisplayUrl(file)}
+              alt={file.name}
+              loading="lazy"
+              className="h-full w-full object-cover"
+            />
+            <div className="absolute bottom-0 left-0 right-0 truncate bg-white/95 px-2 py-1 text-[0.7rem] text-text-muted opacity-0 transition-opacity group-hover:opacity-100">
               {file.name}
               {file.width && file.height && (
-                <span style={{ marginLeft: "0.5rem", opacity: 0.7 }}>
+                <span className="ml-2 opacity-70">
                   {file.width}×{file.height}
                 </span>
               )}
@@ -71,19 +80,10 @@ export function FileGrid({ files, hasMore, onLoadMore, loading }: FileGridProps)
 
       {/* Infinite scroll trigger */}
       {hasMore && (
-        <div ref={loaderRef} className="load-more-trigger">
+        <div ref={loaderRef} className="p-8 text-center text-sm text-text-muted">
           {loading ? <span>Loading...</span> : <span>Scroll for more</span>}
         </div>
       )}
-
-      <style>{`
-        .load-more-trigger {
-          text-align: center;
-          padding: 2rem;
-          color: var(--color-text-muted);
-          font-size: 0.875rem;
-        }
-      `}</style>
     </div>
   );
 }

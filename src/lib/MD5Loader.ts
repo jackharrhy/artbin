@@ -105,11 +105,7 @@ class MD5Parser {
         joints.push({
           name: match[1],
           parent: parseInt(match[2], 10),
-          position: [
-            parseFloat(match[3]),
-            parseFloat(match[4]),
-            parseFloat(match[5]),
-          ],
+          position: [parseFloat(match[3]), parseFloat(match[4]), parseFloat(match[5])],
           orientation: [x, y, z, w],
         });
       }
@@ -124,8 +120,7 @@ class MD5Parser {
       const shader = shaderMatch ? shaderMatch[1] : "";
 
       const vertices: MD5Vertex[] = [];
-      const vertRegex =
-        /vert\s+(\d+)\s+\(\s*([^\s]+)\s+([^\s]+)\s*\)\s+(\d+)\s+(\d+)/g;
+      const vertRegex = /vert\s+(\d+)\s+\(\s*([^\s]+)\s+([^\s]+)\s*\)\s+(\d+)\s+(\d+)/g;
       let vertMatch;
       while ((vertMatch = vertRegex.exec(meshBlock)) !== null) {
         vertices.push({
@@ -202,16 +197,8 @@ class MD5Parser {
       let match;
       while ((match = baseRegex.exec(baseMatch[1])) !== null) {
         baseFrame.push({
-          position: [
-            parseFloat(match[1]),
-            parseFloat(match[2]),
-            parseFloat(match[3]),
-          ],
-          orientation: [
-            parseFloat(match[4]),
-            parseFloat(match[5]),
-            parseFloat(match[6]),
-          ],
+          position: [parseFloat(match[1]), parseFloat(match[2]), parseFloat(match[3])],
+          orientation: [parseFloat(match[4]), parseFloat(match[5]), parseFloat(match[6])],
         });
       }
     }
@@ -257,10 +244,7 @@ export class MD5Loader {
   /**
    * Load an MD5 animation file and create a Three.js AnimationClip
    */
-  async loadAnim(
-    url: string,
-    skeleton: THREE.Skeleton,
-  ): Promise<THREE.AnimationClip> {
+  async loadAnim(url: string, skeleton: THREE.Skeleton): Promise<THREE.AnimationClip> {
     const response = await fetch(url);
     if (!response.ok) {
       throw new Error(`Failed to load MD5 anim: ${response.statusText}`);
@@ -300,11 +284,7 @@ export class MD5Loader {
 
       if (joint.parent < 0) {
         // Root bone - use world position
-        bone.position.set(
-          joint.position[0],
-          joint.position[1],
-          joint.position[2],
-        );
+        bone.position.set(joint.position[0], joint.position[1], joint.position[2]);
         bone.quaternion.set(
           joint.orientation[0],
           joint.orientation[1],
@@ -329,11 +309,7 @@ export class MD5Loader {
         );
 
         // Compute local position
-        const worldPos = new THREE.Vector3(
-          joint.position[0],
-          joint.position[1],
-          joint.position[2],
-        );
+        const worldPos = new THREE.Vector3(joint.position[0], joint.position[1], joint.position[2]);
         const localPos = worldPos.clone().sub(parentPos);
         localPos.applyQuaternion(parentQuat.clone().invert());
         bone.position.copy(localPos);
@@ -419,18 +395,8 @@ export class MD5Loader {
           }
         }
 
-        allSkinIndices.push(
-          skinJoints[0],
-          skinJoints[1],
-          skinJoints[2],
-          skinJoints[3],
-        );
-        allSkinWeights.push(
-          skinWeights[0],
-          skinWeights[1],
-          skinWeights[2],
-          skinWeights[3],
-        );
+        allSkinIndices.push(skinJoints[0], skinJoints[1], skinJoints[2], skinJoints[3]);
+        allSkinWeights.push(skinWeights[0], skinWeights[1], skinWeights[2], skinWeights[3]);
       }
 
       // Add triangles with offset
@@ -446,23 +412,11 @@ export class MD5Loader {
     }
 
     const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute(
-      "position",
-      new THREE.Float32BufferAttribute(allPositions, 3),
-    );
-    geometry.setAttribute(
-      "normal",
-      new THREE.Float32BufferAttribute(allNormals, 3),
-    );
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute(allPositions, 3));
+    geometry.setAttribute("normal", new THREE.Float32BufferAttribute(allNormals, 3));
     geometry.setAttribute("uv", new THREE.Float32BufferAttribute(allUvs, 2));
-    geometry.setAttribute(
-      "skinIndex",
-      new THREE.Uint16BufferAttribute(allSkinIndices, 4),
-    );
-    geometry.setAttribute(
-      "skinWeight",
-      new THREE.Float32BufferAttribute(allSkinWeights, 4),
-    );
+    geometry.setAttribute("skinIndex", new THREE.Uint16BufferAttribute(allSkinIndices, 4));
+    geometry.setAttribute("skinWeight", new THREE.Float32BufferAttribute(allSkinWeights, 4));
     geometry.setIndex(allIndices);
 
     geometry.computeVertexNormals();
@@ -579,16 +533,8 @@ export class MD5Loader {
       }
 
       const boneName = bone.name;
-      tracks.push(
-        new THREE.VectorKeyframeTrack(`${boneName}.position`, times, positions),
-      );
-      tracks.push(
-        new THREE.QuaternionKeyframeTrack(
-          `${boneName}.quaternion`,
-          times,
-          quaternions,
-        ),
-      );
+      tracks.push(new THREE.VectorKeyframeTrack(`${boneName}.position`, times, positions));
+      tracks.push(new THREE.QuaternionKeyframeTrack(`${boneName}.quaternion`, times, quaternions));
     }
 
     return new THREE.AnimationClip(name, duration, tracks);
