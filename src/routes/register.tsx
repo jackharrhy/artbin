@@ -76,30 +76,29 @@ export default function Register() {
   return (
     <div>
       <Header />
-      <main className="auth-container">
-        <h1 className="auth-title">Register</h1>
+      <main className="max-w-[360px] mx-auto mt-16 p-8 bg-bg border border-border">
+        <h1 className="text-xl text-center mb-6">Register</h1>
 
         {actionData?.error && <div className="alert alert-error">{actionData.error}</div>}
 
         <Form method="post">
           <input type="hidden" name="inviteCode" value={code || ""} />
 
-          <div className="form-group">
-            <label htmlFor="email" className="form-label">
+          <div className="mb-4">
+            <label
+              htmlFor="email"
+              className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1"
+            >
               Email
             </label>
-            <input
-              type="email"
-              id="email"
-              name="email"
-              required
-              className="input"
-              style={{ width: "100%" }}
-            />
+            <input type="email" id="email" name="email" required className="input w-full" />
           </div>
 
-          <div className="form-group">
-            <label htmlFor="username" className="form-label">
+          <div className="mb-4">
+            <label
+              htmlFor="username"
+              className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1"
+            >
               Username
             </label>
             <input
@@ -108,14 +107,18 @@ export default function Register() {
               name="username"
               required
               pattern="[a-zA-Z0-9_]+"
-              className="input"
-              style={{ width: "100%" }}
+              className="input w-full"
             />
-            <div className="form-help">Letters, numbers, and underscores only</div>
+            <div className="text-xs text-text-muted mt-1">
+              Letters, numbers, and underscores only
+            </div>
           </div>
 
-          <div className="form-group">
-            <label htmlFor="password" className="form-label">
+          <div className="mb-4">
+            <label
+              htmlFor="password"
+              className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1"
+            >
               Password
             </label>
             <input
@@ -124,18 +127,17 @@ export default function Register() {
               name="password"
               required
               minLength={8}
-              className="input"
-              style={{ width: "100%" }}
+              className="input w-full"
             />
-            <div className="form-help">At least 8 characters</div>
+            <div className="text-xs text-text-muted mt-1">At least 8 characters</div>
           </div>
 
-          <button type="submit" className="btn btn-primary" style={{ width: "100%" }}>
+          <button type="submit" className="btn btn-primary w-full">
             Create Account
           </button>
         </Form>
 
-        <p style={{ marginTop: "1rem", fontSize: "0.875rem", textAlign: "center" }}>
+        <p className="mt-4 text-sm text-center">
           Already have an account? <a href="/login">Login</a>
         </p>
       </main>

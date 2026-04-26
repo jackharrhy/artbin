@@ -327,33 +327,28 @@ export default function FolderView() {
   return (
     <div>
       <Header user={user} onUploadClick={() => setShowUploadModal(true)} />
-      <main className="main-content">
+      <main className="max-w-[1400px] mx-auto p-4 bg-bg min-h-[calc(100vh-48px)]">
         {/* Breadcrumb */}
-        <div className="breadcrumb">
-          <a href="/folders">Folders</a>
+        <div className="text-xs text-text-muted mb-4">
+          <a className="text-text-muted hover:text-text" href="/folders">
+            Folders
+          </a>
           {ancestors.map((ancestor) => (
             <span key={ancestor.id}>
-              <span className="breadcrumb-sep">/</span>
-              <a href={`/folder/${ancestor.slug}`}>{ancestor.name}</a>
+              <span className="mx-2">/</span>
+              <a className="text-text-muted hover:text-text" href={`/folder/${ancestor.slug}`}>
+                {ancestor.name}
+              </a>
             </span>
           ))}
-          <span className="breadcrumb-sep">/</span>
+          <span className="mx-2">/</span>
           <span>{folder.name}</span>
         </div>
 
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: "1rem",
-          }}
-        >
-          <h1 className="page-title" style={{ marginBottom: 0, borderBottom: "none" }}>
-            {folder.name}
-          </h1>
+        <div className="flex justify-between items-center mb-4">
+          <h1 className="text-xl font-normal">{folder.name}</h1>
 
-          <div style={{ display: "flex", gap: "0.5rem" }}>
+          <div className="flex gap-2">
             <button
               type="button"
               className="btn btn-primary"
@@ -370,7 +365,7 @@ export default function FolderView() {
 
                 <Form
                   method="post"
-                  style={{ display: "inline" }}
+                  className="inline"
                   onSubmit={(e) => {
                     const fileCount = folderFiles.length;
                     const folderCount = childFolders.length;
@@ -393,9 +388,7 @@ export default function FolderView() {
           </div>
         </div>
 
-        {folder.description && (
-          <p style={{ marginBottom: "1rem", color: "#666" }}>{folder.description}</p>
-        )}
+        {folder.description && <p className="mb-4 text-text-muted">{folder.description}</p>}
 
         <BrowseTabs
           baseUrl={baseUrl}
@@ -426,26 +419,33 @@ export default function FolderView() {
           <>
             {/* Child Folders */}
             {childFolders.length > 0 && (
-              <section className="section">
-                <h2 className="section-title">Subfolders</h2>
-                <div className="folder-grid">
+              <section className="mb-8">
+                <h2 className="text-sm font-medium uppercase tracking-wide text-text-muted mb-3">
+                  Subfolders
+                </h2>
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-2">
                   {childFolders.map((child) => (
                     <a
                       key={child.id}
                       href={`/folder/${child.slug}`}
-                      className="folder-card folder-card-with-preview"
+                      className="block p-0 border border-border-light bg-bg no-underline transition-colors hover:border-border hover:no-underline overflow-hidden"
                     >
                       {child.previewPath ? (
-                        <div className="folder-preview">
-                          <img src={`/uploads/${child.previewPath}`} alt="" loading="lazy" />
+                        <div className="aspect-square overflow-hidden bg-bg-hover">
+                          <img
+                            className="w-full h-full object-cover block"
+                            src={`/uploads/${child.previewPath}`}
+                            alt=""
+                            loading="lazy"
+                          />
                         </div>
                       ) : (
-                        <div className="folder-preview folder-preview-empty">
+                        <div className="aspect-square flex items-center justify-center text-5xl text-border-light">
                           <span>📁</span>
                         </div>
                       )}
-                      <div className="folder-info">
-                        <div className="folder-name">{child.name}</div>
+                      <div className="px-3 py-2 border-t border-border-light">
+                        <div className="font-medium mb-1">{child.name}</div>
                       </div>
                     </a>
                   ))}
@@ -455,9 +455,9 @@ export default function FolderView() {
 
             {/* Textures (image files) */}
             {textures.length > 0 && (
-              <section className="section">
-                <div className="grid-header">
-                  <span className="grid-count">{textures.length} textures</span>
+              <section className="mb-8">
+                <div className="flex justify-between items-center mb-4">
+                  <span className="text-xs text-text-muted">{textures.length} textures</span>
                 </div>
                 <div className="texture-grid">
                   {textures.map((file) => (
@@ -472,30 +472,21 @@ export default function FolderView() {
 
             {/* Other Files */}
             {otherFiles.length > 0 && (
-              <section className="section">
-                <div className="grid-header">
-                  <span className="grid-count">{otherFiles.length} other files</span>
+              <section className="mb-8">
+                <div className="flex justify-between items-center mb-4">
+                  <span className="text-xs text-text-muted">{otherFiles.length} other files</span>
                 </div>
-                <div className="file-list">
+                <div>
                   {otherFiles.map((file) => (
                     <a
                       key={file.id}
                       href={`/file/${file.path}`}
-                      className="file-item"
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "0.5rem",
-                        padding: "0.5rem",
-                        borderBottom: "1px solid #eee",
-                        textDecoration: "none",
-                        color: "inherit",
-                      }}
+                      className="flex items-center gap-2 p-2 border-b border-border-light no-underline text-inherit"
                     >
-                      <span style={{ fontSize: "1.25rem" }}>{getFileIcon(file.kind)}</span>
-                      <div style={{ flex: 1 }}>
+                      <span className="text-xl">{getFileIcon(file.kind)}</span>
+                      <div className="flex-1">
                         <div>{file.name}</div>
-                        <div style={{ fontSize: "0.75rem", color: "#999" }}>
+                        <div className="text-xs text-text-faint">
                           {file.kind} • {(file.size / 1024).toFixed(1)} KB
                         </div>
                       </div>
@@ -506,7 +497,7 @@ export default function FolderView() {
             )}
 
             {childFolders.length === 0 && folderFiles.length === 0 && (
-              <div className="empty-state">This folder is empty</div>
+              <div className="text-center p-12 text-text-muted">This folder is empty</div>
             )}
           </>
         )}

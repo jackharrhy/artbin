@@ -87,25 +87,31 @@ export default function Settings() {
   return (
     <div>
       <Header user={user} />
-      <main className="main-content" style={{ maxWidth: "600px" }}>
-        <h1 className="page-title">Settings</h1>
+      <main className="max-w-[600px] mx-auto p-4 bg-bg min-h-[calc(100vh-48px)]">
+        <h1 className="text-xl font-normal mb-4 pb-2 border-b border-border-light">Settings</h1>
 
         {actionData?.error && <div className="alert alert-error">{actionData.error}</div>}
         {actionData?.success && <div className="alert alert-success">{actionData.success}</div>}
 
         {/* Account Info */}
-        <section className="section">
-          <h2 className="section-title">Account</h2>
+        <section className="mb-8">
+          <h2 className="text-sm font-medium uppercase tracking-wide text-text-muted mb-3">
+            Account
+          </h2>
           <div className="card">
-            <div className="form-group">
-              <span className="form-label">Username</span>
+            <div className="mb-4">
+              <span className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1">
+                Username
+              </span>
               <div>@{user.username}</div>
             </div>
-            <div className="form-group">
-              <span className="form-label">Email</span>
+            <div className="mb-4">
+              <span className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1">
+                Email
+              </span>
               <div>{user.email}</div>
             </div>
-            <Form method="post" style={{ marginTop: "1rem" }}>
+            <Form method="post" className="mt-4">
               <input type="hidden" name="intent" value="logout" />
               <button type="submit" className="btn btn-danger btn-sm">
                 Logout
@@ -115,17 +121,22 @@ export default function Settings() {
         </section>
 
         {/* Invite Links */}
-        <section className="section">
-          <h2 className="section-title">Invite Links</h2>
-          <p className="form-help" style={{ marginBottom: "1rem" }}>
+        <section className="mb-8">
+          <h2 className="text-sm font-medium uppercase tracking-wide text-text-muted mb-3">
+            Invite Links
+          </h2>
+          <p className="text-xs text-text-muted mt-1 mb-4">
             Share these links to invite others. Links can be used multiple times unless you set a
             limit.
           </p>
 
-          <Form method="post" className="card" style={{ marginBottom: "1rem" }}>
+          <Form method="post" className="card mb-4">
             <input type="hidden" name="intent" value="createInvite" />
-            <div className="form-group">
-              <label className="form-label" htmlFor="maxUses">
+            <div className="mb-4">
+              <label
+                className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1"
+                htmlFor="maxUses"
+              >
                 Usage Limit (optional)
               </label>
               <input
@@ -134,8 +145,7 @@ export default function Settings() {
                 name="maxUses"
                 min="1"
                 placeholder="Leave empty for unlimited"
-                className="input"
-                style={{ width: "200px" }}
+                className="input w-[200px]"
               />
             </div>
             <button type="submit" className="btn btn-primary btn-sm">
@@ -144,22 +154,25 @@ export default function Settings() {
           </Form>
 
           {invites.length === 0 ? (
-            <div className="empty-state">No invite links yet</div>
+            <div className="text-sm text-text-muted">No invite links yet</div>
           ) : (
             <div>
               {invites.map((invite) => (
-                <div key={invite.id} className="invite-item">
+                <div
+                  key={invite.id}
+                  className="flex items-center justify-between p-2 border border-border-light mb-2 bg-bg"
+                >
                   <div>
-                    <div className="invite-code">
+                    <div className="font-mono text-sm">
                       {baseUrl}/invite/{invite.code}
                     </div>
-                    <div className="invite-meta">
+                    <div className="text-xs text-text-muted">
                       {invite.useCount ?? 0} uses
                       {invite.maxUses ? ` / ${invite.maxUses} max` : " (unlimited)"}
                       {!invite.isActive && " - disabled"}
                     </div>
                   </div>
-                  <div style={{ display: "flex", gap: "0.5rem" }}>
+                  <div className="flex gap-2">
                     <button
                       type="button"
                       className="btn btn-sm"
@@ -169,14 +182,14 @@ export default function Settings() {
                     >
                       copy
                     </button>
-                    <Form method="post" style={{ display: "inline" }}>
+                    <Form method="post" className="inline">
                       <input type="hidden" name="intent" value="toggleInvite" />
                       <input type="hidden" name="inviteId" value={invite.id} />
                       <button type="submit" className="btn btn-sm">
                         {invite.isActive ? "disable" : "enable"}
                       </button>
                     </Form>
-                    <Form method="post" style={{ display: "inline" }}>
+                    <Form method="post" className="inline">
                       <input type="hidden" name="intent" value="deleteInvite" />
                       <input type="hidden" name="inviteId" value={invite.id} />
                       <button type="submit" className="btn btn-sm btn-danger">
@@ -192,9 +205,11 @@ export default function Settings() {
 
         {/* Admin Section */}
         {user.isAdmin && (
-          <section className="section">
-            <h2 className="section-title">Admin</h2>
-            <div className="card" style={{ display: "flex", gap: "0.5rem" }}>
+          <section className="mb-8">
+            <h2 className="text-sm font-medium uppercase tracking-wide text-text-muted mb-3">
+              Admin
+            </h2>
+            <div className="card flex gap-2">
               <a href="/admin/jobs" className="btn btn-sm">
                 View Jobs
               </a>

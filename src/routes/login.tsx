@@ -49,28 +49,27 @@ export default function Login() {
   return (
     <div>
       <Header />
-      <main className="auth-container">
-        <h1 className="auth-title">Login</h1>
+      <main className="max-w-[360px] mx-auto mt-16 p-8 bg-bg border border-border">
+        <h1 className="text-xl text-center mb-6">Login</h1>
 
         {errorMessage && <div className="alert alert-error">{errorMessage}</div>}
 
         <Form method="post">
-          <div className="form-group">
-            <label htmlFor="email" className="form-label">
+          <div className="mb-4">
+            <label
+              htmlFor="email"
+              className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1"
+            >
               Email
             </label>
-            <input
-              type="email"
-              id="email"
-              name="email"
-              required
-              className="input"
-              style={{ width: "100%" }}
-            />
+            <input type="email" id="email" name="email" required className="input w-full" />
           </div>
 
-          <div className="form-group">
-            <label htmlFor="password" className="form-label">
+          <div className="mb-4">
+            <label
+              htmlFor="password"
+              className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1"
+            >
               Password
             </label>
             <input
@@ -78,17 +77,16 @@ export default function Login() {
               id="password"
               name="password"
               required
-              className="input"
-              style={{ width: "100%" }}
+              className="input w-full"
             />
           </div>
 
-          <button type="submit" className="btn btn-primary" style={{ width: "100%" }}>
+          <button type="submit" className="btn btn-primary w-full">
             Login
           </button>
         </Form>
 
-        <p style={{ marginTop: "1rem", fontSize: "0.875rem", textAlign: "center" }}>
+        <p className="mt-4 text-sm text-center">
           Need an account? Get an invite link from a member.
         </p>
       </main>

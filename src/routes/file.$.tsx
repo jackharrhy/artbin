@@ -368,46 +368,54 @@ export default function FileView() {
   return (
     <div>
       <Header user={user} />
-      <main className="main-content">
+      <main className="max-w-[1400px] mx-auto p-4 bg-bg min-h-[calc(100vh-48px)]">
         {/* Breadcrumb */}
-        <div className="breadcrumb">
-          <a href="/folders">Folders</a>
+        <div className="text-xs text-text-muted mb-4">
+          <a href="/folders" className="text-text-muted hover:text-text no-underline">
+            Folders
+          </a>
           {ancestors.map((ancestor) => (
             <span key={ancestor.id}>
-              <span className="breadcrumb-sep">/</span>
-              <a href={`/folder/${ancestor.slug}`}>{ancestor.name}</a>
+              <span className="mx-2">/</span>
+              <a
+                href={`/folder/${ancestor.slug}`}
+                className="text-text-muted hover:text-text no-underline"
+              >
+                {ancestor.name}
+              </a>
             </span>
           ))}
           {folder && (
             <>
-              <span className="breadcrumb-sep">/</span>
-              <a href={`/folder/${folder.slug}`}>{folder.name}</a>
+              <span className="mx-2">/</span>
+              <a
+                href={`/folder/${folder.slug}`}
+                className="text-text-muted hover:text-text no-underline"
+              >
+                {folder.name}
+              </a>
             </>
           )}
-          <span className="breadcrumb-sep">/</span>
+          <span className="mx-2">/</span>
           <span>{file.name}</span>
         </div>
 
-        <div className="file-detail">
+        <div className="grid grid-cols-[1fr_300px] gap-6 max-md:grid-cols-1">
           {/* Preview */}
-          <div className="file-preview">
+          <div className="bg-[#fafafa] border border-border-light flex items-center justify-center min-h-[300px]">
             {isImage && (
               <a href={downloadUrl} target="_blank" rel="noopener">
                 <img
                   src={displayUrl}
                   alt={file.name}
-                  style={{
-                    maxWidth: "100%",
-                    maxHeight: "500px",
-                    objectFit: "contain",
-                    imageRendering: "pixelated",
-                  }}
+                  className="max-w-full max-h-[500px] object-contain block"
+                  style={{ imageRendering: "pixelated" }}
                 />
               </a>
             )}
 
             {isModel && modelFormat && (
-              <div style={{ width: "100%" }}>
+              <div className="w-full">
                 <ModelViewer
                   modelUrl={downloadUrl}
                   textureUrl={selectedTexture}
@@ -419,28 +427,12 @@ export default function FileView() {
                   height={450}
                 />
                 {availableTextures.length > 1 && (
-                  <div
-                    style={{
-                      padding: "0.5rem",
-                      background: "#fff",
-                      borderTop: "1px solid #eee",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "0.5rem",
-                      fontSize: "0.8125rem",
-                    }}
-                  >
-                    <label style={{ color: "#666" }}>Texture:</label>
+                  <div className="p-2 bg-bg border-t border-bg-subtle flex items-center gap-2 text-[0.8125rem]">
+                    <label className="text-text-muted">Texture:</label>
                     <select
                       value={selectedTexture || ""}
                       onChange={(e) => setSelectedTexture(e.target.value || undefined)}
-                      style={{
-                        flex: 1,
-                        padding: "0.25rem",
-                        border: "1px solid #ccc",
-                        borderRadius: "3px",
-                        fontSize: "0.8125rem",
-                      }}
+                      className="flex-1 p-1 border border-border-light text-[0.8125rem]"
                     >
                       <option value="">None</option>
                       {availableTextures.map((tex) => (
@@ -455,22 +447,12 @@ export default function FileView() {
             )}
 
             {isModel && !modelFormat && (
-              <div
-                style={{
-                  height: "400px",
-                  background: "#f5f5f5",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <div style={{ textAlign: "center", color: "#999" }}>
-                  <div style={{ fontSize: "3rem" }}>📦</div>
+              <div className="h-[400px] bg-bg-hover flex items-center justify-center">
+                <div className="text-center text-text-faint">
+                  <div className="text-5xl">📦</div>
                   <div>3D Model</div>
-                  <div style={{ fontSize: "0.875rem", marginTop: "0.5rem" }}>
-                    Format not supported for preview
-                  </div>
-                  <a href={downloadUrl} className="btn" style={{ marginTop: "1rem" }}>
+                  <div className="text-sm mt-2">Format not supported for preview</div>
+                  <a href={downloadUrl} className="btn mt-4 inline-block">
                     Download
                   </a>
                 </div>
@@ -478,12 +460,12 @@ export default function FileView() {
             )}
 
             {isAudio && isWebPlayableAudio(file.name) && (
-              <div style={{ padding: "2rem", textAlign: "center", width: "100%" }}>
-                <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>🔊</div>
-                <audio controls src={downloadUrl} style={{ width: "100%", minWidth: "300px" }}>
+              <div className="p-8 text-center w-full">
+                <div className="text-5xl mb-4">🔊</div>
+                <audio controls src={downloadUrl} className="w-full min-w-[300px]">
                   Your browser does not support the audio element.
                 </audio>
-                <div style={{ marginTop: "1rem" }}>
+                <div className="mt-4">
                   <a href={downloadUrl} className="btn" download>
                     Download
                   </a>
@@ -492,18 +474,10 @@ export default function FileView() {
             )}
 
             {isAudio && !isWebPlayableAudio(file.name) && (
-              <div
-                style={{
-                  padding: "3rem",
-                  textAlign: "center",
-                  background: "#f5f5f5",
-                }}
-              >
-                <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>🔊</div>
-                <div style={{ marginBottom: "0.5rem" }}>
-                  {getExtname(file.name).slice(1).toUpperCase()} Audio
-                </div>
-                <div style={{ fontSize: "0.875rem", color: "#666", marginBottom: "1rem" }}>
+              <div className="p-12 text-center bg-bg-hover">
+                <div className="text-5xl mb-4">🔊</div>
+                <div className="mb-2">{getExtname(file.name).slice(1).toUpperCase()} Audio</div>
+                <div className="text-sm text-text-muted mb-4">
                   This format cannot be played in the browser
                 </div>
                 <a href={downloadUrl} className="btn btn-primary" download>
@@ -514,22 +488,18 @@ export default function FileView() {
 
             {/* Text file preview */}
             {isTextFile && textContent && (
-              <div className="text-preview-container">
-                <pre className="text-preview">{textContent}</pre>
+              <div className="w-full max-h-[600px] overflow-auto bg-bg m-4">
+                <pre className="m-0 p-2 font-mono text-[0.8125rem] leading-relaxed text-text whitespace-pre-wrap break-words">
+                  {textContent}
+                </pre>
               </div>
             )}
 
             {isTextFile && textTruncated && (
-              <div
-                style={{
-                  padding: "3rem",
-                  textAlign: "center",
-                  background: "#f5f5f5",
-                }}
-              >
-                <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>📄</div>
-                <div style={{ marginBottom: "0.5rem" }}>Text File</div>
-                <div style={{ fontSize: "0.875rem", color: "#666", marginBottom: "1rem" }}>
+              <div className="p-12 text-center bg-bg-hover">
+                <div className="text-5xl mb-4">📄</div>
+                <div className="mb-2">Text File</div>
+                <div className="text-sm text-text-muted mb-4">
                   File too large to preview ({formatSize(file.size)})
                 </div>
                 <a href={downloadUrl} className="btn btn-primary" download>
@@ -539,15 +509,9 @@ export default function FileView() {
             )}
 
             {isTextFile && !textContent && !textTruncated && (
-              <div
-                style={{
-                  padding: "3rem",
-                  textAlign: "center",
-                  background: "#f5f5f5",
-                }}
-              >
-                <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>📄</div>
-                <div style={{ marginBottom: "1rem" }}>Text File</div>
+              <div className="p-12 text-center bg-bg-hover">
+                <div className="text-5xl mb-4">📄</div>
+                <div className="mb-4">Text File</div>
                 <a href={downloadUrl} className="btn btn-primary" download>
                   Download
                 </a>
@@ -555,17 +519,11 @@ export default function FileView() {
             )}
 
             {!isImage && !isModel && !isAudio && !isTextFile && (
-              <div
-                style={{
-                  padding: "3rem",
-                  textAlign: "center",
-                  background: "#f5f5f5",
-                }}
-              >
-                <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>
+              <div className="p-12 text-center bg-bg-hover">
+                <div className="text-5xl mb-4">
                   {file.kind === "map" ? "🗺️" : file.kind === "archive" ? "📁" : "📎"}
                 </div>
-                <div style={{ marginBottom: "1rem" }}>{file.kind || "File"}</div>
+                <div className="mb-4">{file.kind || "File"}</div>
                 <a href={downloadUrl} className="btn btn-primary">
                   Download
                 </a>
@@ -574,65 +532,57 @@ export default function FileView() {
           </div>
 
           {/* Info */}
-          <div className="file-info card">
-            <h2 style={{ fontWeight: 500, marginBottom: "1rem" }}>{file.name}</h2>
+          <div className="card">
+            <h2 className="font-medium mb-4">{file.name}</h2>
 
-            <dl className="detail-info">
-              <dt>Kind</dt>
-              <dd style={{ textTransform: "capitalize" }}>{file.kind}</dd>
+            <dl>
+              <dt className="text-xs text-text-muted uppercase tracking-wide">Kind</dt>
+              <dd className="mb-3 capitalize">{file.kind}</dd>
 
-              <dt>Size</dt>
-              <dd>{formatSize(file.size)}</dd>
+              <dt className="text-xs text-text-muted uppercase tracking-wide">Size</dt>
+              <dd className="mb-3">{formatSize(file.size)}</dd>
 
-              <dt>Type</dt>
-              <dd>{file.mimeType}</dd>
+              <dt className="text-xs text-text-muted uppercase tracking-wide">Type</dt>
+              <dd className="mb-3">{file.mimeType}</dd>
 
               {file.width && file.height && (
                 <>
-                  <dt>Dimensions</dt>
-                  <dd>
+                  <dt className="text-xs text-text-muted uppercase tracking-wide">Dimensions</dt>
+                  <dd className="mb-3">
                     {file.width} × {file.height}
                   </dd>
 
-                  <dt>Aspect Ratio</dt>
-                  <dd>{getAspectRatio(file.width, file.height)}</dd>
+                  <dt className="text-xs text-text-muted uppercase tracking-wide">Aspect Ratio</dt>
+                  <dd className="mb-3">{getAspectRatio(file.width, file.height)}</dd>
                 </>
               )}
 
               {file.source && (
                 <>
-                  <dt>Source</dt>
-                  <dd>{file.source}</dd>
+                  <dt className="text-xs text-text-muted uppercase tracking-wide">Source</dt>
+                  <dd className="mb-3">{file.source}</dd>
                 </>
               )}
 
               {file.sourceArchive && (
                 <>
-                  <dt>Archive</dt>
-                  <dd>{file.sourceArchive}</dd>
+                  <dt className="text-xs text-text-muted uppercase tracking-wide">Archive</dt>
+                  <dd className="mb-3">{file.sourceArchive}</dd>
                 </>
               )}
 
-              <dt>Path</dt>
-              <dd>
-                <code style={{ fontSize: "0.75rem" }}>{file.path}</code>
+              <dt className="text-xs text-text-muted uppercase tracking-wide">Path</dt>
+              <dd className="mb-3">
+                <code className="text-xs">{file.path}</code>
               </dd>
             </dl>
 
             {tags.length > 0 && (
-              <div style={{ marginTop: "1rem" }}>
-                <h3 style={{ fontWeight: 500, marginBottom: "0.5rem" }}>Tags</h3>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem" }}>
+              <div className="mt-4">
+                <h3 className="font-medium mb-2">Tags</h3>
+                <div className="flex flex-wrap gap-1">
                   {tags.map((tag) => (
-                    <span
-                      key={tag.id}
-                      style={{
-                        padding: "0.125rem 0.5rem",
-                        background: "#f0f0f0",
-                        borderRadius: "4px",
-                        fontSize: "0.75rem",
-                      }}
-                    >
+                    <span key={tag.id} className="tag">
                       {tag.name}
                     </span>
                   ))}
@@ -640,7 +590,7 @@ export default function FileView() {
               </div>
             )}
 
-            <div style={{ marginTop: "1.5rem" }}>
+            <div className="mt-6">
               <a href={downloadUrl} className="btn btn-primary" download>
                 Download Original
               </a>
@@ -648,52 +598,6 @@ export default function FileView() {
           </div>
         </div>
       </main>
-
-      <style>{`
-        .file-detail {
-          display: grid;
-          grid-template-columns: 1fr 300px;
-          gap: 1.5rem;
-        }
-        
-        @media (max-width: 768px) {
-          .file-detail {
-            grid-template-columns: 1fr;
-          }
-        }
-        
-        .file-preview {
-          background: #fafafa;
-          border: 1px solid #eee;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          min-height: 300px;
-        }
-        
-        .file-preview img {
-          display: block;
-        }
-
-        .text-preview-container {
-          width: 100%;
-          max-height: 600px;
-          overflow: auto;
-          background: #fff;
-          margin: 1rem;
-        }
-
-        .text-preview {
-          margin: 0;
-          padding: 0.5rem;
-          font-family: var(--font-mono);
-          font-size: 0.8125rem;
-          line-height: 1.5;
-          color: #111;
-          white-space: pre-wrap;
-          word-wrap: break-word;
-        }
-      `}</style>
     </div>
   );
 }

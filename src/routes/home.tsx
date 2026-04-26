@@ -23,9 +23,9 @@ export default function Home() {
   return (
     <div>
       <Header />
-      <main className="auth-container" style={{ textAlign: "center" }}>
-        <h1 style={{ fontSize: "1.5rem", marginBottom: "1rem" }}>artbin</h1>
-        <p style={{ marginBottom: "1.5rem", color: "#666" }}>Texture repository. Invite only.</p>
+      <main className="max-w-[360px] mx-auto mt-16 p-8 bg-bg border border-border text-center">
+        <h1 className="text-2xl mb-4">artbin</h1>
+        <p className="mb-6 text-text-muted">Texture repository. Invite only.</p>
         <a href="/login" className="btn btn-primary">
           Login
         </a>
