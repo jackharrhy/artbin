@@ -12,8 +12,8 @@ import { MD2Loader } from "three/addons/loaders/MD2Loader.js";
 import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
 import { MTLLoader } from "three/addons/loaders/MTLLoader.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { MD5Loader } from "~/lib/MD5Loader";
-import { ASELoader } from "~/lib/ASELoader";
+import { MD5Loader } from "~/lib/loaders/MD5Loader";
+import { ASELoader } from "~/lib/loaders/ASELoader";
 
 type ModelFormat = "md2" | "md5mesh" | "ase" | "obj" | "gltf" | "glb";
 

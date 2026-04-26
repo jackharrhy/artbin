@@ -7,12 +7,12 @@ import { PassThrough } from "node:stream";
 import { startJobRunner, isJobRunnerActive } from "~/lib/jobs.server";
 
 // Register job handlers
-import "~/lib/extract-job.server";
-import "~/lib/texturetown-job.server";
-import "~/lib/thejang-job.server";
-import "~/lib/sadgrl-job.server";
-import "~/lib/scan-archives-job.server";
-import "~/lib/folder-import-job.server";
+import "~/lib/jobs/extract-job.server";
+import "~/lib/jobs/texturetown-job.server";
+import "~/lib/jobs/thejang-job.server";
+import "~/lib/jobs/sadgrl-job.server";
+import "~/lib/jobs/scan-archives-job.server";
+import "~/lib/jobs/folder-import-job.server";
 
 // Start the job runner (only once)
 if (!isJobRunnerActive()) {

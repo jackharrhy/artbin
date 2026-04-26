@@ -12,7 +12,7 @@ import { basename, dirname, join, extname, relative } from "path";
 import { readdir, stat, readFile } from "fs/promises";
 import { existsSync } from "fs";
 
-import { registerJobHandler, updateJobProgress } from "./jobs.server";
+import { registerJobHandler, updateJobProgress } from "../jobs.server";
 import {
   saveFile,
   getMimeType,
@@ -23,8 +23,8 @@ import {
   slugToPath,
   recalculateFolderCounts,
   insertFileRecord,
-} from "./files.server";
-import { generateFolderPreview } from "./folder-preview.server";
+} from "../files.server";
+import { generateFolderPreview } from "../folder-preview.server";
 
 // ============================================================================
 // Supported File Extensions

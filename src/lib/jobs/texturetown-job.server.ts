@@ -9,7 +9,7 @@ import { db, folders, files, type Job } from "~/db";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 
-import { registerJobHandler, updateJobProgress } from "./jobs.server";
+import { registerJobHandler, updateJobProgress } from "../jobs.server";
 import {
   saveFile,
   getMimeType,
@@ -20,8 +20,8 @@ import {
   slugToPath,
   recalculateFolderCounts,
   insertFileRecord,
-} from "./files.server";
-import { generateFolderPreview } from "./folder-preview.server";
+} from "../files.server";
+import { generateFolderPreview } from "../folder-preview.server";
 
 // ============================================================================
 // Types

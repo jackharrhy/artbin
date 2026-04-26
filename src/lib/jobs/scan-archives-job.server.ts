@@ -11,8 +11,8 @@ import { exec } from "child_process";
 import { promisify } from "util";
 import { stat } from "fs/promises";
 import { basename, dirname } from "path";
-import { registerJobHandler, updateJobProgress } from "./jobs.server";
-import { getScanSettings, type ScanSettings } from "./settings.server";
+import { registerJobHandler, updateJobProgress } from "../jobs.server";
+import { getScanSettings, type ScanSettings } from "../settings.server";
 import { homedir } from "os";
 
 const execAsync = promisify(exec);

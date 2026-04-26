@@ -11,7 +11,7 @@ import { nanoid } from "nanoid";
 import { basename, dirname, join } from "path";
 import { unlink } from "fs/promises";
 
-import { registerJobHandler, updateJobProgress } from "./jobs.server";
+import { registerJobHandler, updateJobProgress } from "../jobs.server";
 import {
   parseArchive,
   extractEntry,
@@ -19,7 +19,7 @@ import {
   getFileEntries,
   type ArchiveEntry,
   type ParsedArchive,
-} from "./archives.server";
+} from "../archives.server";
 import {
   saveFile,
   getMimeType,
@@ -31,9 +31,9 @@ import {
   slugToPath,
   recalculateFolderCounts,
   insertFileRecord,
-} from "./files.server";
-import { generateFolderPreview } from "./folder-preview.server";
-import { isBSPFile, extractTexturesFromBSP } from "./bsp.server";
+} from "../files.server";
+import { generateFolderPreview } from "../folder-preview.server";
+import { isBSPFile, extractTexturesFromBSP } from "../bsp.server";
 
 // ============================================================================
 // Types
