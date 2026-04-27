@@ -452,11 +452,22 @@ export default function FolderView() {
                 <div className="flex justify-between items-center mb-4">
                   <span className="text-xs text-text-muted">{textures.length} textures</span>
                 </div>
-                <div className="texture-grid">
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-2">
                   {textures.map((file) => (
-                    <a key={file.id} href={`/file/${file.path}`} className="texture-card">
-                      <img src={getFileDisplayUrl(file) || ""} alt={file.name} loading="lazy" />
-                      <div className="texture-card-info">{file.name}</div>
+                    <a
+                      key={file.id}
+                      href={`/file/${file.path}`}
+                      className="group relative aspect-square overflow-hidden border border-border-light bg-[#f9f9f9] transition-colors hover:border-border"
+                    >
+                      <img
+                        src={getFileDisplayUrl(file) || ""}
+                        alt={file.name}
+                        loading="lazy"
+                        className="h-full w-full object-cover"
+                      />
+                      <div className="absolute bottom-0 left-0 right-0 truncate bg-white/95 px-2 py-1 text-[0.7rem] text-text-muted opacity-0 transition-opacity group-hover:opacity-100">
+                        {file.name}
+                      </div>
                     </a>
                   ))}
                 </div>

@@ -48,7 +48,7 @@ export function FileGrid({ files, hasMore, onLoadMore, loading }: FileGridProps)
   }, [hasMore, loading, onLoadMore]);
 
   if (files.length === 0) {
-    return <div className="empty-state">No files found</div>;
+    return <div className="text-center p-12 text-text-muted">No files found</div>;
   }
 
   return (
