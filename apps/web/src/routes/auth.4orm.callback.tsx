@@ -72,16 +72,21 @@ export async function loader({ request }: Route.LoaderArgs) {
         username: userinfo.username,
         passwordHash: "",
         fourmId: userinfo.sub,
+        isAdmin: userinfo.is_admin,
       })
       .returning();
     localUser = created;
   } else {
-    // Sync username from 4orm (it may have changed)
+    // Sync username and admin status from 4orm on each login
+    const updates: Partial<{ username: string; isAdmin: boolean }> = {};
     if (localUser.username !== userinfo.username) {
-      await db
-        .update(users)
-        .set({ username: userinfo.username })
-        .where(eq(users.id, localUser.id));
+      updates.username = userinfo.username;
+    }
+    if (localUser.isAdmin !== userinfo.is_admin) {
+      updates.isAdmin = userinfo.is_admin;
+    }
+    if (Object.keys(updates).length > 0) {
+      await db.update(users).set(updates).where(eq(users.id, localUser.id));
     }
   }
 

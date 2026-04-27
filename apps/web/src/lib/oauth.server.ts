@@ -47,7 +47,7 @@ export async function exchangeCode(
 
 export async function fetchUserinfo(
   accessToken: string,
-): Promise<{ sub: string; username: string; display_name: string }> {
+): Promise<{ sub: string; username: string; display_name: string; is_admin: boolean }> {
   const response = await fetch(FOURM_USERINFO_URL, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
