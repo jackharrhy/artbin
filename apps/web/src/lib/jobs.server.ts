@@ -26,18 +26,12 @@ export async function createJob(params: CreateJobInput): Promise<Job> {
   return job;
 }
 
-/**
- * Get a job by ID
- */
 export async function getJob(id: string): Promise<Job | undefined> {
   return db.query.jobs.findFirst({
     where: eq(jobs.id, id),
   });
 }
 
-/**
- * Get all jobs for a user
- */
 export async function getUserJobs(userId: string, limit = 50): Promise<Job[]> {
   return db.query.jobs.findMany({
     where: eq(jobs.userId, userId),
@@ -46,9 +40,6 @@ export async function getUserJobs(userId: string, limit = 50): Promise<Job[]> {
   });
 }
 
-/**
- * Get all recent jobs (for admin)
- */
 export async function getAllJobs(limit = 100): Promise<Job[]> {
   return db.query.jobs.findMany({
     orderBy: (jobs, { desc }) => [desc(jobs.createdAt)],
@@ -56,9 +47,6 @@ export async function getAllJobs(limit = 100): Promise<Job[]> {
   });
 }
 
-/**
- * Update job progress
- */
 export async function updateJobProgress(
   id: string,
   progress: number,
@@ -73,9 +61,6 @@ export async function updateJobProgress(
     .where(eq(jobs.id, id));
 }
 
-/**
- * Mark job as started
- */
 export async function startJob(id: string): Promise<void> {
   await db
     .update(jobs)
@@ -86,9 +71,6 @@ export async function startJob(id: string): Promise<void> {
     .where(eq(jobs.id, id));
 }
 
-/**
- * Mark job as completed
- */
 export async function completeJob(id: string, output: Record<string, unknown>): Promise<void> {
   await db
     .update(jobs)
@@ -101,9 +83,6 @@ export async function completeJob(id: string, output: Record<string, unknown>): 
     .where(eq(jobs.id, id));
 }
 
-/**
- * Mark job as failed
- */
 export async function failJob(id: string, error: string): Promise<void> {
   await db
     .update(jobs)
@@ -115,9 +94,6 @@ export async function failJob(id: string, error: string): Promise<void> {
     .where(eq(jobs.id, id));
 }
 
-/**
- * Cancel a pending job
- */
 export async function cancelJob(id: string) {
   const job = await getJob(id);
   if (!job) {
@@ -205,9 +181,6 @@ export async function resetStuckJob(id: string, stuckThresholdMinutes = 30) {
   return Result.ok(updatedJob!);
 }
 
-/**
- * Check if a job appears to be stuck (running for too long)
- */
 export function isJobStuck(job: Job, thresholdMinutes = 30): boolean {
   if (job.status !== "running") return false;
   if (!job.startedAt) return false;
@@ -217,24 +190,14 @@ export function isJobStuck(job: Job, thresholdMinutes = 30): boolean {
   return runningTime > thresholdMs;
 }
 
-// ============================================================================
-// Job Processing
-// ============================================================================
-
 type JobHandler = (job: Job, input: Record<string, unknown>) => Promise<Record<string, unknown>>;
 
 const jobHandlers = new Map<string, JobHandler>();
 
-/**
- * Register a job handler
- */
 export function registerJobHandler(type: string, handler: JobHandler): void {
   jobHandlers.set(type, handler);
 }
 
-/**
- * Get the next pending job
- */
 async function getNextJob(): Promise<Job | undefined> {
   return db.query.jobs.findFirst({
     where: eq(jobs.status, "pending"),
@@ -242,9 +205,6 @@ async function getNextJob(): Promise<Job | undefined> {
   });
 }
 
-/**
- * Process a single job
- */
 export async function processJob(job: Job) {
   const handler = jobHandlers.get(job.type);
 
@@ -267,10 +227,6 @@ export async function processJob(job: Job) {
     return Result.err(new Error(message));
   }
 }
-
-// ============================================================================
-// Job Runner
-// ============================================================================
 
 let isRunning = false;
 let pollInterval: NodeJS.Timeout | null = null;
@@ -306,9 +262,6 @@ export function startJobRunner(intervalMs = 2000): void {
   poll();
 }
 
-/**
- * Stop the job runner
- */
 export function stopJobRunner(): void {
   isRunning = false;
   if (pollInterval) {
@@ -318,20 +271,10 @@ export function stopJobRunner(): void {
   console.log("[JobRunner] Stopped");
 }
 
-/**
- * Check if the job runner is running
- */
 export function isJobRunnerActive(): boolean {
   return isRunning;
 }
 
-// ============================================================================
-// Cleanup
-// ============================================================================
-
-/**
- * Clean up old completed/failed jobs (older than N days)
- */
 export async function cleanupOldJobs(daysOld = 7): Promise<number> {
   const cutoff = new Date(Date.now() - daysOld * 24 * 60 * 60 * 1000);
 
@@ -347,9 +290,6 @@ export async function cleanupOldJobs(daysOld = 7): Promise<number> {
   return result.changes;
 }
 
-/**
- * Reset stuck jobs (running for more than N minutes)
- */
 export async function resetStuckJobs(minutesOld = 30): Promise<number> {
   const cutoff = new Date(Date.now() - minutesOld * 60 * 1000);
 

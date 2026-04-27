@@ -168,9 +168,6 @@ export function meta() {
   return [{ title: "Import - Admin - artbin" }];
 }
 
-/**
- * Format bytes as human-readable string
- */
 function formatSize(bytes: number): string {
   if (bytes === 0) return "0 B";
   const units = ["B", "KB", "MB", "GB", "TB"];
@@ -179,9 +176,6 @@ function formatSize(bytes: number): string {
   return `${size.toFixed(i > 0 ? 1 : 0)} ${units[i]}`;
 }
 
-/**
- * Get display name for file kind
- */
 function kindLabel(kind: string): string {
   const labels: Record<string, string> = {
     texture: "Textures",

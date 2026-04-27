@@ -75,15 +75,12 @@ function parseImagesByCategory(html: string): Map<string, string[]> {
     const imageSection = match[2];
 
     // Find the matching category
-    const category = CATEGORIES.find(
-      (c) => c.name.toLowerCase() === categoryName.toLowerCase(),
-    );
+    const category = CATEGORIES.find((c) => c.name.toLowerCase() === categoryName.toLowerCase());
 
     if (!category) continue;
 
     // Extract image URLs from this section
-    const imgPattern =
-      /src="(https:\/\/sadhost\.neocities\.org\/images\/tiles\/[^"]+)"/gi;
+    const imgPattern = /src="(https:\/\/sadhost\.neocities\.org\/images\/tiles\/[^"]+)"/gi;
     const images: string[] = [];
 
     let imgMatch;
@@ -150,10 +147,7 @@ async function getOrCreateParentFolder(): Promise<string> {
 /**
  * Get or create a category folder
  */
-async function getOrCreateCategoryFolder(
-  category: Category,
-  parentId: string,
-): Promise<string> {
+async function getOrCreateCategoryFolder(category: Category, parentId: string): Promise<string> {
   const slug = `${PARENT_SLUG}/${category.slug}`;
 
   const existing = await db.query.folders.findFirst({
@@ -184,11 +178,7 @@ async function handleSadgrlImport(
 ): Promise<Record<string, unknown>> {
   const { userId } = input as unknown as SadgrlImportInput;
 
-  await updateJobProgress(
-    job.id,
-    2,
-    "Fetching Sadgrl tiled backgrounds page...",
-  );
+  await updateJobProgress(job.id, 2, "Fetching Sadgrl tiled backgrounds page...");
 
   // Fetch the page
   const res = await fetch(PAGE_URL);
@@ -278,10 +268,7 @@ async function handleSadgrlImport(
             hasPreview = imageInfo.value.hasPreview;
           } catch (imgErr) {
             // Some formats might fail processing, continue anyway
-            console.warn(
-              `[Sadgrl] Image processing failed for ${filename}:`,
-              imgErr,
-            );
+            console.warn(`[Sadgrl] Image processing failed for ${filename}:`, imgErr);
           }
         }
 
@@ -333,10 +320,7 @@ async function handleSadgrlImport(
     try {
       await generateFolderPreview(folderId);
     } catch (err) {
-      console.error(
-        `[Sadgrl] Failed to generate preview for folder ${folderId}:`,
-        err,
-      );
+      console.error(`[Sadgrl] Failed to generate preview for folder ${folderId}:`, err);
     }
   }
 

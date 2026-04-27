@@ -1,9 +1,3 @@
-/**
- * File utilities for artbin
- *
- * Handles file storage, mime type detection, preview generation, and path management.
- */
-
 import { mkdir, writeFile, unlink, rename, stat, readdir } from "fs/promises";
 import { existsSync } from "fs";
 import { join, dirname, basename, extname } from "path";
@@ -41,48 +35,26 @@ export {
 export const UPLOADS_DIR = join(process.cwd(), "public", "uploads");
 export const TEMP_DIR = join(process.cwd(), "tmp", "uploads");
 
-// ============================================================================
-// Path Management
-// ============================================================================
-
-/**
- * Convert a folder slug to a filesystem path
- */
 export function slugToPath(slug: string): string {
   return join(UPLOADS_DIR, slug);
 }
 
-/**
- * Get the full filesystem path for a file
- */
 export function getFilePath(filePath: string): string {
   return join(UPLOADS_DIR, filePath);
 }
 
-/**
- * Get the preview path for a file (adds .preview.png)
- */
 export function getPreviewPath(filePath: string): string {
   return join(UPLOADS_DIR, filePath + ".preview.png");
 }
 
-/**
- * Convert a file path relative to uploads to a URL path
- */
 export function filePathToUrl(filePath: string): string {
   return `/uploads/${filePath}`;
 }
 
-/**
- * Ensure a directory exists, creating it recursively if needed
- */
 export async function ensureDir(dirPath: string): Promise<void> {
   await mkdir(dirPath, { recursive: true });
 }
 
-/**
- * Generate a unique filename if file already exists
- */
 export async function getUniqueFilename(dirPath: string, filename: string): Promise<string> {
   const fullPath = join(dirPath, filename);
 
@@ -103,13 +75,6 @@ export async function getUniqueFilename(dirPath: string, filename: string): Prom
   return newFilename;
 }
 
-// ============================================================================
-// File Operations
-// ============================================================================
-
-/**
- * Save a file to the uploads directory
- */
 export async function saveFile(
   buffer: Buffer,
   folderSlug: string,
@@ -132,9 +97,6 @@ export async function saveFile(
   };
 }
 
-/**
- * Delete a file and its preview if it exists
- */
 export async function deleteFile(filePath: string): Promise<void> {
   const fullPath = getFilePath(filePath);
   const previewPath = getPreviewPath(filePath);
@@ -152,9 +114,6 @@ export async function deleteFile(filePath: string): Promise<void> {
   }
 }
 
-/**
- * Move a file from one location to another
- */
 export async function moveFile(fromPath: string, toPath: string): Promise<void> {
   const fullFromPath = getFilePath(fromPath);
   const fullToPath = getFilePath(toPath);
@@ -173,9 +132,6 @@ export async function moveFile(fromPath: string, toPath: string): Promise<void> 
   }
 }
 
-/**
- * Delete an entire folder and its contents from disk
- */
 export async function deleteFolder(folderSlug: string): Promise<void> {
   const dirPath = slugToPath(folderSlug);
 
@@ -187,13 +143,6 @@ export async function deleteFolder(folderSlug: string): Promise<void> {
   await execAsync(`rm -rf "${dirPath}"`);
 }
 
-// ============================================================================
-// Image Processing
-// ============================================================================
-
-/**
- * Get image dimensions using ImageMagick
- */
 export async function getImageDimensions(
   filePath: string,
 ): Promise<Result<{ width: number; height: number }, Error>> {
@@ -209,9 +158,6 @@ export async function getImageDimensions(
   }
 }
 
-/**
- * Generate a PNG preview for a legacy format image
- */
 export async function generatePreview(inputPath: string): Promise<Result<boolean, Error>> {
   const outputPath = inputPath + ".preview.png";
 
@@ -223,11 +169,6 @@ export async function generatePreview(inputPath: string): Promise<Result<boolean
   }
 }
 
-/**
- * Process an uploaded image file:
- * - Get dimensions
- * - Generate preview if needed
- */
 export async function processImage(filePath: string): Promise<
   Result<
     {
@@ -261,13 +202,6 @@ export async function processImage(filePath: string): Promise<
   });
 }
 
-// ============================================================================
-// Temp File Management
-// ============================================================================
-
-/**
- * Save a file to the temp directory for processing
- */
 export async function saveTempFile(buffer: Buffer, filename: string): Promise<string> {
   await ensureDir(TEMP_DIR);
   const sanitized = sanitizeFilename(filename);
@@ -276,9 +210,6 @@ export async function saveTempFile(buffer: Buffer, filename: string): Promise<st
   return tempPath;
 }
 
-/**
- * Clean up a temp file
- */
 export async function cleanupTempFile(tempPath: string): Promise<void> {
   try {
     await unlink(tempPath);
@@ -287,9 +218,6 @@ export async function cleanupTempFile(tempPath: string): Promise<void> {
   }
 }
 
-/**
- * Clean up old temp files (older than 1 hour)
- */
 export async function cleanupOldTempFiles(): Promise<void> {
   if (!existsSync(TEMP_DIR)) return;
 
@@ -308,10 +236,6 @@ export async function cleanupOldTempFiles(): Promise<void> {
     }
   }
 }
-
-// ============================================================================
-// File Browsing & Search
-// ============================================================================
 
 import { db, files, folders, fileTags, tags } from "~/db";
 import { eq, like, and, or, inArray, desc, lt, sql } from "drizzle-orm";
@@ -342,9 +266,6 @@ export interface SearchFilesResult {
   total: number;
 }
 
-/**
- * Search and filter files with pagination
- */
 export async function searchFiles(options: SearchFilesOptions): Promise<SearchFilesResult> {
   const { kind, query, tagSlug, folderIds, cursor, limit = 50 } = options;
 
@@ -456,9 +377,6 @@ export async function searchFiles(options: SearchFilesOptions): Promise<SearchFi
   };
 }
 
-/**
- * Get all descendant folder IDs for a folder (recursive)
- */
 export async function getDescendantFolderIds(folderId: string): Promise<string[]> {
   const result: string[] = [folderId];
 
@@ -477,9 +395,6 @@ export async function getDescendantFolderIds(folderId: string): Promise<string[]
   return result;
 }
 
-/**
- * Get counts of files by kind, optionally scoped to folder IDs
- */
 export async function getFileCountsByKind(folderIds?: string[]): Promise<Record<string, number>> {
   const condition =
     folderIds && folderIds.length > 0 ? inArray(files.folderId, folderIds) : undefined;
@@ -514,10 +429,6 @@ export async function getFileCountsByKind(folderIds?: string[]): Promise<Record<
 
   return counts;
 }
-
-// ============================================================================
-// File Record Management (with folder count sync)
-// ============================================================================
 
 export interface CreateFileRecord {
   id: string;
@@ -571,9 +482,6 @@ export async function insertFileRecord(record: CreateFileRecord): Promise<Result
   }
 }
 
-/**
- * Delete a file record and decrement the parent folder's file count.
- */
 export async function deleteFileRecord(fileId: string): Promise<Result<void, Error>> {
   try {
     // Get the file first to know which folder to update
@@ -600,9 +508,6 @@ export async function deleteFileRecord(fileId: string): Promise<Result<void, Err
   }
 }
 
-/**
- * Bulk increment folder file count (for batch imports)
- */
 export async function incrementFolderFileCount(folderId: string, count: number = 1): Promise<void> {
   await db
     .update(folders)
@@ -610,10 +515,6 @@ export async function incrementFolderFileCount(folderId: string, count: number =
     .where(eq(folders.id, folderId));
 }
 
-/**
- * Recalculate file counts for a set of folders.
- * Call this after batch file operations to sync counts.
- */
 export async function recalculateFolderCounts(folderIds: string[]): Promise<void> {
   for (const folderId of folderIds) {
     const [{ c }] = await db

@@ -87,10 +87,7 @@ export function parsePk3(buffer: Buffer): ArchiveEntry[] {
   return entries;
 }
 
-export async function extractPk3Entry(
-  buffer: Buffer,
-  entry: ArchiveEntry,
-): Promise<Buffer> {
+export async function extractPk3Entry(buffer: Buffer, entry: ArchiveEntry): Promise<Buffer> {
   // Read local file header
   const pos = entry.offset;
   if (

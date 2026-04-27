@@ -1,10 +1,4 @@
-import {
-  sqliteTable,
-  text,
-  integer,
-  primaryKey,
-  index,
-} from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, primaryKey, index } from "drizzle-orm/sqlite-core";
 
 export const fileKinds = [
   "texture",
@@ -26,9 +20,7 @@ export const users = sqliteTable("users", {
   invitedBy: text("invited_by").references((): any => users.id, {
     onDelete: "set null",
   }),
-  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
-    (): Date => new Date(),
-  ),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn((): Date => new Date()),
 });
 
 export const sessions = sqliteTable("sessions", {
@@ -37,9 +29,7 @@ export const sessions = sqliteTable("sessions", {
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
-  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
-    () => new Date(),
-  ),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });
 
 export const inviteCodes = sqliteTable("invite_codes", {
@@ -51,9 +41,7 @@ export const inviteCodes = sqliteTable("invite_codes", {
   maxUses: integer("max_uses"), // null = unlimited
   useCount: integer("use_count").default(0),
   isActive: integer("is_active", { mode: "boolean" }).default(true),
-  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
-    () => new Date(),
-  ),
+  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });
 
 export const folders = sqliteTable(
@@ -71,9 +59,7 @@ export const folders = sqliteTable(
       onDelete: "set null",
     }),
     fileCount: integer("file_count").default(0), // Direct file count (not including subfolders)
-    createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
-      (): Date => new Date(),
-    ),
+    createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn((): Date => new Date()),
   },
   (table) => ({
     parentIdIdx: index("idx_folders_parent_id").on(table.parentId),
@@ -113,18 +99,13 @@ export const files = sqliteTable(
     source: text("source"), // "upload", "extracted-pk3", "extracted-pak", etc.
     sourceArchive: text("source_archive"), // Original archive filename if extracted
 
-    createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
-      (): Date => new Date(),
-    ),
+    createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn((): Date => new Date()),
   },
   (table) => ({
     folderIdIdx: index("idx_files_folder_id").on(table.folderId),
     kindIdx: index("idx_files_kind").on(table.kind),
     createdAtIdx: index("idx_files_created_at").on(table.createdAt),
-    kindCreatedIdx: index("idx_files_kind_created").on(
-      table.kind,
-      table.createdAt,
-    ),
+    kindCreatedIdx: index("idx_files_kind_created").on(table.kind, table.createdAt),
   }),
 );
 
@@ -149,13 +130,7 @@ export const fileTags = sqliteTable(
   }),
 );
 
-export const jobStatuses = [
-  "pending",
-  "running",
-  "completed",
-  "failed",
-  "cancelled",
-] as const;
+export const jobStatuses = ["pending", "running", "completed", "failed", "cancelled"] as const;
 export type JobStatus = (typeof jobStatuses)[number];
 
 export const jobs = sqliteTable(
@@ -182,9 +157,7 @@ export const jobs = sqliteTable(
     }),
 
     // Timing
-    createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(
-      (): Date => new Date(),
-    ),
+    createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn((): Date => new Date()),
     startedAt: integer("started_at", { mode: "timestamp" }),
     completedAt: integer("completed_at", { mode: "timestamp" }),
   },
@@ -197,9 +170,7 @@ export const jobs = sqliteTable(
 export const settings = sqliteTable("settings", {
   key: text("key").primaryKey(),
   value: text("value").notNull(), // JSON-encoded value
-  updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn(
-    (): Date => new Date(),
-  ),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn((): Date => new Date()),
 });
 
 export type User = typeof users.$inferSelect;

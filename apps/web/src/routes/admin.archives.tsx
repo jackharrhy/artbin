@@ -249,9 +249,6 @@ function slugify(str: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-/**
- * Build a tree structure from archive paths
- */
 function buildTree(archives: FoundArchive[]): TreeNode {
   const root: TreeNode = {
     name: "/",
@@ -288,9 +285,6 @@ function buildTree(archives: FoundArchive[]): TreeNode {
   return root;
 }
 
-/**
- * Count total archives in a tree node (including children)
- */
 function countArchives(node: TreeNode): number {
   let count = node.archives.length;
   for (const child of node.children.values()) {
@@ -299,9 +293,6 @@ function countArchives(node: TreeNode): number {
   return count;
 }
 
-/**
- * Get all archive paths in a tree node (including children)
- */
 function getAllArchivePaths(node: TreeNode): string[] {
   const paths: string[] = node.archives.map((a) => a.path);
   for (const child of node.children.values()) {
@@ -310,9 +301,6 @@ function getAllArchivePaths(node: TreeNode): string[] {
   return paths;
 }
 
-/**
- * Recursively render tree nodes, collapsing paths with single children
- */
 function TreeNodeView({
   node,
   depth = 0,

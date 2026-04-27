@@ -110,10 +110,7 @@ function looksLikeText(buffer: Buffer): boolean {
 /**
  * Get MIME type for a file, using magic bytes if available
  */
-export async function getMimeType(
-  filename: string,
-  buffer?: Buffer,
-): Promise<string> {
+export async function getMimeType(filename: string, buffer?: Buffer): Promise<string> {
   const ext = extname(filename).toLowerCase().slice(1);
 
   // Check custom mappings first (game formats we know about)

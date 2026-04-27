@@ -1,16 +1,6 @@
-/**
- * Settings management for artbin
- *
- * Key-value store for application configuration, stored in the database.
- */
-
 import { db, settings } from "~/db";
 import { eq } from "drizzle-orm";
 import { Result } from "better-result";
-
-// ============================================================================
-// Default Values
-// ============================================================================
 
 // Default directories to exclude from archive scans
 const DEFAULT_EXCLUDE_DIRS = [
@@ -91,20 +81,9 @@ const DEFAULT_KNOWN_GAME_DIRS = [
   "main",
 ];
 
-// ============================================================================
-// Settings Interface
-// ============================================================================
-
 import type { ScanSettings } from "./settings.types";
 export type { ScanSettings };
 
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
-/**
- * Get a setting value by key
- */
 export async function getSetting<T>(key: string, defaultValue: T): Promise<T> {
   const row = await db.query.settings.findFirst({
     where: eq(settings.key, key),
@@ -121,9 +100,6 @@ export async function getSetting<T>(key: string, defaultValue: T): Promise<T> {
   }
 }
 
-/**
- * Set a setting value
- */
 export async function setSetting<T>(key: string, value: T): Promise<void> {
   const jsonValue = JSON.stringify(value);
   const now = new Date();
@@ -144,9 +120,6 @@ export async function setSetting<T>(key: string, value: T): Promise<void> {
     });
 }
 
-/**
- * Get scan settings, initializing with defaults if not set
- */
 export async function getScanSettings(): Promise<ScanSettings> {
   const [excludeDirs, excludeFilenames, excludePathPatterns, knownGameDirs] = await Promise.all([
     getSetting("scan.excludeDirs", DEFAULT_EXCLUDE_DIRS),
@@ -163,9 +136,6 @@ export async function getScanSettings(): Promise<ScanSettings> {
   };
 }
 
-/**
- * Initialize scan settings with defaults if they don't exist
- */
 export async function initializeScanSettings(): Promise<ScanSettings> {
   // Check if any scan settings exist
   const existing = await db.query.settings.findFirst({
@@ -185,9 +155,6 @@ export async function initializeScanSettings(): Promise<ScanSettings> {
   return getScanSettings();
 }
 
-/**
- * Update scan settings
- */
 export async function updateScanSettings(updates: Partial<ScanSettings>) {
   const invalidPatterns = (updates.excludePathPatterns ?? []).filter((pattern) => {
     try {
@@ -222,9 +189,6 @@ export async function updateScanSettings(updates: Partial<ScanSettings>) {
   return Result.ok(await getScanSettings());
 }
 
-/**
- * Reset scan settings to defaults
- */
 export async function resetScanSettings() {
   await Promise.all([
     setSetting("scan.excludeDirs", DEFAULT_EXCLUDE_DIRS),

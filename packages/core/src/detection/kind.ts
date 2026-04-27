@@ -12,19 +12,7 @@ export const fileKinds = [
 export type FileKind = (typeof fileKinds)[number];
 
 const KIND_EXTENSIONS: Record<FileKind, string[]> = {
-  texture: [
-    "png",
-    "jpg",
-    "jpeg",
-    "gif",
-    "webp",
-    "tga",
-    "bmp",
-    "pcx",
-    "wal",
-    "vtf",
-    "dds",
-  ],
+  texture: ["png", "jpg", "jpeg", "gif", "webp", "tga", "bmp", "pcx", "wal", "vtf", "dds"],
   model: [
     "gltf",
     "glb",
@@ -43,18 +31,7 @@ const KIND_EXTENSIONS: Record<FileKind, string[]> = {
   audio: ["wav", "mp3", "ogg", "flac", "m4a", "aiff"],
   map: ["bsp", "map", "vmf", "rmf"],
   archive: ["pk3", "pk4", "pak", "wad", "zip", "7z", "rar", "tar", "gz"],
-  config: [
-    "cfg",
-    "txt",
-    "json",
-    "xml",
-    "ini",
-    "yaml",
-    "yml",
-    "toml",
-    "rc",
-    "conf",
-  ],
+  config: ["cfg", "txt", "json", "xml", "ini", "yaml", "yml", "toml", "rc", "conf"],
   other: [],
 };
 

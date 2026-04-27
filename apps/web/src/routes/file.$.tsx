@@ -291,9 +291,6 @@ export function meta({ data }: Route.MetaArgs) {
   return [{ title: `${data?.file?.name || "File"} - artbin` }];
 }
 
-/**
- * Get display URL for file
- */
 function getDisplayUrl(file: { path: string; hasPreview: boolean | null }): string {
   if (file.hasPreview) {
     return `/uploads/${file.path}.preview.png`;
@@ -301,9 +298,6 @@ function getDisplayUrl(file: { path: string; hasPreview: boolean | null }): stri
   return `/uploads/${file.path}`;
 }
 
-/**
- * Format file size
- */
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -314,9 +308,6 @@ function gcd(a: number, b: number): number {
   return b === 0 ? a : gcd(b, a % b);
 }
 
-/**
- * Calculate aspect ratio as a human-readable string
- */
 function getAspectRatio(width: number, height: number): string {
   const divisor = gcd(width, height);
   const ratioW = width / divisor;

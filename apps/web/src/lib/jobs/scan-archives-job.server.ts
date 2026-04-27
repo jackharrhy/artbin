@@ -40,10 +40,7 @@ export interface ScanArchivesOutput {
 /**
  * Find a known game directory in the file path
  */
-function findGameDir(
-  filePath: string,
-  knownGameDirs: Set<string>,
-): string | null {
+function findGameDir(filePath: string, knownGameDirs: Set<string>): string | null {
   const parts = filePath.toLowerCase().split("/");
   for (const part of parts) {
     if (knownGameDirs.has(part)) {
@@ -114,9 +111,7 @@ async function handleScanArchives(
   const scanSettings = await getScanSettings();
 
   // Convert settings to Sets and RegExps for efficient lookup
-  const excludeFilenames = new Set(
-    scanSettings.excludeFilenames.map((f) => f.toLowerCase()),
-  );
+  const excludeFilenames = new Set(scanSettings.excludeFilenames.map((f) => f.toLowerCase()));
   const excludePathPatterns = scanSettings.excludePathPatterns
     .map((p) => {
       try {
@@ -126,15 +121,9 @@ async function handleScanArchives(
       }
     })
     .filter((p): p is RegExp => p !== null);
-  const knownGameDirs = new Set(
-    scanSettings.knownGameDirs.map((d) => d.toLowerCase()),
-  );
+  const knownGameDirs = new Set(scanSettings.knownGameDirs.map((d) => d.toLowerCase()));
 
-  await updateJobProgress(
-    job.id,
-    5,
-    `Scanning ${rootPath} for game archives...`,
-  );
+  await updateJobProgress(job.id, 5, `Scanning ${rootPath} for game archives...`);
 
   // Run fd to find archives
   const fdCommand = buildFdCommand(rootPath, scanSettings.excludeDirs);
@@ -173,9 +162,7 @@ async function handleScanArchives(
       const ext = getExtension(name);
 
       // Skip excluded files based on filename or path pattern
-      if (
-        shouldExclude(filePath, name, excludeFilenames, excludePathPatterns)
-      ) {
+      if (shouldExclude(filePath, name, excludeFilenames, excludePathPatterns)) {
         processed++;
         continue;
       }

@@ -17,16 +17,10 @@ const GRID_SIZE = 3; // 3x3 grid
 const THUMB_SIZE = 128; // Each thumbnail is 128x128
 const PREVIEW_SIZE = GRID_SIZE * THUMB_SIZE; // 384x384 total
 
-/**
- * Get the preview image path for a folder
- */
 export function getFolderPreviewPath(folderSlug: string): string {
   return `${folderSlug}/.folder-preview.png`;
 }
 
-/**
- * Get the full filesystem path for a folder preview
- */
 export function getFolderPreviewFullPath(folderSlug: string): string {
   return join(UPLOADS_DIR, getFolderPreviewPath(folderSlug));
 }
@@ -64,9 +58,6 @@ async function getPreviewTextures(folderId: string): Promise<string[]> {
     .filter((p) => existsSync(p));
 }
 
-/**
- * Get all descendant folder IDs recursively
- */
 async function getAllDescendantFolderIds(folderId: string): Promise<string[]> {
   const result: string[] = [folderId];
 
@@ -82,9 +73,6 @@ async function getAllDescendantFolderIds(folderId: string): Promise<string[]> {
   return result;
 }
 
-/**
- * Shuffle an array using Fisher-Yates algorithm
- */
 function shuffleArray<T>(array: T[]): T[] {
   const shuffled = [...array];
   for (let i = shuffled.length - 1; i > 0; i--) {
@@ -145,9 +133,6 @@ async function getPreviewTexturesRecursive(folderId: string): Promise<string[]> 
   return paths;
 }
 
-/**
- * Generate a 3x3 preview grid for a folder
- */
 export async function generateFolderPreview(folderId: string): Promise<string | null> {
   const folder = await db.query.folders.findFirst({
     where: eq(folders.id, folderId),
@@ -236,9 +221,6 @@ export async function generateFolderPreview(folderId: string): Promise<string | 
   }
 }
 
-/**
- * Delete a folder's preview image
- */
 export async function deleteFolderPreview(folderId: string): Promise<void> {
   const folder = await db.query.folders.findFirst({
     where: eq(folders.id, folderId),
@@ -256,9 +238,6 @@ export async function deleteFolderPreview(folderId: string): Promise<void> {
   await db.update(folders).set({ previewPath: null }).where(eq(folders.id, folderId));
 }
 
-/**
- * Regenerate previews for all folders that have textures
- */
 export async function regenerateAllFolderPreviews(): Promise<number> {
   const allFolders = await db.query.folders.findMany();
   let generated = 0;

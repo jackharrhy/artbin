@@ -127,17 +127,11 @@ async function createFolderStructure(
   const folderMap = new Map<string, string>(); // path -> folderId
 
   // Create base folder
-  const baseId = await getOrCreateFolder(
-    baseSlug,
-    baseName,
-    parentFolderId || null,
-  );
+  const baseId = await getOrCreateFolder(baseSlug, baseName, parentFolderId || null);
   folderMap.set("", baseId);
 
   // Sort paths to ensure parents are created before children
-  const sortedPaths = dirPaths.sort(
-    (a, b) => a.split("/").length - b.split("/").length,
-  );
+  const sortedPaths = dirPaths.sort((a, b) => a.split("/").length - b.split("/").length);
 
   for (const dirPath of sortedPaths) {
     const fullSlug = `${baseSlug}/${pathToSlug(dirPath)}`;
@@ -145,8 +139,7 @@ async function createFolderStructure(
 
     // Find parent folder
     const parentPath = dirname(dirPath);
-    const parentId =
-      parentPath === "." ? baseId : folderMap.get(parentPath) || baseId;
+    const parentId = parentPath === "." ? baseId : folderMap.get(parentPath) || baseId;
 
     const folderId = await getOrCreateFolder(fullSlug, name, parentId);
     folderMap.set(dirPath, folderId);
@@ -168,10 +161,7 @@ async function handleExtractJob(
     skipTempCleanup,
   } = input as unknown as ExtractJobInput;
 
-  const archiveName = basename(
-    originalName,
-    "." + originalName.split(".").pop(),
-  );
+  const archiveName = basename(originalName, "." + originalName.split(".").pop());
 
   await updateJobProgress(job.id, 5, "Parsing archive...");
 
@@ -207,9 +197,7 @@ async function handleExtractJob(
       // Determine folder for this file
       const entryDir = dirname(entry.name);
       const folderSlug =
-        entryDir === "."
-          ? targetFolderSlug
-          : `${targetFolderSlug}/${pathToSlug(entryDir)}`;
+        entryDir === "." ? targetFolderSlug : `${targetFolderSlug}/${pathToSlug(entryDir)}`;
       const folderId = folderMap.get(entryDir) || folderMap.get("")!;
 
       // Save file to disk
@@ -269,23 +257,18 @@ async function handleExtractJob(
             const bspBaseName = savedName.replace(/\.bsp$/i, "");
             const texFolderSlug = `${folderSlug}/${pathToSlug(bspBaseName)}-textures`;
             const texFolderName = `${bspBaseName} textures`;
-            const texFolderId = await getOrCreateFolder(
-              texFolderSlug,
-              texFolderName,
-              folderId,
-            );
+            const texFolderId = await getOrCreateFolder(texFolderSlug, texFolderName, folderId);
             folderMap.set(`${entryDir}/${bspBaseName}-textures`, texFolderId);
 
             for (const tex of bspTextures) {
               try {
                 const texFileName = `${tex.name}.png`;
-                const { path: texFilePath, name: texSavedName } =
-                  await saveFile(
-                    tex.pngBuffer,
-                    texFolderSlug,
-                    texFileName,
-                    true,
-                  );
+                const { path: texFilePath, name: texSavedName } = await saveFile(
+                  tex.pngBuffer,
+                  texFolderSlug,
+                  texFileName,
+                  true,
+                );
 
                 // Process for preview
                 const texImageInfo = await processImage(texFilePath);
@@ -309,22 +292,14 @@ async function handleExtractJob(
 
                 filesByKind["texture"] = (filesByKind["texture"] || 0) + 1;
               } catch (texError) {
-                console.error(
-                  `Failed to save BSP texture ${tex.name}:`,
-                  texError,
-                );
+                console.error(`Failed to save BSP texture ${tex.name}:`, texError);
               }
             }
 
-            console.log(
-              `Extracted ${bspTextures.length} textures from ${savedName}`,
-            );
+            console.log(`Extracted ${bspTextures.length} textures from ${savedName}`);
           }
         } catch (bspError) {
-          console.error(
-            `Failed to extract textures from BSP ${savedName}:`,
-            bspError,
-          );
+          console.error(`Failed to extract textures from BSP ${savedName}:`, bspError);
         }
       }
 
@@ -383,21 +358,15 @@ async function handleBatchExtractJob(
   job: Job,
   input: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
-  const { parentFolderSlug, parentFolderName, archives } =
-    input as unknown as BatchExtractJobInput;
+  const { parentFolderSlug, parentFolderName, archives } = input as unknown as BatchExtractJobInput;
 
   await updateJobProgress(job.id, 2, "Creating parent folder...");
 
   // Create parent folder
-  const parentFolderId = await getOrCreateFolder(
-    parentFolderSlug,
-    parentFolderName,
-    null,
-  );
+  const parentFolderId = await getOrCreateFolder(parentFolderSlug, parentFolderName, null);
 
   // Get the actual parent folder slug (may differ from input if folder existed)
-  const actualParentSlug =
-    (await getFolderSlug(parentFolderId)) || parentFolderSlug;
+  const actualParentSlug = (await getFolderSlug(parentFolderId)) || parentFolderSlug;
 
   const totalArchives = archives.length;
   let processedArchives = 0;
@@ -439,18 +408,12 @@ async function handleBatchExtractJob(
       for (const entry of fileEntries) {
         try {
           // Extract file content
-          const buffer = await extractEntry(
-            archiveInfo.path,
-            entry,
-            archive.type,
-          );
+          const buffer = await extractEntry(archiveInfo.path, entry, archive.type);
 
           // Determine folder for this file
           const entryDir = dirname(entry.name);
           const folderSlug =
-            entryDir === "."
-              ? subfolderSlug
-              : `${subfolderSlug}/${pathToSlug(entryDir)}`;
+            entryDir === "." ? subfolderSlug : `${subfolderSlug}/${pathToSlug(entryDir)}`;
           const folderId = folderMap.get(entryDir) || folderMap.get("")!;
 
           // Save file to disk
@@ -508,26 +471,18 @@ async function handleBatchExtractJob(
                 const bspBaseName = savedName.replace(/\.bsp$/i, "");
                 const texFolderSlug = `${folderSlug}/${pathToSlug(bspBaseName)}-textures`;
                 const texFolderName = `${bspBaseName} textures`;
-                const texFolderId = await getOrCreateFolder(
-                  texFolderSlug,
-                  texFolderName,
-                  folderId,
-                );
-                folderMap.set(
-                  `${entryDir}/${bspBaseName}-textures`,
-                  texFolderId,
-                );
+                const texFolderId = await getOrCreateFolder(texFolderSlug, texFolderName, folderId);
+                folderMap.set(`${entryDir}/${bspBaseName}-textures`, texFolderId);
 
                 for (const tex of bspTextures) {
                   try {
                     const texFileName = `${tex.name}.png`;
-                    const { path: texFilePath, name: texSavedName } =
-                      await saveFile(
-                        tex.pngBuffer,
-                        texFolderSlug,
-                        texFileName,
-                        true,
-                      );
+                    const { path: texFilePath, name: texSavedName } = await saveFile(
+                      tex.pngBuffer,
+                      texFolderSlug,
+                      texFileName,
+                      true,
+                    );
 
                     // Process for preview
                     const texImageInfo = await processImage(texFilePath);
@@ -551,29 +506,18 @@ async function handleBatchExtractJob(
 
                     filesExtracted++;
                   } catch (texError) {
-                    console.error(
-                      `Failed to save BSP texture ${tex.name}:`,
-                      texError,
-                    );
+                    console.error(`Failed to save BSP texture ${tex.name}:`, texError);
                   }
                 }
 
-                console.log(
-                  `Extracted ${bspTextures.length} textures from ${savedName}`,
-                );
+                console.log(`Extracted ${bspTextures.length} textures from ${savedName}`);
               }
             } catch (bspError) {
-              console.error(
-                `Failed to extract textures from BSP ${savedName}:`,
-                bspError,
-              );
+              console.error(`Failed to extract textures from BSP ${savedName}:`, bspError);
             }
           }
         } catch (error) {
-          console.error(
-            `Failed to extract ${entry.name} from ${archiveName}:`,
-            error,
-          );
+          console.error(`Failed to extract ${entry.name} from ${archiveName}:`, error);
           // Continue with other files
         }
       }
@@ -584,10 +528,7 @@ async function handleBatchExtractJob(
         try {
           await generateFolderPreview(folderId);
         } catch (err) {
-          console.error(
-            `Failed to generate preview for folder ${folderId}:`,
-            err,
-          );
+          console.error(`Failed to generate preview for folder ${folderId}:`, err);
         }
       }
 
@@ -599,8 +540,7 @@ async function handleBatchExtractJob(
         success: true,
       });
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
       console.error(`Failed to extract archive ${archiveName}:`, error);
       archiveResults.push({
         path: archiveInfo.path,
@@ -620,10 +560,7 @@ async function handleBatchExtractJob(
   try {
     await generateFolderPreview(parentFolderId);
   } catch (err) {
-    console.error(
-      `Failed to generate preview for parent folder ${parentFolderId}:`,
-      err,
-    );
+    console.error(`Failed to generate preview for parent folder ${parentFolderId}:`, err);
   }
 
   return {
@@ -660,8 +597,7 @@ async function handleExtractBSPJob(
   job: Job,
   input: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
-  const { bspPath, targetFolderSlug, targetFolderName } =
-    input as unknown as ExtractBSPJobInput;
+  const { bspPath, targetFolderSlug, targetFolderName } = input as unknown as ExtractBSPJobInput;
 
   const bspName = basename(bspPath);
   const bspBaseName = bspName.replace(/\.bsp$/i, "");
@@ -684,18 +620,10 @@ async function handleExtractBSPJob(
     throw new Error(`No textures found in ${bspName}`);
   }
 
-  await updateJobProgress(
-    job.id,
-    30,
-    `Found ${bspTextures.length} textures, creating folder...`,
-  );
+  await updateJobProgress(job.id, 30, `Found ${bspTextures.length} textures, creating folder...`);
 
   // Create the target folder
-  const folderId = await getOrCreateFolder(
-    targetFolderSlug,
-    targetFolderName,
-    null,
-  );
+  const folderId = await getOrCreateFolder(targetFolderSlug, targetFolderName, null);
 
   // Save each texture
   let savedTextures = 0;
@@ -732,8 +660,7 @@ async function handleExtractBSPJob(
       savedTextures++;
 
       // Update progress
-      const progress =
-        30 + Math.floor((savedTextures / bspTextures.length) * 60);
+      const progress = 30 + Math.floor((savedTextures / bspTextures.length) * 60);
       if (savedTextures % 10 === 0 || savedTextures === bspTextures.length) {
         await updateJobProgress(
           job.id,
@@ -802,15 +729,10 @@ async function handleBatchExtractBSPJob(
   await updateJobProgress(job.id, 2, "Creating parent folder...");
 
   // Create parent folder
-  const parentFolderId = await getOrCreateFolder(
-    parentFolderSlug,
-    parentFolderName,
-    null,
-  );
+  const parentFolderId = await getOrCreateFolder(parentFolderSlug, parentFolderName, null);
 
   // Get the actual parent folder slug (may differ from input if folder existed)
-  const actualParentSlug =
-    (await getFolderSlug(parentFolderId)) || parentFolderSlug;
+  const actualParentSlug = (await getFolderSlug(parentFolderId)) || parentFolderSlug;
 
   const totalBSPs = bspFiles.length;
   let processedBSPs = 0;
@@ -852,11 +774,7 @@ async function handleBatchExtractBSPJob(
       }
 
       // Create subfolder for this BSP's textures
-      const subFolderId = await getOrCreateFolder(
-        subfolderSlug,
-        bspBaseName,
-        parentFolderId,
-      );
+      const subFolderId = await getOrCreateFolder(subfolderSlug, bspBaseName, parentFolderId);
 
       // Save each texture
       let texturesExtracted = 0;
@@ -892,10 +810,7 @@ async function handleBatchExtractBSPJob(
 
           texturesExtracted++;
         } catch (texError) {
-          console.error(
-            `Failed to save texture ${tex.name} from ${bspName}:`,
-            texError,
-          );
+          console.error(`Failed to save texture ${tex.name} from ${bspName}:`, texError);
         }
       }
 
@@ -904,10 +819,7 @@ async function handleBatchExtractBSPJob(
       try {
         await generateFolderPreview(subFolderId);
       } catch (err) {
-        console.error(
-          `Failed to generate preview for folder ${subFolderId}:`,
-          err,
-        );
+        console.error(`Failed to generate preview for folder ${subFolderId}:`, err);
       }
 
       totalTexturesExtracted += texturesExtracted;
@@ -918,8 +830,7 @@ async function handleBatchExtractBSPJob(
         success: true,
       });
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
       console.error(`Failed to extract BSP ${bspName}:`, error);
       bspResults.push({
         path: bspInfo.path,
@@ -939,10 +850,7 @@ async function handleBatchExtractBSPJob(
   try {
     await generateFolderPreview(parentFolderId);
   } catch (err) {
-    console.error(
-      `Failed to generate preview for parent folder ${parentFolderId}:`,
-      err,
-    );
+    console.error(`Failed to generate preview for parent folder ${parentFolderId}:`, err);
   }
 
   return {
@@ -956,9 +864,4 @@ async function handleBatchExtractBSPJob(
 
 registerJobHandler("batch-extract-bsp", handleBatchExtractBSPJob);
 
-export {
-  handleExtractJob,
-  handleBatchExtractJob,
-  handleExtractBSPJob,
-  handleBatchExtractBSPJob,
-};
+export { handleExtractJob, handleBatchExtractJob, handleExtractBSPJob, handleBatchExtractBSPJob };

@@ -143,8 +143,7 @@ async function getOrCreateParentFolder(): Promise<string> {
     id,
     name: PARENT_NAME,
     slug: PARENT_SLUG,
-    description:
-      "Textures imported from thejang.com/textures (Texture Station)",
+    description: "Textures imported from thejang.com/textures (Texture Station)",
   });
 
   await ensureDir(slugToPath(PARENT_SLUG));
@@ -155,10 +154,7 @@ async function getOrCreateParentFolder(): Promise<string> {
 /**
  * Get or create a category folder
  */
-async function getOrCreateCategoryFolder(
-  category: Category,
-  parentId: string,
-): Promise<string> {
+async function getOrCreateCategoryFolder(category: Category, parentId: string): Promise<string> {
   const slug = `${PARENT_SLUG}/${category.slug}`;
 
   const existing = await db.query.folders.findFirst({
@@ -187,17 +183,14 @@ async function handleTextureStationImport(
   job: Job,
   input: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
-  const { categories: requestedCategories, userId } =
-    input as unknown as TextureStationImportInput;
+  const { categories: requestedCategories, userId } = input as unknown as TextureStationImportInput;
 
   await updateJobProgress(job.id, 2, "Scanning Texture Station categories...");
 
   // Filter categories if specific ones were requested
   let categoriesToImport = CATEGORIES;
   if (requestedCategories && requestedCategories.length > 0) {
-    categoriesToImport = CATEGORIES.filter((cat) =>
-      requestedCategories.includes(cat.slug),
-    );
+    categoriesToImport = CATEGORIES.filter((cat) => requestedCategories.includes(cat.slug));
   }
 
   if (categoriesToImport.length === 0) {
@@ -216,10 +209,7 @@ async function handleTextureStationImport(
       categoryTextures.set(category, textures);
       totalFiles += textures.length;
     } catch (error) {
-      console.error(
-        `[TextureStation] Failed to fetch ${category.page}:`,
-        error,
-      );
+      console.error(`[TextureStation] Failed to fetch ${category.page}:`, error);
       categoryTextures.set(category, []);
     }
   }
@@ -339,10 +329,7 @@ async function handleTextureStationImport(
     try {
       await generateFolderPreview(folderId);
     } catch (err) {
-      console.error(
-        `[TextureStation] Failed to generate preview for folder ${folderId}:`,
-        err,
-      );
+      console.error(`[TextureStation] Failed to generate preview for folder ${folderId}:`, err);
     }
   }
 

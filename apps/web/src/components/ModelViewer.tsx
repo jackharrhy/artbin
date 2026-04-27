@@ -23,10 +23,6 @@ interface AnimationInfo {
   isPlaying: boolean;
 }
 
-/**
- * Self-contained Three.js scene for model viewing
- * Manages its own lifecycle independent of React
- */
 class ModelScene {
   private container: HTMLElement;
   private height: number;
@@ -436,10 +432,6 @@ class ModelScene {
     }
   }
 }
-
-// ============================================================================
-// React Component (thin wrapper)
-// ============================================================================
 
 interface ModelViewerProps {
   modelUrl: string;

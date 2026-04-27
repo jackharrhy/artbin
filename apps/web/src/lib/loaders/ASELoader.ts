@@ -18,10 +18,6 @@ function transformCoord(x: number, y: number, z: number): [number, number, numbe
   return [x, z, -y];
 }
 
-// ============================================================================
-// Types
-// ============================================================================
-
 interface ASEVertex {
   x: number;
   y: number;
@@ -79,14 +75,7 @@ interface ASEFile {
   materials: ASEMaterial[];
 }
 
-// ============================================================================
-// Parser
-// ============================================================================
-
 class ASEParser {
-  /**
-   * Parse an ASE file
-   */
   static parse(source: string): ASEFile {
     const meshes: ASEMesh[] = [];
     const materials: ASEMaterial[] = [];
@@ -115,9 +104,6 @@ class ASEParser {
     return { meshes, materials };
   }
 
-  /**
-   * Extract blocks that start with a given tag
-   */
   private static extractBlocks(source: string, tag: string): string[] {
     const blocks: string[] = [];
     let searchStart = 0;
@@ -149,9 +135,6 @@ class ASEParser {
     return blocks;
   }
 
-  /**
-   * Parse a material block
-   */
   private static parseMaterial(block: string): ASEMaterial | null {
     const nameMatch = block.match(/\*MATERIAL_NAME\s+"([^"]*)"/);
     const ambientMatch = block.match(/\*MATERIAL_AMBIENT\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)/);
@@ -174,9 +157,6 @@ class ASEParser {
     };
   }
 
-  /**
-   * Parse a geometry object block
-   */
   private static parseGeomObject(block: string): ASEMesh | null {
     const nameMatch = block.match(/\*NODE_NAME\s+"([^"]*)"/);
     const name = nameMatch ? nameMatch[1] : "unnamed";
@@ -293,14 +273,7 @@ class ASEParser {
   }
 }
 
-// ============================================================================
-// ASELoader
-// ============================================================================
-
 export class ASELoader {
-  /**
-   * Load an ASE file and create a Three.js Mesh
-   */
   async load(url: string, textureUrl?: string): Promise<THREE.Group> {
     const response = await fetch(url);
     if (!response.ok) {
@@ -313,9 +286,6 @@ export class ASELoader {
     return this.buildMesh(data, textureUrl);
   }
 
-  /**
-   * Build a Three.js Group from parsed ASE data
-   */
   private buildMesh(data: ASEFile, textureUrl?: string): THREE.Group {
     const group = new THREE.Group();
 

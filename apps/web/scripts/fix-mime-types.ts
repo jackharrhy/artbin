@@ -60,9 +60,6 @@ const CUSTOM_MIME_TYPES: Record<string, string> = {
   mtl: "text/plain",
 };
 
-/**
- * Check if a buffer appears to be text content
- */
 function looksLikeText(buffer: Buffer): boolean {
   if (buffer.length === 0) return false;
 

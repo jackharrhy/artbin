@@ -217,9 +217,6 @@ export function meta({ data }: Route.MetaArgs) {
   return [{ title: `${data?.folder?.name || "Folder"} - artbin` }];
 }
 
-/**
- * Get the display URL for a file (preview if available, otherwise original)
- */
 function getFileDisplayUrl(file: {
   path: string;
   hasPreview: boolean | null;
@@ -233,9 +230,6 @@ function getFileDisplayUrl(file: {
   return `/uploads/${file.path}`;
 }
 
-/**
- * Get icon for non-image file kinds
- */
 function getFileIcon(kind: string | null): string {
   switch (kind) {
     case "model":
