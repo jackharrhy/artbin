@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "vitest";
-import { setDbForTesting } from "~/db";
+import { setDbForTesting } from "~/db/connection.server";
 import {
   getScanSettings,
   getSetting,

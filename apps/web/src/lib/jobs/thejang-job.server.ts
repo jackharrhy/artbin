@@ -5,7 +5,8 @@
  * Scrapes HTML pages to find texture images, creates folders for each category.
  */
 
-import { db, folders, files, type Job } from "~/db";
+import { db } from "~/db/connection.server";
+import { folders, files, type Job } from "~/db";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 

@@ -237,7 +237,8 @@ export async function cleanupOldTempFiles(): Promise<void> {
   }
 }
 
-import { db, files, folders, fileTags, tags } from "~/db";
+import { db } from "~/db/connection.server";
+import { files, folders, fileTags, tags } from "~/db";
 import { eq, like, and, or, inArray, desc, lt, sql } from "drizzle-orm";
 
 export interface SearchFilesOptions {

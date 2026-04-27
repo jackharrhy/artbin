@@ -1,4 +1,5 @@
-import { db, settings } from "~/db";
+import { db } from "~/db/connection.server";
+import { settings } from "~/db";
 import { eq } from "drizzle-orm";
 import { Result } from "better-result";
 

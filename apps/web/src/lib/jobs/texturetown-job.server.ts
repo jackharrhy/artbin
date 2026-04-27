@@ -5,7 +5,8 @@
  * Creates folders for each category and downloads all textures.
  */
 
-import { db, folders, files, type Job } from "~/db";
+import { db } from "~/db/connection.server";
+import { folders, files, type Job } from "~/db";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 

@@ -5,7 +5,8 @@
  */
 
 import sharp from "sharp";
-import { db, files, folders } from "~/db";
+import { db } from "~/db/connection.server";
+import { files, folders } from "~/db";
 import { eq, inArray, desc } from "drizzle-orm";
 import { join } from "path";
 import { existsSync } from "fs";

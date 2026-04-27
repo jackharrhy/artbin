@@ -2,7 +2,8 @@ import { Form, redirect, useLoaderData, useActionData, useRevalidator } from "re
 import { useState, useEffect, useMemo } from "react";
 import type { Route } from "./+types/admin.archives";
 import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
-import { db, jobs } from "~/db";
+import { db } from "~/db/connection.server";
+import { jobs } from "~/db";
 import { eq, desc } from "drizzle-orm";
 import { Header } from "~/components/Header";
 import { createJob } from "~/lib/jobs.server";

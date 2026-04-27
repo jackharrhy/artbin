@@ -5,7 +5,8 @@
  * preserving the directory structure.
  */
 
-import { db, folders, type Job } from "~/db";
+import { db } from "~/db/connection.server";
+import { folders, type Job } from "~/db";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { basename, dirname, join, extname, relative } from "path";

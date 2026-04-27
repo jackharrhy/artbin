@@ -5,7 +5,8 @@
  * Images are hosted on sadhost.neocities.org/images/tiles/
  */
 
-import { db, folders, files, type Job } from "~/db";
+import { db } from "~/db/connection.server";
+import { folders, files, type Job } from "~/db";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 

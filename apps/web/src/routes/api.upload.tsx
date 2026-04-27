@@ -1,6 +1,7 @@
 import type { Route } from "./+types/api.upload";
 import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
-import { db, folders } from "~/db";
+import { db } from "~/db/connection.server";
+import { folders } from "~/db";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { join, basename, dirname } from "path";

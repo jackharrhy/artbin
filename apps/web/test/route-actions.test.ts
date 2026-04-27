@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "vitest";
 import { folders, sessions, users } from "~/db/schema";
-import { setDbForTesting } from "~/db";
+import { setDbForTesting } from "~/db/connection.server";
 import { action as createFolderAction } from "~/routes/api.folder";
 import { action as moveFolderAction } from "~/routes/api.folder.move";
 import { applyMigrations, createTestDatabase, type TestDatabase } from "./db";

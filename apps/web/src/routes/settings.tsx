@@ -8,7 +8,8 @@ import {
   toggleInviteCode,
   getClearSessionCookie,
 } from "~/lib/auth.server";
-import { db, inviteCodes } from "~/db";
+import { db } from "~/db/connection.server";
+import { inviteCodes } from "~/db";
 import { eq, desc } from "drizzle-orm";
 import { Header } from "~/components/Header";
 

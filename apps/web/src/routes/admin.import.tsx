@@ -1,7 +1,8 @@
 import { Form, redirect, useLoaderData, useActionData } from "react-router";
 import type { Route } from "./+types/admin.import";
 import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
-import { db, files, folders } from "~/db";
+import { db } from "~/db/connection.server";
+import { files, folders } from "~/db";
 import { count, sum, eq } from "drizzle-orm";
 import { Header } from "~/components/Header";
 import { createJob } from "~/lib/jobs.server";

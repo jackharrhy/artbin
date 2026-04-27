@@ -9,7 +9,8 @@ import {
 import { useState, useCallback } from "react";
 import type { Route } from "./+types/folder.$slug";
 import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
-import { db, folders, files, tags } from "~/db";
+import { db } from "~/db/connection.server";
+import { folders, files, tags } from "~/db";
 import { eq, desc, count } from "drizzle-orm";
 import { Header } from "~/components/Header";
 import { BrowseTabs, type ViewMode } from "~/components/BrowseTabs";

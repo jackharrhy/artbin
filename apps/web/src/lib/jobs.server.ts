@@ -1,4 +1,5 @@
-import { db, jobs, type Job, type JobStatus } from "~/db";
+import { db } from "~/db/connection.server";
+import { jobs, type Job, type JobStatus } from "~/db";
 import { eq, and, or, lt } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { Result } from "better-result";

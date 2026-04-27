@@ -1,4 +1,5 @@
-import { db, users, sessions, inviteCodes } from "~/db";
+import { db } from "~/db/connection.server";
+import { users, sessions, inviteCodes } from "~/db";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { Result } from "better-result";

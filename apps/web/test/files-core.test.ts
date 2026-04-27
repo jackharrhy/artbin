@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "vitest";
 import { eq } from "drizzle-orm";
 import { folders } from "~/db/schema";
-import { setDbForTesting } from "~/db";
+import { setDbForTesting } from "~/db/connection.server";
 import {
   deleteFileRecord,
   generatePreview,

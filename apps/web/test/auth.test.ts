@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "vitest";
 import { eq } from "drizzle-orm";
 import { inviteCodes, sessions, users } from "~/db/schema";
-import { setDbForTesting } from "~/db";
+import { setDbForTesting } from "~/db/connection.server";
 import {
   createUser,
   getSession,
