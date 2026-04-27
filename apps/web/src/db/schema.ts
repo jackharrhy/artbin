@@ -16,6 +16,7 @@ export const users = sqliteTable("users", {
   email: text("email").notNull().unique(),
   username: text("username").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
+  fourmId: text("fourm_id").unique(),
   isAdmin: integer("is_admin", { mode: "boolean" }).default(false),
   invitedBy: text("invited_by").references((): any => users.id, {
     onDelete: "set null",

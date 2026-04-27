@@ -16,8 +16,6 @@ export default [
   ]),
   layout("routes/auth-layout.tsx", [
     route("login", "routes/login.tsx"),
-    route("register", "routes/register.tsx"),
-    route("invite/:code", "routes/invite.$code.tsx"),
   ]),
 
   // OAuth routes (no layout -- server-side redirects only)

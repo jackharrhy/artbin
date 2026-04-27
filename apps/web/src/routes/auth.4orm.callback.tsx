@@ -56,12 +56,13 @@ export async function loader({ request }: Route.LoaderArgs) {
     return redirect("/login?error=userinfo_failed");
   }
 
-  // Find or create local user by username
+  // Find user by their 4orm ID (stable identifier)
   let localUser = await db.query.users.findFirst({
-    where: eq(users.username, userinfo.username),
+    where: eq(users.fourmId, userinfo.sub),
   });
 
   if (!localUser) {
+    // First time logging in from 4orm -- create account
     const userId = nanoid();
     const [created] = await db
       .insert(users)
@@ -70,9 +71,18 @@ export async function loader({ request }: Route.LoaderArgs) {
         email: `${userinfo.username}@4orm.local`,
         username: userinfo.username,
         passwordHash: "",
+        fourmId: userinfo.sub,
       })
       .returning();
     localUser = created;
+  } else {
+    // Sync username from 4orm (it may have changed)
+    if (localUser.username !== userinfo.username) {
+      await db
+        .update(users)
+        .set({ username: userinfo.username })
+        .where(eq(users.id, localUser.id));
+    }
   }
 
   const sessionId = nanoid(32);
