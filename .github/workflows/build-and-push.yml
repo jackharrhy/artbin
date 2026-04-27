@@ -36,14 +36,11 @@ jobs:
       - name: Lint
         run: pnpm run lint
 
-      - name: Typecheck
-        run: pnpm run typecheck
-
-      - name: Test
-        run: pnpm run test
+      - name: CI (typecheck + test all packages)
+        run: pnpm -r run ci
 
       - name: Build
-        run: pnpm run build
+        run: pnpm run --filter @artbin/web build
 
   push:
     needs: check
@@ -71,6 +68,8 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v7
         with:
+          context: .
+          file: apps/web/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

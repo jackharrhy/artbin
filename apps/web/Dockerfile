@@ -1,22 +1,20 @@
-FROM node:25-alpine AS development-dependencies-env
+FROM node:25-alpine AS build
+RUN corepack enable && corepack prepare pnpm@latest --activate
 WORKDIR /app
-COPY ./package.json /app/
-RUN npm install
-
-FROM node:25-alpine AS production-dependencies-env
-WORKDIR /app
-COPY ./package.json /app/
-RUN npm install --omit=dev
-
-FROM node:25-alpine AS build-env
-COPY . /app/
-COPY --from=development-dependencies-env /app/node_modules /app/node_modules
-WORKDIR /app
-RUN npm run build
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+COPY apps/web/package.json apps/web/
+COPY packages/core/package.json packages/core/
+RUN pnpm install --frozen-lockfile
+COPY . .
+RUN pnpm run --filter @artbin/web build
 
 FROM node:25-alpine
-COPY ./package.json /app/
-COPY --from=production-dependencies-env /app/node_modules /app/node_modules
-COPY --from=build-env /app/build /app/build
+RUN corepack enable && corepack prepare pnpm@latest --activate
 WORKDIR /app
-CMD ["npm", "run", "start"]
+COPY --from=build /app/pnpm-workspace.yaml /app/package.json /app/pnpm-lock.yaml ./
+COPY --from=build /app/apps/web/package.json apps/web/
+COPY --from=build /app/packages/core/ packages/core/
+RUN pnpm install --frozen-lockfile --prod
+COPY --from=build /app/apps/web/build apps/web/build
+WORKDIR /app/apps/web
+CMD ["pnpm", "run", "start"]
