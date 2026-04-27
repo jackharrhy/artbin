@@ -1,0 +1,23 @@
+{
+  "name": "@artbin/core",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./parsers": "./src/parsers/index.ts",
+    "./detection": "./src/detection/index.ts"
+  },
+  "dependencies": {
+    "file-type": "^22.0.1",
+    "mime-types": "^3.0.2"
+  },
+  "devDependencies": {
+    "@types/mime-types": "^3.0.1",
+    "@types/node": "^22.15.18",
+    "typescript": "^6.0.3"
+  },
+  "scripts": {
+    "ci": "tsc --noEmit"
+  }
+}
