@@ -1,6 +1,7 @@
 import { useLoaderData, redirect, useRevalidator, Form, useNavigation } from "react-router";
 import type { Route } from "./+types/admin.jobs";
 import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
+import { Header } from "~/components/Header";
 import { getAllJobs, deleteJob, cancelJob, resetStuckJob, isJobStuck } from "~/lib/jobs.server";
 import { useEffect } from "react";
 
@@ -134,12 +135,7 @@ export default function AdminJobs() {
 
   return (
     <div>
-      <header className="header">
-        <a href="/" className="header-logo">
-          artbin
-        </a>
-        <span className="badge-admin">admin</span>
-      </header>
+      <Header user={user} />
 
       <main className="max-w-[1100px] mx-auto p-4 bg-bg min-h-[calc(100vh-48px)]">
         <h1 className="text-xl font-normal mb-4 pb-2 border-b border-border-light">
