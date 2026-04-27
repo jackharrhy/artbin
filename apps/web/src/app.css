@@ -101,6 +101,7 @@
   border-color: var(--color-text);
   &:hover {
     background-color: #333;
+    color: #fff;
   }
 }
 
