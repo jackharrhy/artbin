@@ -43,6 +43,14 @@ export default function Login() {
     errorMessage = "Invalid or expired invite link";
   } else if (errorParam === "invite_exhausted") {
     errorMessage = "This invite link has reached its usage limit";
+  } else if (errorParam === "access_denied") {
+    errorMessage = "Authorization was denied";
+  } else if (errorParam === "token_exchange_failed") {
+    errorMessage = "Login failed - please try again";
+  } else if (errorParam === "userinfo_failed") {
+    errorMessage = "Login failed - please try again";
+  } else if (errorParam) {
+    errorMessage = "Login failed - please try again";
   }
 
   return (
@@ -76,6 +84,16 @@ export default function Login() {
           Login
         </button>
       </Form>
+
+      <div className="my-4 flex items-center gap-2">
+        <div className="flex-1 border-t border-border" />
+        <span className="text-xs text-text-muted uppercase">or</span>
+        <div className="flex-1 border-t border-border" />
+      </div>
+
+      <a href="/auth/4orm" className="btn btn-secondary w-full text-center block">
+        Login with 4orm
+      </a>
 
       <p className="mt-4 text-sm text-center">Need an account? Get an invite link from a member.</p>
     </main>

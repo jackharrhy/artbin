@@ -20,6 +20,10 @@ export default [
     route("invite/:code", "routes/invite.$code.tsx"),
   ]),
 
+  // OAuth routes (no layout -- server-side redirects only)
+  route("auth/4orm", "routes/auth.4orm.tsx"),
+  route("auth/4orm/callback", "routes/auth.4orm.callback.tsx"),
+
   // API routes
   route("api/upload", "routes/api.upload.tsx"),
   route("api/folder", "routes/api.folder.tsx"),
