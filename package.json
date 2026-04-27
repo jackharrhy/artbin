@@ -2,10 +2,19 @@
   "name": "artbin",
   "private": true,
   "scripts": {
+    "dev": "pnpm run --filter @artbin/web dev",
+    "build": "pnpm run --filter @artbin/web build",
+    "start": "pnpm run --filter @artbin/web start",
+    "test": "pnpm run --filter @artbin/web test",
+    "typecheck": "pnpm -r run ci",
     "ci": "pnpm run format:check && pnpm run lint && pnpm -r run ci",
     "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
     "format": "oxfmt --write apps/ packages/",
-    "format:check": "oxfmt --check apps/ packages/"
+    "format:check": "oxfmt --check apps/ packages/",
+    "db:migrate": "pnpm run --filter @artbin/web db:migrate",
+    "db:push": "pnpm run --filter @artbin/web db:push",
+    "db:studio": "pnpm run --filter @artbin/web db:studio"
   },
   "devDependencies": {
     "oxlint": "^1.61.0",
