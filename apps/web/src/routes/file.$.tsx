@@ -5,7 +5,6 @@ import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
 import { db } from "~/db/connection.server";
 import { files, folders, fileTags, tags } from "~/db";
 import { eq } from "drizzle-orm";
-import { Header } from "~/components/Header";
 import { ModelViewer } from "~/components/ModelViewer";
 import { readFile } from "fs/promises";
 import { getFilePath } from "~/lib/files.server";
@@ -358,9 +357,7 @@ export default function FileView() {
   const downloadUrl = `/uploads/${file.path}`;
 
   return (
-    <div>
-      <Header user={user} />
-      <main className="max-w-[1400px] mx-auto p-4 bg-bg min-h-[calc(100vh-48px)]">
+    <main className="max-w-[1400px] mx-auto p-4 bg-bg min-h-[calc(100vh-48px)]">
         {/* Breadcrumb */}
         <div className="text-xs text-text-muted mb-4">
           <a href="/folders" className="text-text-muted hover:text-text no-underline">
@@ -589,7 +586,6 @@ export default function FileView() {
             </div>
           </div>
         </div>
-      </main>
-    </div>
+    </main>
   );
 }

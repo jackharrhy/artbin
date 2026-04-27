@@ -12,7 +12,6 @@ import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
 import { db } from "~/db/connection.server";
 import { folders, files, tags } from "~/db";
 import { eq, desc, count } from "drizzle-orm";
-import { Header } from "~/components/Header";
 import { BrowseTabs, type ViewMode } from "~/components/BrowseTabs";
 import { SearchBar } from "~/components/SearchBar";
 import { FileGrid } from "~/components/FileGrid";
@@ -320,8 +319,7 @@ export default function FolderView() {
   const baseUrl = `/folder/${folder.slug}`;
 
   return (
-    <div>
-      <Header user={user} onUploadClick={() => setShowUploadModal(true)} />
+    <>
       <main className="max-w-[1400px] mx-auto p-4 bg-bg min-h-[calc(100vh-48px)]">
         {/* Breadcrumb */}
         <div className="text-xs text-text-muted mb-4">
@@ -549,6 +547,6 @@ export default function FolderView() {
           }}
         />
       )}
-    </div>
+    </>
   );
 }

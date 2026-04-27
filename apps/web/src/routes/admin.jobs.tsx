@@ -1,7 +1,6 @@
 import { useLoaderData, redirect, useRevalidator, Form, useNavigation } from "react-router";
 import type { Route } from "./+types/admin.jobs";
 import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
-import { Header } from "~/components/Header";
 import { getAllJobs, deleteJob, cancelJob, resetStuckJob, isJobStuck } from "~/lib/jobs.server";
 import { useEffect } from "react";
 
@@ -134,10 +133,7 @@ export default function AdminJobs() {
   const completedJobs = jobs.filter((j) => j.status !== "running" && j.status !== "pending");
 
   return (
-    <div>
-      <Header user={user} />
-
-      <main className="max-w-[1100px] mx-auto p-4 bg-bg min-h-[calc(100vh-48px)]">
+    <main className="max-w-[1100px] mx-auto p-4 bg-bg min-h-[calc(100vh-48px)]">
         <h1 className="text-xl font-normal mb-4 pb-2 border-b border-border-light">
           Background Jobs
         </h1>
@@ -296,7 +292,6 @@ export default function AdminJobs() {
           <a href="/admin/import">Import</a> | <a href="/upload">Upload</a> |{" "}
           <a href="/folders">Folders</a> | <a href="/settings">Settings</a>
         </p>
-      </main>
-    </div>
+    </main>
   );
 }

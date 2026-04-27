@@ -1,7 +1,6 @@
 import { Form, redirect, useLoaderData, useActionData } from "react-router";
 import type { Route } from "./+types/admin.scan-settings";
 import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
-import { Header } from "~/components/Header";
 import type { ScanSettings } from "~/lib/settings.types";
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -101,9 +100,7 @@ export default function AdminScanSettings() {
   const actionData = useActionData<typeof action>();
 
   return (
-    <div>
-      <Header user={user} />
-      <main className="max-w-[900px] mx-auto p-4 bg-bg min-h-[calc(100vh-48px)]">
+    <main className="max-w-[900px] mx-auto p-4 bg-bg min-h-[calc(100vh-48px)]">
         <div className="text-xs text-text-muted mb-4">
           <a className="text-text-muted hover:text-text" href="/folders">
             Folders
@@ -226,7 +223,6 @@ export default function AdminScanSettings() {
           <a href="/admin/import">← Back to Import</a> |{" "}
           <a href="/admin/archives">Browse Archives</a>
         </p>
-      </main>
-    </div>
+    </main>
   );
 }

@@ -8,7 +8,6 @@ import {
   getUserFromSession,
   getInviteByCode,
 } from "~/lib/auth.server";
-import { Header } from "~/components/Header";
 
 export async function loader({ request }: Route.LoaderArgs) {
   const sessionId = parseSessionCookie(request.headers.get("Cookie"));
@@ -74,73 +73,70 @@ export default function Register() {
   const actionData = useActionData<typeof action>();
 
   return (
-    <div>
-      <Header />
-      <main className="max-w-[360px] mx-auto mt-16 p-8 bg-bg border border-border">
-        <h1 className="text-xl text-center mb-6">Register</h1>
+    <main className="max-w-[360px] mx-auto mt-16 p-8 bg-bg border border-border">
+      <h1 className="text-xl text-center mb-6">Register</h1>
 
-        {actionData?.error && <div className="alert alert-error">{actionData.error}</div>}
+      {actionData?.error && <div className="alert alert-error">{actionData.error}</div>}
 
-        <Form method="post">
-          <input type="hidden" name="inviteCode" value={code || ""} />
+      <Form method="post">
+        <input type="hidden" name="inviteCode" value={code || ""} />
 
-          <div className="mb-4">
-            <label
-              htmlFor="email"
-              className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1"
-            >
-              Email
-            </label>
-            <input type="email" id="email" name="email" required className="input w-full" />
+        <div className="mb-4">
+          <label
+            htmlFor="email"
+            className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1"
+          >
+            Email
+          </label>
+          <input type="email" id="email" name="email" required className="input w-full" />
+        </div>
+
+        <div className="mb-4">
+          <label
+            htmlFor="username"
+            className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1"
+          >
+            Username
+          </label>
+          <input
+            type="text"
+            id="username"
+            name="username"
+            required
+            pattern="[a-zA-Z0-9_]+"
+            className="input w-full"
+          />
+          <div className="text-xs text-text-muted mt-1">
+            Letters, numbers, and underscores only
           </div>
+        </div>
 
-          <div className="mb-4">
-            <label
-              htmlFor="username"
-              className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1"
-            >
-              Username
-            </label>
-            <input
-              type="text"
-              id="username"
-              name="username"
-              required
-              pattern="[a-zA-Z0-9_]+"
-              className="input w-full"
-            />
-            <div className="text-xs text-text-muted mt-1">
-              Letters, numbers, and underscores only
-            </div>
-          </div>
+        <div className="mb-4">
+          <label
+            htmlFor="password"
+            className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1"
+          >
+            Password
+          </label>
+          <input
+            type="password"
+            id="password"
+            name="password"
+            required
+            minLength={8}
+            className="input w-full"
+          />
+          <div className="text-xs text-text-muted mt-1">At least 8 characters</div>
+        </div>
 
-          <div className="mb-4">
-            <label
-              htmlFor="password"
-              className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1"
-            >
-              Password
-            </label>
-            <input
-              type="password"
-              id="password"
-              name="password"
-              required
-              minLength={8}
-              className="input w-full"
-            />
-            <div className="text-xs text-text-muted mt-1">At least 8 characters</div>
-          </div>
+        <button type="submit" className="btn btn-primary w-full">
+          Create Account
+        </button>
+      </Form>
 
-          <button type="submit" className="btn btn-primary w-full">
-            Create Account
-          </button>
-        </Form>
-
-        <p className="mt-4 text-sm text-center">
-          Already have an account? <a href="/login">Login</a>
-        </p>
-      </main>
-    </div>
+      <p className="mt-4 text-sm text-center">
+        Already have an account? <a href="/login">Login</a>
+      </p>
+    </main>
   );
 }

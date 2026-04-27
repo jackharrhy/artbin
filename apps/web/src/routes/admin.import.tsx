@@ -4,7 +4,6 @@ import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
 import { db } from "~/db/connection.server";
 import { files, folders } from "~/db";
 import { count, sum, eq } from "drizzle-orm";
-import { Header } from "~/components/Header";
 import { createJob } from "~/lib/jobs.server";
 import { existsSync } from "fs";
 import { stat } from "fs/promises";
@@ -195,9 +194,7 @@ export default function AdminImport() {
   const actionData = useActionData<typeof action>();
 
   return (
-    <div>
-      <Header user={user} />
-      <main className="max-w-[900px] mx-auto p-4 bg-bg min-h-[calc(100vh-48px)]">
+    <main className="max-w-[900px] mx-auto p-4 bg-bg min-h-[calc(100vh-48px)]">
         <div className="text-xs text-text-muted mb-4">
           <a className="text-text-muted hover:text-text" href="/folders">
             Folders
@@ -425,7 +422,6 @@ export default function AdminImport() {
         <p className="mt-8 text-sm text-text-muted">
           <a href="/admin/jobs">View Jobs</a> | <a href="/folders">Browse Folders</a>
         </p>
-      </main>
-    </div>
+    </main>
   );
 }

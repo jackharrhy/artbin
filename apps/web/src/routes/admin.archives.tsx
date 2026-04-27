@@ -5,7 +5,6 @@ import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
 import { db } from "~/db/connection.server";
 import { jobs } from "~/db";
 import { eq, desc } from "drizzle-orm";
-import { Header } from "~/components/Header";
 import { createJob } from "~/lib/jobs.server";
 
 interface FoundArchive {
@@ -654,8 +653,7 @@ export default function AdminArchives() {
   };
 
   return (
-    <div>
-      <Header user={user} />
+    <>
       <main className="max-w-[1000px] mx-auto p-4 bg-bg min-h-[calc(100vh-48px)]">
         <div className="text-xs text-text-muted mb-4">
           <a className="text-text-muted hover:text-text" href="/folders">
@@ -777,6 +775,6 @@ export default function AdminArchives() {
       </main>
 
       <BatchImportButton selectedPaths={selectedPaths} onClear={handleClearSelection} />
-    </div>
+    </>
   );
 }

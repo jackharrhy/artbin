@@ -6,7 +6,6 @@ import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
 import { db } from "~/db/connection.server";
 import { folders, files, tags } from "~/db";
 import { eq, isNull, count, desc, sql } from "drizzle-orm";
-import { Header } from "~/components/Header";
 import { BrowseTabs, type ViewMode } from "~/components/BrowseTabs";
 import { SearchBar } from "~/components/SearchBar";
 import { FileGrid } from "~/components/FileGrid";
@@ -165,8 +164,7 @@ export default function Folders() {
   const isSoundsView = view === "sounds";
 
   return (
-    <div>
-      <Header user={user} onUploadClick={() => setShowUploadModal(true)} />
+    <>
       <main className="max-w-[1400px] mx-auto p-4 bg-bg min-h-[calc(100vh-48px)]">
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-xl font-normal">Browse</h1>
@@ -274,6 +272,6 @@ export default function Folders() {
         currentFolder={null}
         onSuccess={() => revalidator.revalidate()}
       />
-    </div>
+    </>
   );
 }

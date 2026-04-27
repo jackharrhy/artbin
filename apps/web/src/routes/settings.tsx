@@ -11,7 +11,7 @@ import {
 import { db } from "~/db/connection.server";
 import { inviteCodes } from "~/db";
 import { eq, desc } from "drizzle-orm";
-import { Header } from "~/components/Header";
+
 
 export async function loader({ request }: Route.LoaderArgs) {
   const sessionId = parseSessionCookie(request.headers.get("Cookie"));
@@ -86,9 +86,7 @@ export default function Settings() {
   const actionData = useActionData<typeof action>();
 
   return (
-    <div>
-      <Header user={user} />
-      <main className="max-w-[600px] mx-auto p-4 bg-bg min-h-[calc(100vh-48px)]">
+    <main className="max-w-[600px] mx-auto p-4 bg-bg min-h-[calc(100vh-48px)]">
         <h1 className="text-xl font-normal mb-4 pb-2 border-b border-border-light">Settings</h1>
 
         {actionData?.error && <div className="alert alert-error">{actionData.error}</div>}
@@ -220,7 +218,6 @@ export default function Settings() {
             </div>
           </section>
         )}
-      </main>
-    </div>
+    </main>
   );
 }
