@@ -12,7 +12,19 @@ export const fileKinds = [
 export type FileKind = (typeof fileKinds)[number];
 
 const KIND_EXTENSIONS: Record<FileKind, string[]> = {
-  texture: ["png", "jpg", "jpeg", "gif", "webp", "tga", "bmp", "pcx", "wal", "vtf", "dds"],
+  texture: [
+    "png",
+    "jpg",
+    "jpeg",
+    "gif",
+    "webp",
+    "tga",
+    "bmp",
+    "pcx",
+    "wal",
+    "vtf",
+    "dds",
+  ],
   model: [
     "gltf",
     "glb",
@@ -31,13 +43,21 @@ const KIND_EXTENSIONS: Record<FileKind, string[]> = {
   audio: ["wav", "mp3", "ogg", "flac", "m4a", "aiff"],
   map: ["bsp", "map", "vmf", "rmf"],
   archive: ["pk3", "pk4", "pak", "wad", "zip", "7z", "rar", "tar", "gz"],
-  config: ["cfg", "txt", "json", "xml", "ini", "yaml", "yml", "toml", "rc", "conf"],
+  config: [
+    "cfg",
+    "txt",
+    "json",
+    "xml",
+    "ini",
+    "yaml",
+    "yml",
+    "toml",
+    "rc",
+    "conf",
+  ],
   other: [],
 };
 
-/**
- * Detect file kind based on extension
- */
 export function detectKind(filename: string): FileKind {
   const ext = extname(filename).toLowerCase().slice(1);
 
@@ -50,24 +70,15 @@ export function detectKind(filename: string): FileKind {
   return "other";
 }
 
-/**
- * Check if a file kind is displayable as an image
- */
 export function isImageKind(kind: FileKind): boolean {
   return kind === "texture";
 }
 
-/**
- * Check if a file needs preview generation (legacy formats)
- */
 export function needsPreview(filename: string): boolean {
   const ext = extname(filename).toLowerCase().slice(1);
   return ["tga", "bmp", "pcx", "wal", "vtf", "dds"].includes(ext);
 }
 
-/**
- * Check if a file is a web-native image format
- */
 export function isWebImage(filename: string): boolean {
   const ext = extname(filename).toLowerCase().slice(1);
   return ["png", "jpg", "jpeg", "gif", "webp"].includes(ext);

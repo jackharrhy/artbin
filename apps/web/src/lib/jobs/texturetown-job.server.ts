@@ -23,10 +23,6 @@ import {
 } from "../files.server";
 import { generateFolderPreview } from "../folder-preview.server";
 
-// ============================================================================
-// Types
-// ============================================================================
-
 interface TextureTownManifest {
   info: {
     base_url: string;
@@ -52,10 +48,6 @@ export interface TextureTownImportOutput {
   errors: string[];
 }
 
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
 const TEXTURETOWN_MANIFEST_URL = "https://textures.neocities.org/manifest.json";
 const TEXTURETOWN_BASE_URL = "https://textures.neocities.org";
 
@@ -65,7 +57,9 @@ const TEXTURETOWN_BASE_URL = "https://textures.neocities.org";
 async function fetchManifest(): Promise<TextureTownManifest> {
   const res = await fetch(TEXTURETOWN_MANIFEST_URL);
   if (!res.ok) {
-    throw new Error(`Failed to fetch manifest: ${res.status} ${res.statusText}`);
+    throw new Error(
+      `Failed to fetch manifest: ${res.status} ${res.statusText}`,
+    );
   }
   return res.json();
 }
@@ -159,15 +153,12 @@ async function downloadTexture(
   return Buffer.from(arrayBuffer);
 }
 
-// ============================================================================
-// Job Handler
-// ============================================================================
-
 async function handleTextureTownImport(
   job: Job,
   input: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
-  const { categories: requestedCategories, userId } = input as unknown as TextureTownImportInput;
+  const { categories: requestedCategories, userId } =
+    input as unknown as TextureTownImportInput;
 
   await updateJobProgress(job.id, 2, "Fetching TextureTown manifest...");
 
@@ -177,7 +168,9 @@ async function handleTextureTownImport(
   // Filter categories if specific ones were requested
   let categoriesToImport = manifest.catalogue;
   if (requestedCategories && requestedCategories.length > 0) {
-    categoriesToImport = manifest.catalogue.filter((cat) => requestedCategories.includes(cat.name));
+    categoriesToImport = manifest.catalogue.filter((cat) =>
+      requestedCategories.includes(cat.name),
+    );
   }
 
   if (categoriesToImport.length === 0) {
@@ -185,7 +178,10 @@ async function handleTextureTownImport(
   }
 
   // Count total files for progress tracking
-  const totalFiles = categoriesToImport.reduce((sum, cat) => sum + cat.files.length, 0);
+  const totalFiles = categoriesToImport.reduce(
+    (sum, cat) => sum + cat.files.length,
+    0,
+  );
   let processedFiles = 0;
   let importedFiles = 0;
   const errors: string[] = [];
@@ -203,7 +199,11 @@ async function handleTextureTownImport(
 
   for (const category of categoriesToImport) {
     const folderSlug = categoryToSlug(category.name);
-    const folderId = await getOrCreateCategoryFolder(folderSlug, category.niceName, parentFolderId);
+    const folderId = await getOrCreateCategoryFolder(
+      folderSlug,
+      category.niceName,
+      parentFolderId,
+    );
     createdFolderIds.push(folderId);
     categoriesImported.push(category.niceName);
 
@@ -221,7 +221,12 @@ async function handleTextureTownImport(
         }
 
         // Download the texture
-        const buffer = await downloadTexture(base_url, textures_folder, category.name, fileName);
+        const buffer = await downloadTexture(
+          base_url,
+          textures_folder,
+          category.name,
+          fileName,
+        );
 
         // Save file to disk
         const { path: savedPath, name: savedName } = await saveFile(
@@ -296,7 +301,10 @@ async function handleTextureTownImport(
     try {
       await generateFolderPreview(folderId);
     } catch (err) {
-      console.error(`[TextureTown] Failed to generate preview for folder ${folderId}:`, err);
+      console.error(
+        `[TextureTown] Failed to generate preview for folder ${folderId}:`,
+        err,
+      );
     }
   }
 

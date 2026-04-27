@@ -23,10 +23,6 @@ import {
 } from "../files.server";
 import { generateFolderPreview } from "../folder-preview.server";
 
-// ============================================================================
-// Types
-// ============================================================================
-
 interface Category {
   page: string; // HTML page filename
   name: string; // Display name
@@ -45,10 +41,6 @@ export interface TextureStationImportOutput {
   errors: string[];
 }
 
-// ============================================================================
-// Configuration
-// ============================================================================
-
 const BASE_URL = "https://thejang.com/textures";
 const PARENT_SLUG = "texture-station";
 const PARENT_NAME = "Texture Station";
@@ -61,17 +53,25 @@ const CATEGORIES: Category[] = [
   { page: "backgrounds_lt_gray.htm", name: "Gray (Light)", slug: "gray-light" },
   { page: "backgrounds_green.htm", name: "Green", slug: "green" },
   { page: "backgrounds_purple.htm", name: "Purples", slug: "purples" },
-  { page: "backgrounds_red_yellow.htm", name: "Reds & Yellows", slug: "reds-yellows" },
+  {
+    page: "backgrounds_red_yellow.htm",
+    name: "Reds & Yellows",
+    slug: "reds-yellows",
+  },
   { page: "backgrounds_brown.htm", name: "Browns & Tans", slug: "browns-tans" },
-  { page: "backgrounds_multicolor.htm", name: "MultiColor", slug: "multicolor" },
-  { page: "backgrounds_miscrock.htm", name: "Stones & Rocks", slug: "stones-rocks" },
+  {
+    page: "backgrounds_multicolor.htm",
+    name: "MultiColor",
+    slug: "multicolor",
+  },
+  {
+    page: "backgrounds_miscrock.htm",
+    name: "Stones & Rocks",
+    slug: "stones-rocks",
+  },
   { page: "backgrounds_wood.htm", name: "Wood", slug: "wood" },
   { page: "backgrounds_other.htm", name: "Other", slug: "other" },
 ];
-
-// ============================================================================
-// Helper Functions
-// ============================================================================
 
 /**
  * Parse HTML page to extract texture image filenames from i2/ directory
@@ -143,7 +143,8 @@ async function getOrCreateParentFolder(): Promise<string> {
     id,
     name: PARENT_NAME,
     slug: PARENT_SLUG,
-    description: "Textures imported from thejang.com/textures (Texture Station)",
+    description:
+      "Textures imported from thejang.com/textures (Texture Station)",
   });
 
   await ensureDir(slugToPath(PARENT_SLUG));
@@ -154,7 +155,10 @@ async function getOrCreateParentFolder(): Promise<string> {
 /**
  * Get or create a category folder
  */
-async function getOrCreateCategoryFolder(category: Category, parentId: string): Promise<string> {
+async function getOrCreateCategoryFolder(
+  category: Category,
+  parentId: string,
+): Promise<string> {
   const slug = `${PARENT_SLUG}/${category.slug}`;
 
   const existing = await db.query.folders.findFirst({
@@ -179,22 +183,21 @@ async function getOrCreateCategoryFolder(category: Category, parentId: string): 
   return id;
 }
 
-// ============================================================================
-// Job Handler
-// ============================================================================
-
 async function handleTextureStationImport(
   job: Job,
   input: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
-  const { categories: requestedCategories, userId } = input as unknown as TextureStationImportInput;
+  const { categories: requestedCategories, userId } =
+    input as unknown as TextureStationImportInput;
 
   await updateJobProgress(job.id, 2, "Scanning Texture Station categories...");
 
   // Filter categories if specific ones were requested
   let categoriesToImport = CATEGORIES;
   if (requestedCategories && requestedCategories.length > 0) {
-    categoriesToImport = CATEGORIES.filter((cat) => requestedCategories.includes(cat.slug));
+    categoriesToImport = CATEGORIES.filter((cat) =>
+      requestedCategories.includes(cat.slug),
+    );
   }
 
   if (categoriesToImport.length === 0) {
@@ -213,7 +216,10 @@ async function handleTextureStationImport(
       categoryTextures.set(category, textures);
       totalFiles += textures.length;
     } catch (error) {
-      console.error(`[TextureStation] Failed to fetch ${category.page}:`, error);
+      console.error(
+        `[TextureStation] Failed to fetch ${category.page}:`,
+        error,
+      );
       categoryTextures.set(category, []);
     }
   }
@@ -333,7 +339,10 @@ async function handleTextureStationImport(
     try {
       await generateFolderPreview(folderId);
     } catch (err) {
-      console.error(`[TextureStation] Failed to generate preview for folder ${folderId}:`, err);
+      console.error(
+        `[TextureStation] Failed to generate preview for folder ${folderId}:`,
+        err,
+      );
     }
   }
 

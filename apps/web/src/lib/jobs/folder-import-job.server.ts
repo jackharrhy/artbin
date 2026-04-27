@@ -26,10 +26,6 @@ import {
 } from "../files.server";
 import { generateFolderPreview } from "../folder-preview.server";
 
-// ============================================================================
-// Supported File Extensions
-// ============================================================================
-
 /**
  * File extensions we know how to import directly.
  * These are files that artbin can store and potentially display/preview.
@@ -91,10 +87,6 @@ function isImportableFile(filename: string): boolean {
   return IMPORTABLE_EXTENSIONS.has(ext);
 }
 
-// ============================================================================
-// Types
-// ============================================================================
-
 export interface FolderImportJobInput {
   sourcePath: string; // Absolute path to source folder
   targetFolderSlug: string; // Target folder slug (e.g., "skin-deep")
@@ -110,10 +102,6 @@ export interface FolderImportJobOutput {
   filesByKind: Record<string, number>;
   skippedFiles: number;
 }
-
-// ============================================================================
-// Helper Functions
-// ============================================================================
 
 /**
  * Create a folder slug from a path
@@ -164,15 +152,23 @@ async function getOrCreateFolder(
 async function findImportableFiles(
   basePath: string,
   currentPath: string = "",
-): Promise<Array<{ relativePath: string; absolutePath: string; size: number }>> {
-  const results: Array<{ relativePath: string; absolutePath: string; size: number }> = [];
+): Promise<
+  Array<{ relativePath: string; absolutePath: string; size: number }>
+> {
+  const results: Array<{
+    relativePath: string;
+    absolutePath: string;
+    size: number;
+  }> = [];
   const fullPath = currentPath ? join(basePath, currentPath) : basePath;
 
   try {
     const entries = await readdir(fullPath, { withFileTypes: true });
 
     for (const entry of entries) {
-      const entryRelPath = currentPath ? join(currentPath, entry.name) : entry.name;
+      const entryRelPath = currentPath
+        ? join(currentPath, entry.name)
+        : entry.name;
       const entryAbsPath = join(fullPath, entry.name);
 
       if (entry.isDirectory()) {
@@ -224,7 +220,9 @@ function getDirectoryPaths(files: Array<{ relativePath: string }>): string[] {
     }
   }
 
-  return Array.from(dirs).sort((a, b) => a.split("/").length - b.split("/").length);
+  return Array.from(dirs).sort(
+    (a, b) => a.split("/").length - b.split("/").length,
+  );
 }
 
 // ============================================================================
@@ -257,18 +255,30 @@ async function handleFolderImportJob(
     throw new Error("No importable files found in the specified folder");
   }
 
-  await updateJobProgress(job.id, 5, `Found ${importableFiles.length} files to import`);
+  await updateJobProgress(
+    job.id,
+    5,
+    `Found ${importableFiles.length} files to import`,
+  );
 
   // Get unique directory paths
   const dirPaths = getDirectoryPaths(importableFiles);
 
-  await updateJobProgress(job.id, 8, `Creating ${dirPaths.length + 1} folders...`);
+  await updateJobProgress(
+    job.id,
+    8,
+    `Creating ${dirPaths.length + 1} folders...`,
+  );
 
   // Create folder structure
   const folderMap = new Map<string, string>(); // relativePath -> folderId
 
   // Create base folder
-  const baseFolderId = await getOrCreateFolder(targetFolderSlug, targetFolderName, null);
+  const baseFolderId = await getOrCreateFolder(
+    targetFolderSlug,
+    targetFolderName,
+    null,
+  );
   folderMap.set("", baseFolderId);
 
   // Create subfolders
@@ -278,13 +288,20 @@ async function handleFolderImportJob(
 
     // Find parent folder
     const parentPath = dirname(dirPath);
-    const parentId = parentPath === "." ? baseFolderId : folderMap.get(parentPath) || baseFolderId;
+    const parentId =
+      parentPath === "."
+        ? baseFolderId
+        : folderMap.get(parentPath) || baseFolderId;
 
     const folderId = await getOrCreateFolder(fullSlug, name, parentId);
     folderMap.set(dirPath, folderId);
   }
 
-  await updateJobProgress(job.id, 10, `Importing ${importableFiles.length} files...`);
+  await updateJobProgress(
+    job.id,
+    10,
+    `Importing ${importableFiles.length} files...`,
+  );
 
   // Import files
   const totalFiles = importableFiles.length;
@@ -300,7 +317,9 @@ async function handleFolderImportJob(
       // Determine folder for this file
       const fileDir = dirname(fileInfo.relativePath);
       const folderSlug =
-        fileDir === "." ? targetFolderSlug : `${targetFolderSlug}/${pathToSlug(fileDir)}`;
+        fileDir === "."
+          ? targetFolderSlug
+          : `${targetFolderSlug}/${pathToSlug(fileDir)}`;
       const folderId = folderMap.get(fileDir) || folderMap.get("")!;
 
       // Save file to disk

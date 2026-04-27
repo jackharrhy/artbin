@@ -1,15 +1,4 @@
-/**
- * Archive extraction utilities for artbin
- *
- * Buffer-based parsers for PK3 (ZIP), PAK, and other game archive formats.
- * No filesystem dependencies -- accepts Buffer in, returns data out.
- */
-
 import { createInflateRaw } from "zlib";
-
-// ============================================================================
-// Types
-// ============================================================================
 
 export interface ArchiveEntry {
   name: string; // Full path within archive: "textures/wall/brick.jpg"
@@ -26,13 +15,6 @@ export interface ParsedArchive {
 
 export type ArchiveType = "pk3" | "pak" | "zip" | "unknown";
 
-// ============================================================================
-// Archive Type Detection
-// ============================================================================
-
-/**
- * Detect archive type from magic bytes in a buffer
- */
 export function detectArchiveType(buffer: Buffer): ArchiveType {
   if (buffer.length < 4) return "unknown";
 
@@ -44,13 +26,6 @@ export function detectArchiveType(buffer: Buffer): ArchiveType {
   return "unknown";
 }
 
-// ============================================================================
-// PK3/ZIP Parsing
-// ============================================================================
-
-/**
- * Parse a PK3/ZIP archive buffer and return its entries
- */
 export function parsePk3(buffer: Buffer): ArchiveEntry[] {
   const entries: ArchiveEntry[] = [];
 
@@ -112,10 +87,10 @@ export function parsePk3(buffer: Buffer): ArchiveEntry[] {
   return entries;
 }
 
-/**
- * Extract a single entry from a PK3/ZIP archive buffer
- */
-export async function extractPk3Entry(buffer: Buffer, entry: ArchiveEntry): Promise<Buffer> {
+export async function extractPk3Entry(
+  buffer: Buffer,
+  entry: ArchiveEntry,
+): Promise<Buffer> {
   // Read local file header
   const pos = entry.offset;
   if (
@@ -158,13 +133,6 @@ export async function extractPk3Entry(buffer: Buffer, entry: ArchiveEntry): Prom
   throw new Error(`Unsupported compression method: ${compressionMethod}`);
 }
 
-// ============================================================================
-// PAK Parsing (Quake 1/2)
-// ============================================================================
-
-/**
- * Parse a PAK archive buffer and return its entries
- */
 export function parsePak(buffer: Buffer): ArchiveEntry[] {
   // Read header
   const magic = buffer.toString("ascii", 0, 4);
@@ -202,20 +170,10 @@ export function parsePak(buffer: Buffer): ArchiveEntry[] {
   return entries;
 }
 
-/**
- * Extract a single entry from a PAK archive buffer
- */
 export function extractPakEntry(buffer: Buffer, entry: ArchiveEntry): Buffer {
   return Buffer.from(buffer.subarray(entry.offset, entry.offset + entry.size));
 }
 
-// ============================================================================
-// Unified API
-// ============================================================================
-
-/**
- * Parse any supported archive type from a buffer
- */
 export function parseArchive(buffer: Buffer): ParsedArchive {
   const type = detectArchiveType(buffer);
 
@@ -235,9 +193,6 @@ export function parseArchive(buffer: Buffer): ParsedArchive {
   return { type, entries };
 }
 
-/**
- * Get all unique directory paths from archive entries
- */
 export function getDirectoryPaths(entries: ArchiveEntry[]): string[] {
   const dirs = new Set<string>();
 
@@ -259,9 +214,6 @@ export function getDirectoryPaths(entries: ArchiveEntry[]): string[] {
   return Array.from(dirs).sort();
 }
 
-/**
- * Filter entries to only files (no directories)
- */
 export function getFileEntries(entries: ArchiveEntry[]): ArchiveEntry[] {
   return entries.filter((e) => !e.isDirectory && e.size > 0);
 }
