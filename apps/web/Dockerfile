@@ -1,5 +1,5 @@
 FROM node:25-alpine AS build
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN npm install -g pnpm
 WORKDIR /app
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY apps/web/package.json apps/web/
@@ -9,7 +9,7 @@ COPY . .
 RUN pnpm run --filter @artbin/web build
 
 FROM node:25-alpine
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN npm install -g pnpm
 WORKDIR /app
 COPY --from=build /app/pnpm-workspace.yaml /app/package.json /app/pnpm-lock.yaml ./
 COPY --from=build /app/apps/web/package.json apps/web/
