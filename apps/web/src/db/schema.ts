@@ -1,5 +1,17 @@
 import { sqliteTable, text, integer, primaryKey, index } from "drizzle-orm/sqlite-core";
-import { fileKinds, type FileKind } from "@artbin/core";
+
+// Defined here (not imported from @artbin/core) to avoid pulling Node-only
+// dependencies into the client bundle through the barrel export.
+export const fileKinds = [
+  "texture",
+  "model",
+  "audio",
+  "map",
+  "archive",
+  "config",
+  "other",
+] as const;
+export type FileKind = (typeof fileKinds)[number];
 
 // ============================================================================
 // Auth & Users
@@ -61,8 +73,6 @@ export const folders = sqliteTable(
 // ============================================================================
 // Files - Unified file storage
 // ============================================================================
-
-export { fileKinds, type FileKind };
 
 export const files = sqliteTable(
   "files",
