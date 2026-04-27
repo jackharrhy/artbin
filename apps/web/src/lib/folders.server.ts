@@ -4,6 +4,7 @@ import { Result } from "better-result";
 import { eq } from "drizzle-orm";
 import { existsSync } from "fs";
 import { rename } from "fs/promises";
+import { cleanFolderSlug } from "@artbin/core";
 import { db as appDb, files, folders, type AppDb, type Folder } from "~/db";
 import { ensureDir as ensureUploadsDir, UPLOADS_DIR } from "./files.server";
 import { generateFolderPreview } from "./folder-preview.server";
@@ -47,12 +48,7 @@ export interface CreateFolderAndMoveDeps extends MoveFolderDeps {
   createId?: () => string;
 }
 
-export function cleanFolderSlug(slug: string): string {
-  return slug
-    .toLowerCase()
-    .replace(/[^a-z0-9-]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
+export { cleanFolderSlug };
 
 function toError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error));

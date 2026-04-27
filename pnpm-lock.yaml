@@ -17,6 +17,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@artbin/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@react-router/node':
         specifier: 7.14.2
         version: 7.14.2(react-router@7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(typescript@6.0.3)
@@ -35,15 +38,9 @@ importers:
       drizzle-orm:
         specifier: ^0.45.2
         version: 0.45.2(@types/better-sqlite3@7.6.13)(better-sqlite3@12.9.0)(kysely@0.28.9)
-      file-type:
-        specifier: ^22.0.1
-        version: 22.0.1
       isbot:
         specifier: ^5.1.39
         version: 5.1.39
-      mime-types:
-        specifier: ^3.0.2
-        version: 3.0.2
       nanoid:
         specifier: ^5.1.9
         version: 5.1.9
@@ -75,9 +72,6 @@ importers:
       '@types/better-sqlite3':
         specifier: ^7.6.13
         version: 7.6.13
-      '@types/mime-types':
-        specifier: ^3.0.1
-        version: 3.0.1
       '@types/node':
         specifier: ^25
         version: 25.6.0
