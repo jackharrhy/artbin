@@ -286,9 +286,9 @@ export default function AdminJobs() {
         </div>
       )}
 
-      <p className="mt-8 text-sm">
-        <a href="/admin/import">Import</a> | <a href="/upload">Upload</a> |{" "}
-        <a href="/folders">Folders</a> | <a href="/settings">Settings</a>
+      <p className="mt-8 text-sm text-text-muted">
+        <a href="/admin/import">Import</a> | <a href="/admin/archives">Archives</a> |{" "}
+        <a href="/admin/scan-settings">Scan Settings</a>
       </p>
     </main>
   );
