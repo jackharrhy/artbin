@@ -1,6 +1,6 @@
 /**
  * Migration: Fix file kinds for model formats
- * 
+ *
  * Updates files with model extensions (md5mesh, md5anim, ase, lwo, etc.)
  * that were incorrectly marked as "other" to be "model"
  */
@@ -13,16 +13,25 @@ const db = new Database(dbPath);
 
 // Model extensions that should have kind = "model"
 const MODEL_EXTENSIONS = [
-  "gltf", "glb", "obj", "fbx", 
-  "md2", "md3", "mdl", 
-  "md5mesh", "md5anim",
-  "ase", "lwo", "iqm", "blend"
+  "gltf",
+  "glb",
+  "obj",
+  "fbx",
+  "md2",
+  "md3",
+  "mdl",
+  "md5mesh",
+  "md5anim",
+  "ase",
+  "lwo",
+  "iqm",
+  "blend",
 ];
 
 console.log("Fixing file kinds for model formats...\n");
 
 // Build the SQL pattern for matching extensions
-const patterns = MODEL_EXTENSIONS.map(ext => `'%.${ext}'`).join(", ");
+const patterns = MODEL_EXTENSIONS.map((ext) => `'%.${ext}'`).join(", ");
 
 // First, show what will be updated
 const countQuery = db.prepare(`
@@ -32,7 +41,7 @@ const countQuery = db.prepare(`
     COUNT(*) as count
   FROM files 
   WHERE kind != 'model' 
-    AND (${MODEL_EXTENSIONS.map(ext => `name LIKE '%.${ext}'`).join(" OR ")})
+    AND (${MODEL_EXTENSIONS.map((ext) => `name LIKE '%.${ext}'`).join(" OR ")})
   GROUP BY ext, kind
   ORDER BY count DESC
 `);
@@ -57,7 +66,7 @@ const updateStmt = db.prepare(`
   UPDATE files 
   SET kind = 'model'
   WHERE kind != 'model' 
-    AND (${MODEL_EXTENSIONS.map(ext => `name LIKE '%.${ext}'`).join(" OR ")})
+    AND (${MODEL_EXTENSIONS.map((ext) => `name LIKE '%.${ext}'`).join(" OR ")})
 `);
 
 const result = updateStmt.run();
@@ -67,7 +76,7 @@ console.log(`Updated ${result.changes} files to kind = 'model'`);
 const verifyQuery = db.prepare(`
   SELECT kind, COUNT(*) as count
   FROM files 
-  WHERE ${MODEL_EXTENSIONS.map(ext => `name LIKE '%.${ext}'`).join(" OR ")}
+  WHERE ${MODEL_EXTENSIONS.map((ext) => `name LIKE '%.${ext}'`).join(" OR ")}
   GROUP BY kind
 `);
 

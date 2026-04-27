@@ -1,12 +1,13 @@
 .DS_Store
 .env
-/node_modules/
+node_modules/
 
-/.react-router/
-/build/
+.react-router/
+build/
 
-/public/
+**/public/
 
 *.db
 *.db-journal
 tmp
+.vite/

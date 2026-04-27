@@ -23,6 +23,7 @@ artbin should look and feel like an old neocities webpage while being built with
 Use **only web standard named colors**. No hex codes, no RGB, no HSL. This constraint forces the gaudy, limited palette aesthetic.
 
 **Approved colors** (the bold ones):
+
 ```
 red, lime, blue, yellow, fuchsia, aqua, cyan, magenta
 maroon, navy, teal, olive, purple, green
@@ -35,6 +36,7 @@ white, black, gray, silver, darkgray, lightgray
 ### Borders: Gaudy and Proud
 
 Borders should be:
+
 - **Thick** (2px minimum, 4px encouraged)
 - **Colored** (use the named colors above)
 - **Varied** (solid, dashed, dotted, double, ridge, groove, inset, outset)
@@ -45,10 +47,18 @@ Create consistent utility classes that enforce the aesthetic:
 
 ```css
 /* Example custom classes to add */
-.border-gaudy { @apply border-4 border-fuchsia; }
-.border-chunky { @apply border-4 border-double; }
-.bg-loud { @apply bg-lime text-black; }
-.link-90s { @apply text-blue underline hover:text-fuchsia; }
+.border-gaudy {
+  @apply border-4 border-fuchsia;
+}
+.border-chunky {
+  @apply border-4 border-double;
+}
+.bg-loud {
+  @apply bg-lime text-black;
+}
+.link-90s {
+  @apply text-blue underline hover:text-fuchsia;
+}
 ```
 
 ## Core Features
@@ -65,17 +75,20 @@ Create consistent utility classes that enforce the aesthetic:
 The main purpose of artbin.
 
 **Upload & Organization:**
+
 - Upload individual textures or entire folders from local computer
 - Textures belong to collections owned by users
 - Collections can be: public (all logged-in users), private, or shared with friends
 
 **Search & Filtering:**
+
 - Tag-based filtering system
 - Core tags: `seamless`, `tileable`, `wood`, `grass`, `metal`, `stone`, `fabric`, `water`, `fire`, `sparkle`, `90s`, `pixel`, `photo`, `painted`
 - Resolution filters
 - Color-dominant filters (future)
 
 **Texture Metadata:**
+
 - Dimensions, file size, format
 - Seamless/tileable flag
 - Source attribution
@@ -95,11 +108,13 @@ Beyond textures, support other visual game development assets:
 Tools for extracting assets from game files. Leverage existing CLI tools rather than writing parsers from scratch.
 
 **Reference implementations in `tmp/`:**
+
 - `tmp/qpakman/` - PAK/BSP tooling for Quake-engine games
 - `tmp/thirty_flights_of_loving/` - Example Quake II game with BSP maps to test against
 - `tmp/noclip.website/` - WebGL game level viewer (study for model/level viewing)
 
 **Planned tools:**
+
 - BSP texture extraction (using qpakman or similar)
 - PAK/PK3 archive browsing and extraction
 - Texture ripping from uploaded game files
@@ -109,12 +124,14 @@ Tools for extracting assets from game files. Leverage existing CLI tools rather 
 Web components for viewing different asset types:
 
 **Model Viewer:**
+
 - Support common formats (OBJ, GLTF, FBX)
 - Orbit camera, zoom, pan
 - Material/texture preview
 - Study `tmp/noclip.website/` for implementation patterns
 
 **Level Viewer (Future):**
+
 - BSP level viewing inspired by noclip.website
 - Texture extraction from viewed levels
 
@@ -123,11 +140,13 @@ Web components for viewing different asset types:
 For site administrators:
 
 **Import Tools:**
+
 - Import from TextureTown (textures.neocities.org)
 - Bulk import from local directories
 - Import from other texture sites (future)
 
 **User Management:**
+
 - User creation script (CLI)
 - Invite code generation
 - Account tree visualization
@@ -191,12 +210,14 @@ artbin/
 ## Development Phases
 
 ### Phase 1: Foundation
+
 - [ ] React Router v7 setup with Tailwind v4
 - [ ] Define custom Tailwind classes for aesthetic
 - [ ] Basic auth system (login, register with invite code)
 - [ ] User model with invite tree
 
 ### Phase 2: Core Textures
+
 - [ ] Texture upload (single file)
 - [ ] Collection creation and management
 - [ ] Basic texture grid view
@@ -204,11 +225,13 @@ artbin/
 - [ ] Search and filter
 
 ### Phase 3: Bulk Operations
+
 - [ ] Folder upload
 - [ ] Admin: TextureTown import
 - [ ] Batch tagging
 
 ### Phase 4: Extended Assets
+
 - [ ] Model upload and viewer
 - [ ] BSP tools integration
 - [ ] Shader snippets

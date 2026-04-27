@@ -1,4 +1,4 @@
 {
   "$schema": "./node_modules/oxfmt/configuration_schema.json",
-  "ignorePatterns": ["build/", ".react-router/", "tmp/"]
+  "ignorePatterns": ["apps/web/build/", "apps/web/.react-router/", "apps/web/tmp/", "packages/*/dist/"]
 }

@@ -1,6 +1,6 @@
 /**
  * Migration script to add fileCount column and populate it
- * 
+ *
  * Run with: npx tsx scripts/add-file-counts.ts
  */
 
@@ -31,16 +31,16 @@ const indexes = [
   // Core relationships
   ["idx_files_folder_id", "files(folder_id)"],
   ["idx_folders_parent_id", "folders(parent_id)"],
-  
+
   // File queries by kind (for browse tabs)
   ["idx_files_kind", "files(kind)"],
-  
+
   // File queries ordered by date (common sort)
   ["idx_files_created_at", "files(created_at DESC)"],
-  
+
   // Combined index for paginated file queries by kind
   ["idx_files_kind_created", "files(kind, created_at DESC)"],
-  
+
   // Jobs by status (for job runner polling)
   ["idx_jobs_status", "jobs(status)"],
 ];
@@ -68,13 +68,15 @@ const result = updateStmt.run();
 console.log(`Updated ${result.changes} folders with file counts.`);
 
 // Verify
-const stats = db.prepare(`
+const stats = db
+  .prepare(`
   SELECT 
     COUNT(*) as total_folders,
     SUM(file_count) as total_files_counted,
     (SELECT COUNT(*) FROM files) as actual_files
   FROM folders
-`).get() as { total_folders: number; total_files_counted: number; actual_files: number };
+`)
+  .get() as { total_folders: number; total_files_counted: number; actual_files: number };
 
 console.log("\nVerification:");
 console.log(`  Total folders: ${stats.total_folders}`);

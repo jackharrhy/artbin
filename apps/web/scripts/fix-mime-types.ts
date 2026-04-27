@@ -1,6 +1,6 @@
 /**
  * Fix MIME types for existing files that were incorrectly marked as application/octet-stream
- * 
+ *
  * Run with: npx tsx scripts/fix-mime-types.ts
  */
 
@@ -37,14 +37,14 @@ const CUSTOM_MIME_TYPES: Record<string, string> = {
   frag: "text/x-glsl",
   map: "text/plain",
   vmf: "text/plain",
-  
+
   // Models
   md5mesh: "model/x-md5mesh",
   md5anim: "model/x-md5anim",
   ase: "model/x-ase",
   iqm: "model/x-iqm",
   lwo: "model/x-lwo",
-  
+
   // Compiled formats
   proc: "application/x-proc",
   cm: "application/x-cm",
@@ -65,17 +65,17 @@ const CUSTOM_MIME_TYPES: Record<string, string> = {
  */
 function looksLikeText(buffer: Buffer): boolean {
   if (buffer.length === 0) return false;
-  
+
   const sampleSize = Math.min(buffer.length, 8192);
   const sample = buffer.subarray(0, sampleSize);
-  
+
   let nullCount = 0;
   let controlCount = 0;
   let printableCount = 0;
-  
+
   for (let i = 0; i < sample.length; i++) {
     const byte = sample[i];
-    
+
     if (byte === 0) {
       nullCount++;
       if (nullCount > 2) return false;
@@ -85,36 +85,38 @@ function looksLikeText(buffer: Buffer): boolean {
       printableCount++;
     }
   }
-  
+
   if (controlCount > sampleSize * 0.05) return false;
-  if (printableCount < sampleSize * 0.70) return false;
-  
+  if (printableCount < sampleSize * 0.7) return false;
+
   return true;
 }
 
 async function fixMimeTypes() {
   console.log("Finding files with application/octet-stream MIME type...\n");
-  
-  const files = db.prepare(`
+
+  const files = db
+    .prepare(`
     SELECT id, path, name, mime_type 
     FROM files 
     WHERE mime_type = 'application/octet-stream'
-  `).all() as { id: string; path: string; name: string; mime_type: string }[];
-  
+  `)
+    .all() as { id: string; path: string; name: string; mime_type: string }[];
+
   console.log(`Found ${files.length} files to check\n`);
-  
+
   const updateStmt = db.prepare(`UPDATE files SET mime_type = ? WHERE id = ?`);
-  
+
   let fixed = 0;
   let stillBinary = 0;
   let errors = 0;
   const mimeChanges: Record<string, number> = {};
-  
+
   for (const file of files) {
     try {
       // Get extension
-      const ext = file.name.split('.').pop()?.toLowerCase() || '';
-      
+      const ext = file.name.split(".").pop()?.toLowerCase() || "";
+
       // Check custom mappings first
       if (CUSTOM_MIME_TYPES[ext]) {
         const newMime = CUSTOM_MIME_TYPES[ext];
@@ -123,14 +125,14 @@ async function fixMimeTypes() {
         fixed++;
         continue;
       }
-      
+
       // Try to read file and detect if it's text
       const fullPath = join(uploadsPath, file.path);
       if (!existsSync(fullPath)) {
         errors++;
         continue;
       }
-      
+
       const buffer = await readFile(fullPath);
       if (looksLikeText(buffer)) {
         updateStmt.run("text/plain", file.id);
@@ -143,7 +145,7 @@ async function fixMimeTypes() {
       errors++;
     }
   }
-  
+
   console.log("Results:");
   console.log(`  Fixed: ${fixed}`);
   console.log(`  Still binary: ${stillBinary}`);
@@ -152,20 +154,24 @@ async function fixMimeTypes() {
   for (const [mime, count] of Object.entries(mimeChanges).sort((a, b) => b[1] - a[1])) {
     console.log(`  ${mime}: ${count}`);
   }
-  
+
   // Verify
-  const remaining = db.prepare(`
+  const remaining = db
+    .prepare(`
     SELECT COUNT(*) as count FROM files WHERE mime_type = 'application/octet-stream'
-  `).get() as { count: number };
-  
+  `)
+    .get() as { count: number };
+
   console.log(`\nRemaining octet-stream files: ${remaining.count}`);
 }
 
-fixMimeTypes().then(() => {
-  db.close();
-  console.log("\nDone!");
-}).catch(err => {
-  console.error("Error:", err);
-  db.close();
-  process.exit(1);
-});
+fixMimeTypes()
+  .then(() => {
+    db.close();
+    console.log("\nDone!");
+  })
+  .catch((err) => {
+    console.error("Error:", err);
+    db.close();
+    process.exit(1);
+  });

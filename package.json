@@ -1,38 +1,15 @@
 {
   "name": "artbin",
-  "type": "module",
+  "private": true,
   "scripts": {
-    "build": "react-router build",
-    "dev": "react-router dev",
-    "start": "react-router-serve ./build/server/index.js",
-    "test": "vitest run",
-    "typecheck": "react-router typegen && tsc",
+    "ci": "pnpm run format:check && pnpm run lint && pnpm -r run ci",
     "lint": "oxlint",
-    "lint:fix": "oxlint --fix",
-    "format": "oxfmt --write src/ test/",
-    "format:check": "oxfmt --check src/ test/",
-    "ci": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run test",
-    "db:migrate": "drizzle-kit migrate",
-    "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio",
-    "create-admin": "tsx scripts/create-admin.ts"
+    "format": "oxfmt --write apps/ packages/",
+    "format:check": "oxfmt --check apps/ packages/"
   },
-  "dependencies": {
-    "@react-router/node": "7.14.2",
-    "@react-router/serve": "7.14.2",
-    "bcrypt": "^6.0.0",
-    "better-result": "^2.8.2",
-    "better-sqlite3": "^12.9.0",
-    "drizzle-orm": "^0.45.2",
-    "file-type": "^22.0.1",
-    "isbot": "^5.1.39",
-    "mime-types": "^3.0.2",
-    "nanoid": "^5.1.9",
-    "react": "^19.2.5",
-    "react-dom": "^19.2.5",
-    "react-router": "7.14.2",
-    "sharp": "^0.34.5",
-    "three": "^0.184.0"
+  "devDependencies": {
+    "oxlint": "^1.61.0",
+    "oxfmt": "^0.46.0"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
@@ -40,24 +17,5 @@
       "bcrypt",
       "sharp"
     ]
-  },
-  "devDependencies": {
-    "@react-router/dev": "7.14.2",
-    "@tailwindcss/vite": "^4.2.4",
-    "@types/bcrypt": "^6.0.0",
-    "@types/better-sqlite3": "^7.6.13",
-    "@types/mime-types": "^3.0.1",
-    "@types/node": "^25",
-    "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.2.3",
-    "@types/three": "^0.184.0",
-    "drizzle-kit": "^0.31.10",
-    "oxfmt": "^0.46.0",
-    "oxlint": "^1.61.0",
-    "tailwindcss": "^4.2.4",
-    "tsx": "^4.21.0",
-    "typescript": "^6.0.3",
-    "vite": "^8.0.10",
-    "vitest": "^4.1.5"
   }
 }
