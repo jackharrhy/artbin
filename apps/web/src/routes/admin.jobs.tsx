@@ -134,164 +134,162 @@ export default function AdminJobs() {
 
   return (
     <main className="max-w-[1100px] mx-auto p-4 bg-bg min-h-[calc(100vh-48px)]">
-        <h1 className="text-xl font-normal mb-4 pb-2 border-b border-border-light">
-          Background Jobs
-        </h1>
+      <h1 className="text-xl font-normal mb-4 pb-2 border-b border-border-light">
+        Background Jobs
+      </h1>
 
-        {activeJobs.length > 0 && (
-          <div className="mb-2 text-sm text-text-muted">
-            Auto-refreshing... {activeJobs.length} active job(s)
-          </div>
-        )}
+      {activeJobs.length > 0 && (
+        <div className="mb-2 text-sm text-text-muted">
+          Auto-refreshing... {activeJobs.length} active job(s)
+        </div>
+      )}
 
-        {jobs.length === 0 ? (
-          <div className="text-center p-12 text-text-muted">No jobs found</div>
-        ) : (
-          <div className="card overflow-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="border-b-2 border-bg-subtle">
-                  <th className="p-2 text-left">ID</th>
-                  <th className="p-2 text-left">Type</th>
-                  <th className="p-2 text-left">Status</th>
-                  <th className="p-2 text-left">Progress</th>
-                  <th className="p-2 text-left">Duration</th>
-                  <th className="p-2 text-left">Created</th>
-                  <th className="p-2 text-left">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {jobs.map((job) => {
-                  let output: Record<string, unknown> | null = null;
-                  try {
-                    if (job.output) output = JSON.parse(job.output);
-                  } catch {}
+      {jobs.length === 0 ? (
+        <div className="text-center p-12 text-text-muted">No jobs found</div>
+      ) : (
+        <div className="card overflow-auto">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="border-b-2 border-bg-subtle">
+                <th className="p-2 text-left">ID</th>
+                <th className="p-2 text-left">Type</th>
+                <th className="p-2 text-left">Status</th>
+                <th className="p-2 text-left">Progress</th>
+                <th className="p-2 text-left">Duration</th>
+                <th className="p-2 text-left">Created</th>
+                <th className="p-2 text-left">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {jobs.map((job) => {
+                let output: Record<string, unknown> | null = null;
+                try {
+                  if (job.output) output = JSON.parse(job.output);
+                } catch {}
 
-                  const canCancel = job.status === "pending";
-                  const canReset = job.status === "running" && job.isStuck;
-                  const canDelete = job.status !== "running" || job.isStuck;
+                const canCancel = job.status === "pending";
+                const canReset = job.status === "running" && job.isStuck;
+                const canDelete = job.status !== "running" || job.isStuck;
 
-                  return (
-                    <tr
-                      key={job.id}
-                      className={`border-b border-bg-subtle ${job.isStuck ? "bg-[#fff5f5]" : ""}`}
-                    >
-                      <td className="p-2">
-                        <code className="text-xs">{job.id.slice(0, 8)}...</code>
-                      </td>
-                      <td className="p-2 text-sm">{job.type}</td>
-                      <td className="p-2">
-                        <span
-                          className={`px-2 py-0.5 text-xs ${getStatusBadgeClass(job.status, job.isStuck)}`}
-                        >
-                          {job.isStuck ? "stuck" : job.status}
-                        </span>
-                      </td>
-                      <td className="p-2">
-                        {job.status === "running" && (
-                          <div>
-                            <div className="w-[100px] h-1.5 bg-bg-subtle overflow-hidden">
-                              <div
-                                className={`h-full transition-[width] duration-300 ${job.isStuck ? "bg-[#dc3545]" : "bg-[#4CAF50]"}`}
-                                style={{ width: `${job.progress || 0}%` }}
-                              />
-                            </div>
-                            <div className="text-xs mt-1">
-                              {job.progressMessage || `${job.progress || 0}%`}
-                            </div>
+                return (
+                  <tr
+                    key={job.id}
+                    className={`border-b border-bg-subtle ${job.isStuck ? "bg-[#fff5f5]" : ""}`}
+                  >
+                    <td className="p-2">
+                      <code className="text-xs">{job.id.slice(0, 8)}...</code>
+                    </td>
+                    <td className="p-2 text-sm">{job.type}</td>
+                    <td className="p-2">
+                      <span
+                        className={`px-2 py-0.5 text-xs ${getStatusBadgeClass(job.status, job.isStuck)}`}
+                      >
+                        {job.isStuck ? "stuck" : job.status}
+                      </span>
+                    </td>
+                    <td className="p-2">
+                      {job.status === "running" && (
+                        <div>
+                          <div className="w-[100px] h-1.5 bg-bg-subtle overflow-hidden">
+                            <div
+                              className={`h-full transition-[width] duration-300 ${job.isStuck ? "bg-[#dc3545]" : "bg-[#4CAF50]"}`}
+                              style={{ width: `${job.progress || 0}%` }}
+                            />
                           </div>
-                        )}
-                        {job.status === "completed" && output && (
-                          <span className="text-xs">
-                            {(output as any).totalFiles ??
-                              (output as any).categoriesImported?.length ??
-                              "-"}{" "}
-                            files
-                          </span>
-                        )}
-                        {job.status === "failed" && (
-                          <span
-                            className="text-xs text-[#dc3545]"
-                            title={job.error || "Unknown error"}
-                          >
-                            {job.error?.substring(0, 40)}
-                            {(job.error?.length || 0) > 40 ? "..." : ""}
-                          </span>
-                        )}
-                      </td>
-                      <td className="p-2 text-xs">
-                        {job.status === "running" && (
-                          <span className={job.isStuck ? "text-[#dc3545]" : ""}>
-                            {formatDuration(job.startedAt)}
-                            {job.isStuck && " (stuck!)"}
-                          </span>
-                        )}
-                        {job.status === "completed" && job.startedAt && job.completedAt && (
-                          <span>{formatDuration(job.startedAt).replace(/s$/, "")}</span>
-                        )}
-                        {job.status === "pending" && (
-                          <span className="text-text-faint">waiting</span>
-                        )}
-                        {(job.status === "failed" || job.status === "cancelled") && "-"}
-                      </td>
-                      <td className="p-2 text-xs">{formatDate(job.createdAt)}</td>
-                      <td className="p-2">
-                        <div className="flex gap-1">
-                          {canCancel && (
-                            <Form method="post" className="inline">
-                              <input type="hidden" name="intent" value="cancel" />
-                              <input type="hidden" name="jobId" value={job.id} />
-                              <button type="submit" className="btn btn-sm" disabled={isSubmitting}>
-                                Cancel
-                              </button>
-                            </Form>
-                          )}
-                          {canReset && (
-                            <Form method="post" className="inline">
-                              <input type="hidden" name="intent" value="reset" />
-                              <input type="hidden" name="jobId" value={job.id} />
-                              <button
-                                type="submit"
-                                className="btn btn-sm"
-                                disabled={isSubmitting}
-                                title="Reset stuck job back to pending"
-                              >
-                                Reset
-                              </button>
-                            </Form>
-                          )}
-                          {canDelete && (
-                            <Form method="post" className="inline">
-                              <input type="hidden" name="intent" value="delete" />
-                              <input type="hidden" name="jobId" value={job.id} />
-                              <button
-                                type="submit"
-                                className="btn btn-sm btn-danger"
-                                disabled={isSubmitting}
-                                onClick={(e) => {
-                                  if (!confirm("Delete this job?")) {
-                                    e.preventDefault();
-                                  }
-                                }}
-                              >
-                                Delete
-                              </button>
-                            </Form>
-                          )}
+                          <div className="text-xs mt-1">
+                            {job.progressMessage || `${job.progress || 0}%`}
+                          </div>
                         </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+                      )}
+                      {job.status === "completed" && output && (
+                        <span className="text-xs">
+                          {(output as any).totalFiles ??
+                            (output as any).categoriesImported?.length ??
+                            "-"}{" "}
+                          files
+                        </span>
+                      )}
+                      {job.status === "failed" && (
+                        <span
+                          className="text-xs text-[#dc3545]"
+                          title={job.error || "Unknown error"}
+                        >
+                          {job.error?.substring(0, 40)}
+                          {(job.error?.length || 0) > 40 ? "..." : ""}
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-2 text-xs">
+                      {job.status === "running" && (
+                        <span className={job.isStuck ? "text-[#dc3545]" : ""}>
+                          {formatDuration(job.startedAt)}
+                          {job.isStuck && " (stuck!)"}
+                        </span>
+                      )}
+                      {job.status === "completed" && job.startedAt && job.completedAt && (
+                        <span>{formatDuration(job.startedAt).replace(/s$/, "")}</span>
+                      )}
+                      {job.status === "pending" && <span className="text-text-faint">waiting</span>}
+                      {(job.status === "failed" || job.status === "cancelled") && "-"}
+                    </td>
+                    <td className="p-2 text-xs">{formatDate(job.createdAt)}</td>
+                    <td className="p-2">
+                      <div className="flex gap-1">
+                        {canCancel && (
+                          <Form method="post" className="inline">
+                            <input type="hidden" name="intent" value="cancel" />
+                            <input type="hidden" name="jobId" value={job.id} />
+                            <button type="submit" className="btn btn-sm" disabled={isSubmitting}>
+                              Cancel
+                            </button>
+                          </Form>
+                        )}
+                        {canReset && (
+                          <Form method="post" className="inline">
+                            <input type="hidden" name="intent" value="reset" />
+                            <input type="hidden" name="jobId" value={job.id} />
+                            <button
+                              type="submit"
+                              className="btn btn-sm"
+                              disabled={isSubmitting}
+                              title="Reset stuck job back to pending"
+                            >
+                              Reset
+                            </button>
+                          </Form>
+                        )}
+                        {canDelete && (
+                          <Form method="post" className="inline">
+                            <input type="hidden" name="intent" value="delete" />
+                            <input type="hidden" name="jobId" value={job.id} />
+                            <button
+                              type="submit"
+                              className="btn btn-sm btn-danger"
+                              disabled={isSubmitting}
+                              onClick={(e) => {
+                                if (!confirm("Delete this job?")) {
+                                  e.preventDefault();
+                                }
+                              }}
+                            >
+                              Delete
+                            </button>
+                          </Form>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
 
-        <p className="mt-8 text-sm">
-          <a href="/admin/import">Import</a> | <a href="/upload">Upload</a> |{" "}
-          <a href="/folders">Folders</a> | <a href="/settings">Settings</a>
-        </p>
+      <p className="mt-8 text-sm">
+        <a href="/admin/import">Import</a> | <a href="/upload">Upload</a> |{" "}
+        <a href="/folders">Folders</a> | <a href="/settings">Settings</a>
+      </p>
     </main>
   );
 }

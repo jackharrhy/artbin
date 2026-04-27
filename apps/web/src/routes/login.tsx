@@ -69,13 +69,7 @@ export default function Login() {
           >
             Password
           </label>
-          <input
-            type="password"
-            id="password"
-            name="password"
-            required
-            className="input w-full"
-          />
+          <input type="password" id="password" name="password" required className="input w-full" />
         </div>
 
         <button type="submit" className="btn btn-primary w-full">
@@ -83,9 +77,7 @@ export default function Login() {
         </button>
       </Form>
 
-      <p className="mt-4 text-sm text-center">
-        Need an account? Get an invite link from a member.
-      </p>
+      <p className="mt-4 text-sm text-center">Need an account? Get an invite link from a member.</p>
     </main>
   );
 }

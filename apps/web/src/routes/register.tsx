@@ -106,9 +106,7 @@ export default function Register() {
             pattern="[a-zA-Z0-9_]+"
             className="input w-full"
           />
-          <div className="text-xs text-text-muted mt-1">
-            Letters, numbers, and underscores only
-          </div>
+          <div className="text-xs text-text-muted mt-1">Letters, numbers, and underscores only</div>
         </div>
 
         <div className="mb-4">
