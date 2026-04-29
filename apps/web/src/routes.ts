@@ -27,4 +27,8 @@ export default [
   route("api/upload", "routes/api.upload.tsx"),
   route("api/folder", "routes/api.folder.tsx"),
   route("api/folder/move", "routes/api.folder.move.tsx"),
+  route("api/cli/whoami", "routes/api.cli.whoami.tsx"),
+  route("api/cli/folders", "routes/api.cli.folders.tsx"),
+  route("api/cli/manifest", "routes/api.cli.manifest.tsx"),
+  route("api/cli/upload", "routes/api.cli.upload.tsx"),
 ] satisfies RouteConfig;
