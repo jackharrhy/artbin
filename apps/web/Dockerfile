@@ -9,6 +9,7 @@ COPY . .
 RUN pnpm run --filter @artbin/web build
 
 FROM node:25-alpine
+RUN apk add --no-cache imagemagick
 RUN npm install -g pnpm
 WORKDIR /app
 COPY --from=build /app/pnpm-workspace.yaml /app/package.json /app/pnpm-lock.yaml ./

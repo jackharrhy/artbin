@@ -156,10 +156,11 @@ async function handleAdminUpload(
 
     if (isImageKind(kind)) {
       const imageInfo = await processImage(filePath);
-      if (imageInfo.isErr()) throw imageInfo.error;
-      width = imageInfo.value.width;
-      height = imageInfo.value.height;
-      hasPreview = imageInfo.value.hasPreview;
+      if (imageInfo.isOk()) {
+        width = imageInfo.value.width;
+        height = imageInfo.value.height;
+        hasPreview = imageInfo.value.hasPreview;
+      }
     }
 
     const fileId = nanoid();
@@ -233,10 +234,11 @@ async function handleNonAdminUpload(
 
     if (isImageKind(kind)) {
       const imageInfo = await processImage(filePath);
-      if (imageInfo.isErr()) throw imageInfo.error;
-      width = imageInfo.value.width;
-      height = imageInfo.value.height;
-      hasPreview = imageInfo.value.hasPreview;
+      if (imageInfo.isOk()) {
+        width = imageInfo.value.width;
+        height = imageInfo.value.height;
+        hasPreview = imageInfo.value.hasPreview;
+      }
     }
 
     const fileId = nanoid();

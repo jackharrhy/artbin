@@ -182,13 +182,14 @@ export async function processImage(filePath: string): Promise<
   const fullPath = getFilePath(filePath);
   let hasPreview = false;
 
-  // Generate preview for legacy formats
+  // Generate preview for legacy formats (non-fatal if it fails)
   if (needsPreview(filePath)) {
     const preview = await generatePreview(fullPath);
-    if (preview.isErr()) {
-      return Result.err(preview.error);
+    if (preview.isOk()) {
+      hasPreview = preview.value;
     }
-    hasPreview = preview.value;
+    // If preview generation fails (e.g. ImageMagick not installed),
+    // continue without a preview rather than failing the entire upload
   }
 
   // Get dimensions from preview if it exists, otherwise from original

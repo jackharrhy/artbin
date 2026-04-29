@@ -130,9 +130,15 @@ describe("image processing Result APIs", () => {
     expect(result.isErr()).toBe(true);
   });
 
-  test("returns an error when processing a legacy image cannot generate a preview", async () => {
+  test("returns ok with null dimensions when preview generation fails", async () => {
     const result = await processImage("missing.tga");
 
-    expect(result.isErr()).toBe(true);
+    // processImage is non-fatal: if preview fails, it returns ok with null dimensions
+    expect(result.isOk()).toBe(true);
+    if (result.isOk()) {
+      expect(result.value.width).toBeNull();
+      expect(result.value.height).toBeNull();
+      expect(result.value.hasPreview).toBe(false);
+    }
   });
 });
