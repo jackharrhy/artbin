@@ -34,7 +34,7 @@ async function seedUser(
     .insert(users)
     .values({
       id: "user-1",
-      email: "testuser@4orm.local",
+
       username: "testuser",
       fourmId: "fourm-abc123",
       ...overrides,

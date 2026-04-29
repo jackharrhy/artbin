@@ -64,7 +64,6 @@ export async function loader({ request }: Route.LoaderArgs) {
       .insert(users)
       .values({
         id: userId,
-        email: `${userinfo.username}@4orm.local`,
         username: userinfo.username,
         fourmId: userinfo.sub,
         isAdmin: userinfo.is_admin,

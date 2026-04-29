@@ -23,7 +23,7 @@ async function seedSession() {
   const db = setupDatabase();
   await db.insert(users).values({
     id: "user-1",
-    email: "user@example.com",
+
     username: "user",
     fourmId: "fourm-user-1",
   });

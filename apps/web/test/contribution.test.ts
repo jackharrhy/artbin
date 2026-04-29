@@ -49,7 +49,7 @@ async function seedFolder(db: ReturnType<typeof setupDatabase>) {
 async function seedAdminSession(db: ReturnType<typeof setupDatabase>) {
   await db.insert(users).values({
     id: "admin-1",
-    email: "admin@example.com",
+
     username: "admin",
     fourmId: "fourm-admin-1",
     isAdmin: true,
@@ -64,7 +64,7 @@ async function seedAdminSession(db: ReturnType<typeof setupDatabase>) {
 async function seedNonAdminSession(db: ReturnType<typeof setupDatabase>) {
   await db.insert(users).values({
     id: "user-1",
-    email: "user@example.com",
+
     username: "user",
     fourmId: "fourm-user-1",
     isAdmin: false,

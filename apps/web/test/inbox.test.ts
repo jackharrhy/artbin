@@ -43,7 +43,7 @@ function setupDatabase() {
 async function seedUser(db: ReturnType<typeof setupDatabase>, id = "user-1") {
   await db.insert(users).values({
     id,
-    email: `${id}@example.com`,
+
     username: id,
     fourmId: `fourm-${id}`,
   });

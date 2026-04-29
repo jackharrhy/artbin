@@ -16,7 +16,6 @@ export async function loader({ context }: Route.LoaderArgs) {
     .select({
       id: users.id,
       username: users.username,
-      email: users.email,
       isAdmin: users.isAdmin,
       createdAt: users.createdAt,
     })
@@ -54,7 +53,6 @@ export default function AdminUsers() {
           <thead>
             <tr className="border-b border-border-light text-left text-text-muted">
               <th className="pb-2 font-medium">Username</th>
-              <th className="pb-2 font-medium">Email</th>
               <th className="pb-2 font-medium">Role</th>
               <th className="pb-2 font-medium">Joined</th>
             </tr>
@@ -63,7 +61,6 @@ export default function AdminUsers() {
             {allUsers.map((u) => (
               <tr key={u.id} className="border-b border-border-light">
                 <td className="py-2">@{u.username}</td>
-                <td className="py-2 text-text-muted">{u.email}</td>
                 <td className="py-2">
                   {u.isAdmin ? (
                     <span className="text-xs font-medium uppercase tracking-wide text-amber-500">

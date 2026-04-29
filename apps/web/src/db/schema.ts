@@ -13,7 +13,6 @@ export type FileKind = (typeof fileKinds)[number];
 
 export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
-  email: text("email").notNull().unique(),
   username: text("username").notNull().unique(),
   fourmId: text("fourm_id").notNull().unique(),
   isAdmin: integer("is_admin", { mode: "boolean" }).default(false),
