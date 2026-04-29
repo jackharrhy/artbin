@@ -1,0 +1,25 @@
+{
+  "name": "@artbin/cli",
+  "version": "0.0.1",
+  "private": true,
+  "bin": {
+    "artbin": "./dist/index.js"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "ci": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@artbin/core": "workspace:*",
+    "@bomb.sh/args": "^0.3.0",
+    "@clack/prompts": "^1.2.0",
+    "env-paths": "^3.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.18",
+    "tsup": "^8.4.0",
+    "typescript": "^6.0.3"
+  }
+}

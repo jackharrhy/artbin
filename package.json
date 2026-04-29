@@ -14,7 +14,9 @@
     "format:check": "oxfmt --check apps/ packages/",
     "db:migrate": "pnpm run --filter @artbin/web db:migrate",
     "db:push": "pnpm run --filter @artbin/web db:push",
-    "db:studio": "pnpm run --filter @artbin/web db:studio"
+    "db:studio": "pnpm run --filter @artbin/web db:studio",
+    "cli:build": "pnpm run --filter @artbin/cli build",
+    "cli:dev": "pnpm run --filter @artbin/cli dev"
   },
   "devDependencies": {
     "oxlint": "^1.61.0",

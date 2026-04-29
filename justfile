@@ -59,3 +59,11 @@ docker-build:
 # docker run
 docker-run:
     docker run -p 3000:3000 artbin
+
+# build the cli
+cli-build:
+    pnpm run cli:build
+
+# dev the cli (watch mode)
+cli-dev:
+    pnpm run cli:dev
