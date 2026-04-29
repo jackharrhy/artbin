@@ -21,7 +21,18 @@ export async function loader({ context }: Route.LoaderArgs) {
     }),
   ]);
 
-  return { sessions, allFolders };
+  // Get unique uploaders for the filter dropdown
+  const uploaderMap = new Map<string, string>();
+  for (const session of sessions) {
+    if (session.uploader) {
+      uploaderMap.set(session.uploader.id, session.uploader.username);
+    }
+  }
+  const uploaders = Array.from(uploaderMap.entries()).map(([id, username]) => ({ id, username }));
+
+  const totalPendingFiles = sessions.reduce((sum, s) => sum + s.files.length, 0);
+
+  return { sessions, allFolders, uploaders, totalPendingFiles };
 }
 
 export async function action({ request, context }: Route.ActionArgs) {
@@ -66,6 +77,67 @@ export async function action({ request, context }: Route.ActionArgs) {
     return { success: true, action: "reject", count: result.rejectedCount };
   }
 
+  if (_action === "approve-all") {
+    const destinationFolderId = formData.get("destinationFolderId") as string;
+    const filterUploaderId = formData.get("filterUploaderId") as string | null;
+
+    if (!destinationFolderId) {
+      return { error: "Please select a destination folder" };
+    }
+
+    const destinationFolder = await db.query.folders.findFirst({
+      where: eq(folders.id, destinationFolderId),
+    });
+
+    if (!destinationFolder) {
+      return { error: "Destination folder not found" };
+    }
+
+    const allSessions = await getPendingSessionsWithFiles();
+    const sessionsToApprove = filterUploaderId
+      ? allSessions.filter((s) => s.uploader?.id === filterUploaderId)
+      : allSessions;
+
+    let totalApproved = 0;
+    for (const session of sessionsToApprove) {
+      const result = await approveSession(
+        session.folder.id,
+        destinationFolderId,
+        destinationFolder.slug,
+      );
+      totalApproved += result.approvedCount;
+    }
+
+    return {
+      success: true,
+      action: "approve-all",
+      count: totalApproved,
+      sessionCount: sessionsToApprove.length,
+    };
+  }
+
+  if (_action === "reject-all") {
+    const filterUploaderId = formData.get("filterUploaderId") as string | null;
+
+    const allSessions = await getPendingSessionsWithFiles();
+    const sessionsToReject = filterUploaderId
+      ? allSessions.filter((s) => s.uploader?.id === filterUploaderId)
+      : allSessions;
+
+    let totalRejected = 0;
+    for (const session of sessionsToReject) {
+      const result = await rejectSession(session.folder.id);
+      totalRejected += result.rejectedCount;
+    }
+
+    return {
+      success: true,
+      action: "reject-all",
+      count: totalRejected,
+      sessionCount: sessionsToReject.length,
+    };
+  }
+
   return { error: "Unknown action" };
 }
 
@@ -108,7 +180,7 @@ function thumbnailUrl(file: {
 }
 
 export default function AdminInbox() {
-  const { sessions, allFolders } = useLoaderData<typeof loader>();
+  const { sessions, allFolders, uploaders, totalPendingFiles } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
 
   return (
@@ -125,7 +197,15 @@ export default function AdminInbox() {
         <span>Inbox</span>
       </div>
 
-      <h1 className="text-xl font-normal mb-4 pb-2 border-b border-border-light">Upload Inbox</h1>
+      <h1 className="text-xl font-normal mb-4 pb-2 border-b border-border-light">
+        Upload Inbox
+        {totalPendingFiles > 0 && (
+          <span className="text-sm font-normal text-text-muted ml-2">
+            ({totalPendingFiles} file{totalPendingFiles === 1 ? "" : "s"} in {sessions.length}{" "}
+            session{sessions.length === 1 ? "" : "s"})
+          </span>
+        )}
+      </h1>
 
       {actionData?.error && <div className="alert alert-error mb-4">{actionData.error}</div>}
 
@@ -138,6 +218,84 @@ export default function AdminInbox() {
       {actionData?.success && actionData.action === "reject" && (
         <div className="alert alert-success mb-4">
           Rejected {actionData.count} file{actionData.count === 1 ? "" : "s"}.
+        </div>
+      )}
+
+      {actionData?.success && actionData.action === "approve-all" && (
+        <div className="alert alert-success mb-4">
+          Approved {actionData.count} file{actionData.count === 1 ? "" : "s"} across{" "}
+          {actionData.sessionCount} session{actionData.sessionCount === 1 ? "" : "s"}.
+        </div>
+      )}
+
+      {actionData?.success && actionData.action === "reject-all" && (
+        <div className="alert alert-success mb-4">
+          Rejected {actionData.count} file{actionData.count === 1 ? "" : "s"} across{" "}
+          {actionData.sessionCount} session{actionData.sessionCount === 1 ? "" : "s"}.
+        </div>
+      )}
+
+      {/* Bulk actions */}
+      {sessions.length > 1 && (
+        <div className="border border-border-light p-4 mb-6 bg-bg-subtle">
+          <h2 className="text-sm font-medium uppercase tracking-wide text-text-muted mb-3">
+            Bulk Actions
+          </h2>
+          <Form method="post" className="flex items-end gap-3 flex-wrap">
+            <div>
+              <label className="block text-xs text-text-muted mb-1">Destination folder</label>
+              <select name="destinationFolderId" className="input">
+                <option value="" disabled selected>
+                  Select a folder...
+                </option>
+                {allFolders.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {uploaders.length > 1 && (
+              <div>
+                <label className="block text-xs text-text-muted mb-1">Filter by uploader</label>
+                <select name="filterUploaderId" className="input">
+                  <option value="">All uploaders</option>
+                  {uploaders.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      @{u.username}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {uploaders.length === 1 && <input type="hidden" name="filterUploaderId" value="" />}
+            <button
+              type="submit"
+              name="_action"
+              value="approve-all"
+              className="btn btn-primary"
+              onClick={(e) => {
+                if (!confirm(`Approve all pending uploads to the selected folder?`)) {
+                  e.preventDefault();
+                }
+              }}
+            >
+              Approve All
+            </button>
+            <button
+              type="submit"
+              name="_action"
+              value="reject-all"
+              className="btn btn-danger"
+              onClick={(e) => {
+                if (!confirm(`Reject all pending uploads?`)) {
+                  e.preventDefault();
+                }
+              }}
+            >
+              Reject All
+            </button>
+          </Form>
         </div>
       )}
 
