@@ -24,6 +24,7 @@ import {
   slugToPath,
   recalculateFolderCounts,
   insertFileRecord,
+  computeSha256,
 } from "../files.server";
 import { generateFolderPreview } from "../folder-preview.server";
 
@@ -330,6 +331,7 @@ async function handleFolderImportJob(
         mimeType,
         size: buffer.length,
         kind,
+        sha256: computeSha256(buffer),
         width,
         height,
         hasPreview,

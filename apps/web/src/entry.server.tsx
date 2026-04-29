@@ -13,6 +13,7 @@ import "~/lib/jobs/thejang-job.server";
 import "~/lib/jobs/sadgrl-job.server";
 import "~/lib/jobs/scan-archives-job.server";
 import "~/lib/jobs/folder-import-job.server";
+import "~/lib/jobs/backfill-hashes-job.server";
 
 // Start the job runner (only once)
 if (!isJobRunnerActive()) {

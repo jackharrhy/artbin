@@ -14,6 +14,7 @@ import {
   insertFileRecord,
   isImageKind,
   getFilePath,
+  computeSha256,
 } from "~/lib/files.server";
 import { createJob } from "~/lib/jobs.server";
 
@@ -104,7 +105,8 @@ export async function action({ request }: Route.ActionArgs) {
         }
       }
 
-      // Insert file record with sha256
+      // Compute sha256 server-side from the actual bytes (don't trust client)
+      const sha256 = computeSha256(buffer);
       const fileId = nanoid();
       const inserted = await insertFileRecord({
         id: fileId,
@@ -120,7 +122,7 @@ export async function action({ request }: Route.ActionArgs) {
         uploaderId: user.id,
         source: "cli-upload",
         sourceArchive: fileMeta.sourceArchive ?? null,
-        sha256: fileMeta.sha256,
+        sha256,
       });
 
       if (inserted.isErr()) {

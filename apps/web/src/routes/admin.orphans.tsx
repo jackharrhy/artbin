@@ -3,12 +3,13 @@ import type { Route } from "./+types/admin.orphans";
 import { userContext } from "~/lib/auth-context.server";
 import { db } from "~/db/connection.server";
 import { files, folders } from "~/db";
-import { eq, and, lt, like, inArray } from "drizzle-orm";
+import { eq, and, lt, like, inArray, isNull, isNotNull, sql } from "drizzle-orm";
 import { readdir } from "fs/promises";
 import { existsSync } from "fs";
 import { join, relative } from "path";
 import { UPLOADS_DIR, deleteFile, deleteFolder } from "~/lib/files.server";
 import { deleteFileRecord } from "~/lib/files.server";
+import { createJob } from "~/lib/jobs.server";
 
 // ---------------------------------------------------------------------------
 // Walk uploads dir, collecting file paths relative to UPLOADS_DIR
@@ -113,7 +114,51 @@ export async function loader({ request, context }: Route.LoaderArgs) {
   const scan = url.searchParams.get("scan") === "true";
 
   const scanResults = scan ? await performScan() : null;
-  return { scanResults };
+
+  // Hash stats (always loaded, cheap query)
+  const [hashStats] = await db
+    .select({
+      total: sql<number>`count(*)`,
+      hashed: sql<number>`count(${files.sha256})`,
+    })
+    .from(files);
+
+  // Find duplicates (files sharing the same sha256)
+  const duplicateGroups = await db
+    .select({
+      sha256: files.sha256,
+      count: sql<number>`count(*)`,
+    })
+    .from(files)
+    .where(isNotNull(files.sha256))
+    .groupBy(files.sha256)
+    .having(sql`count(*) > 1`)
+    .orderBy(sql`count(*) desc`)
+    .limit(50);
+
+  // For each duplicate group, fetch the files
+  const duplicates: Array<{
+    sha256: string;
+    count: number;
+    files: { id: string; path: string; name: string; size: number; folderId: string }[];
+  }> = [];
+
+  for (const group of duplicateGroups) {
+    if (!group.sha256) continue;
+    const dupeFiles = await db
+      .select({
+        id: files.id,
+        path: files.path,
+        name: files.name,
+        size: files.size,
+        folderId: files.folderId,
+      })
+      .from(files)
+      .where(eq(files.sha256, group.sha256));
+    duplicates.push({ sha256: group.sha256, count: group.count, files: dupeFiles });
+  }
+
+  return { scanResults, hashStats, duplicates };
 }
 
 // ---------------------------------------------------------------------------
@@ -191,6 +236,15 @@ export async function action({ request, context }: Route.ActionArgs) {
     return { success: true, action: _action, deleted };
   }
 
+  if (_action === "backfill-hashes") {
+    const job = await createJob({
+      type: "backfill-hashes",
+      input: {},
+      userId: user.id,
+    });
+    return { success: true, action: _action, deleted: 0, jobId: job.id };
+  }
+
   return { error: "Unknown action" };
 }
 
@@ -205,7 +259,7 @@ export function meta() {
 // Component
 // ---------------------------------------------------------------------------
 export default function AdminOrphans() {
-  const { scanResults } = useLoaderData<typeof loader>();
+  const { scanResults, hashStats, duplicates } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const isScanning = navigation.state === "loading" && navigation.location?.search === "?scan=true";
@@ -351,6 +405,69 @@ export default function AdminOrphans() {
           </div>
         </div>
       )}
+
+      {/* Hash Stats & Duplicates */}
+      <div className="mt-8 pt-6 border-t border-border-light">
+        <h2 className="text-sm font-medium uppercase tracking-wide text-text-muted mb-3">
+          File Hashes
+        </h2>
+
+        <div className="flex items-center justify-between border border-border-light px-4 py-3 mb-3">
+          <span className="text-sm">
+            <strong>{hashStats.hashed}</strong> / {hashStats.total} files hashed
+            {hashStats.hashed < hashStats.total && (
+              <span className="text-text-faint ml-2">
+                ({hashStats.total - hashStats.hashed} missing)
+              </span>
+            )}
+          </span>
+          {hashStats.hashed < hashStats.total && (
+            <Form method="post">
+              <input type="hidden" name="_action" value="backfill-hashes" />
+              <button type="submit" className="btn btn-primary btn-sm" disabled={isSubmitting}>
+                Backfill Hashes
+              </button>
+            </Form>
+          )}
+        </div>
+
+        {actionData?.success && actionData.action === "backfill-hashes" && (
+          <div className="bg-green-900/30 border border-green-700 text-green-300 px-3 py-2 text-sm mb-3">
+            Backfill job queued.{" "}
+            <a href="/admin/jobs" className="underline">
+              View jobs
+            </a>
+          </div>
+        )}
+
+        {duplicates.length > 0 && (
+          <>
+            <h3 className="text-sm font-medium uppercase tracking-wide text-text-muted mb-2 mt-4">
+              Duplicates ({duplicates.length} group{duplicates.length === 1 ? "" : "s"})
+            </h3>
+            <div className="flex flex-col gap-2">
+              {duplicates.map((group) => (
+                <div key={group.sha256} className="border border-border-light px-4 py-3">
+                  <p className="text-xs text-text-faint mb-2 font-mono">
+                    sha256: {group.sha256.slice(0, 16)}... ({group.count} copies)
+                  </p>
+                  <ul className="text-sm space-y-1">
+                    {group.files.map((f) => (
+                      <li key={f.id} className="text-text-muted">
+                        <span className="font-mono text-xs">{f.path}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        {duplicates.length === 0 && hashStats.hashed > 0 && (
+          <p className="text-sm text-text-muted">No duplicate files found.</p>
+        )}
+      </div>
 
       <footer className="mt-6 pt-4 border-t border-border-light flex gap-2">
         <a href="/admin/jobs" className="btn btn-sm">

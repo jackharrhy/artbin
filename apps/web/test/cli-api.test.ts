@@ -378,7 +378,7 @@ describe("/api/cli/upload", () => {
     });
     expect(fileRecord).toBeTruthy();
     expect(fileRecord!.kind).toBe("texture");
-    expect(fileRecord!.sha256).toBe("abc123");
+    expect(fileRecord!.sha256).toMatch(/^[a-f0-9]{64}$/); // server-computed sha256
     expect(fileRecord!.source).toBe("cli-upload");
 
     // Verify folder file count was incremented

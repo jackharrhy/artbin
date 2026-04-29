@@ -15,6 +15,7 @@ import {
   TEMP_DIR,
   ensureDir,
   insertFileRecord,
+  computeSha256,
 } from "~/lib/files.server";
 import { createJob } from "~/lib/jobs.server";
 import { parseArchive, getFileEntries, getDirectoryPaths } from "~/lib/archives.server";
@@ -163,6 +164,7 @@ async function handleAdminUpload(
       }
     }
 
+    const sha256 = computeSha256(buffer);
     const fileId = nanoid();
     const inserted = await insertFileRecord({
       id: fileId,
@@ -177,6 +179,7 @@ async function handleAdminUpload(
       folderId: targetFolderId,
       uploaderId: userId,
       source: "upload",
+      sha256,
     });
     if (inserted.isErr()) throw inserted.error;
 
@@ -241,6 +244,7 @@ async function handleNonAdminUpload(
       }
     }
 
+    const sha256 = computeSha256(buffer);
     const fileId = nanoid();
     const inserted = await insertFileRecord({
       id: fileId,
@@ -255,6 +259,7 @@ async function handleNonAdminUpload(
       folderId: session.id,
       uploaderId: userId,
       source: "upload",
+      sha256,
       status: "pending",
       suggestedFolderId: folderId || null,
     });

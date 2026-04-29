@@ -1,8 +1,9 @@
-import { mkdir, writeFile, unlink, rename, stat, readdir } from "fs/promises";
-import { existsSync } from "fs";
+import { mkdir, writeFile, unlink, rename, stat, readdir, readFile } from "fs/promises";
+import { createReadStream, existsSync } from "fs";
 import { join, dirname, basename, extname } from "path";
 import { exec } from "child_process";
 import { promisify } from "util";
+import { createHash } from "crypto";
 import { Result } from "better-result";
 import {
   detectKind,
@@ -45,6 +46,22 @@ export function getFilePath(filePath: string): string {
 
 export function getPreviewPath(filePath: string): string {
   return join(UPLOADS_DIR, filePath + ".preview.png");
+}
+
+/** Compute sha256 hex digest from a Buffer. */
+export function computeSha256(buffer: Buffer): string {
+  return createHash("sha256").update(buffer).digest("hex");
+}
+
+/** Compute sha256 hex digest by streaming a file from disk. */
+export function computeSha256FromFile(absolutePath: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const hash = createHash("sha256");
+    const stream = createReadStream(absolutePath);
+    stream.on("data", (chunk) => hash.update(chunk));
+    stream.on("end", () => resolve(hash.digest("hex")));
+    stream.on("error", reject);
+  });
 }
 
 export function filePathToUrl(filePath: string): string {

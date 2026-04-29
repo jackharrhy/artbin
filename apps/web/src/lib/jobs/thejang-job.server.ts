@@ -21,6 +21,7 @@ import {
   slugToPath,
   recalculateFolderCounts,
   insertFileRecord,
+  computeSha256,
 } from "../files.server";
 import { generateFolderPreview } from "../folder-preview.server";
 
@@ -289,6 +290,7 @@ async function handleTextureStationImport(
           name: savedName,
           mimeType,
           size: buffer.length,
+          sha256: computeSha256(buffer),
           kind,
           width,
           height,

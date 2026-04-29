@@ -32,6 +32,7 @@ import {
   slugToPath,
   recalculateFolderCounts,
   insertFileRecord,
+  computeSha256,
 } from "../files.server";
 import { generateFolderPreview } from "../folder-preview.server";
 import { isBSPFile, extractTexturesFromBSP } from "../bsp.server";
@@ -241,6 +242,7 @@ async function handleExtractJob(
         folderId,
         source: `extracted-${archive.type}`,
         sourceArchive: originalName,
+        sha256: computeSha256(buffer),
       });
       if (inserted.isErr()) throw inserted.error;
 
@@ -288,6 +290,7 @@ async function handleExtractJob(
                   folderId: texFolderId,
                   source: `bsp-extracted`,
                   sourceArchive: savedName,
+                  sha256: computeSha256(tex.pngBuffer),
                 });
                 if (texInserted.isErr()) throw texInserted.error;
 
@@ -457,6 +460,7 @@ async function handleBatchExtractJob(
             folderId,
             source: `extracted-${archive.type}`,
             sourceArchive: archiveName,
+            sha256: computeSha256(buffer),
           });
           if (inserted.isErr()) throw inserted.error;
 
@@ -502,6 +506,7 @@ async function handleBatchExtractJob(
                       folderId: texFolderId,
                       source: `bsp-extracted`,
                       sourceArchive: savedName,
+                      sha256: computeSha256(tex.pngBuffer),
                     });
                     if (texInserted.isErr()) throw texInserted.error;
 
@@ -655,6 +660,7 @@ async function handleExtractBSPJob(
         folderId,
         source: "bsp-extracted",
         sourceArchive: bspName,
+        sha256: computeSha256(tex.pngBuffer),
       });
       if (inserted.isErr()) throw inserted.error;
 
@@ -806,6 +812,7 @@ async function handleBatchExtractBSPJob(
             folderId: subFolderId,
             source: "bsp-extracted",
             sourceArchive: bspName,
+            sha256: computeSha256(tex.pngBuffer),
           });
           if (texInserted.isErr()) throw texInserted.error;
 
