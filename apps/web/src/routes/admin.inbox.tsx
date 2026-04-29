@@ -37,7 +37,14 @@ export async function loader({ context }: Route.LoaderArgs) {
 
 type ActionResult =
   | { error: string }
-  | { success: true; action: string; count: number; sessionCount?: number };
+  | {
+      success: true;
+      action: string;
+      count: number;
+      sessionCount?: number;
+      skippedCount?: number;
+      failedSessions?: number;
+    };
 
 async function handleBulkAction(formData: FormData, _action: string): Promise<ActionResult> {
   const filterUploaderId = (formData.get("filterUploaderId") as string) || null;
@@ -61,20 +68,30 @@ async function handleBulkAction(formData: FormData, _action: string): Promise<Ac
       : allSessions;
 
     let totalApproved = 0;
+    let totalSkipped = 0;
+    let failedSessions = 0;
     for (const session of sessions) {
-      const result = await approveSession(
-        session.folder.id,
-        destinationFolderId,
-        destinationFolder.slug,
-      );
-      totalApproved += result.approvedCount;
+      try {
+        const result = await approveSession(
+          session.folder.id,
+          destinationFolderId,
+          destinationFolder.slug,
+        );
+        totalApproved += result.approvedCount;
+        totalSkipped += result.skippedCount;
+      } catch (e) {
+        console.error(`Failed to approve session ${session.folder.id}:`, e);
+        failedSessions++;
+      }
     }
 
     return {
       success: true,
       action: "approve-all",
       count: totalApproved,
+      skippedCount: totalSkipped,
       sessionCount: sessions.length,
+      failedSessions,
     };
   }
 
@@ -85,9 +102,15 @@ async function handleBulkAction(formData: FormData, _action: string): Promise<Ac
       : allSessions;
 
     let totalRejected = 0;
+    let rejectFailedSessions = 0;
     for (const session of sessions) {
-      const result = await rejectSession(session.folder.id);
-      totalRejected += result.rejectedCount;
+      try {
+        const result = await rejectSession(session.folder.id);
+        totalRejected += result.rejectedCount;
+      } catch (e) {
+        console.error(`Failed to reject session ${session.folder.id}:`, e);
+        rejectFailedSessions++;
+      }
     }
 
     return {
@@ -95,6 +118,7 @@ async function handleBulkAction(formData: FormData, _action: string): Promise<Ac
       action: "reject-all",
       count: totalRejected,
       sessionCount: sessions.length,
+      failedSessions: rejectFailedSessions,
     };
   }
 
@@ -136,12 +160,22 @@ export async function action({ request, context }: Route.ActionArgs): Promise<Ac
       return { error: "Destination folder not found" };
     }
 
-    const result = await approveSession(
-      sessionFolderId,
-      destinationFolderId,
-      destinationFolder.slug,
-    );
-    return { success: true, action: "approve", count: result.approvedCount };
+    try {
+      const result = await approveSession(
+        sessionFolderId,
+        destinationFolderId,
+        destinationFolder.slug,
+      );
+      return {
+        success: true,
+        action: "approve",
+        count: result.approvedCount,
+        skippedCount: result.skippedCount,
+      };
+    } catch (e) {
+      console.error(`Failed to approve session ${sessionFolderId}:`, e);
+      return { error: `Approval failed: ${e instanceof Error ? e.message : String(e)}` };
+    }
   }
 
   if (_action === "reject") {
@@ -244,6 +278,19 @@ export default function AdminInbox() {
             </>
           )}
           .
+          {(actionData.skippedCount ?? 0) > 0 && (
+            <span className="text-text-muted">
+              {" "}
+              ({actionData.skippedCount} missing from disk, records moved anyway)
+            </span>
+          )}
+          {(actionData.failedSessions ?? 0) > 0 && (
+            <span className="text-red-800">
+              {" "}
+              ({actionData.failedSessions} session
+              {actionData.failedSessions === 1 ? "" : "s"} failed -- check logs)
+            </span>
+          )}
         </div>
       )}
 

@@ -1,3 +1,5 @@
+import { existsSync } from "fs";
+import { basename, extname } from "path";
 import { db } from "~/db/connection.server";
 import { folders, files, users } from "~/db";
 import { eq, and } from "drizzle-orm";
@@ -8,6 +10,7 @@ import {
   moveFile,
   deleteFolder,
   recalculateFolderCounts,
+  getFilePath,
 } from "./files.server";
 
 export const INBOX_SLUG = "_inbox";
@@ -56,18 +59,54 @@ export async function createUploadSession(
   return { id: sessionId, slug: sessionSlug };
 }
 
+/**
+ * Find a unique destination path by appending -2, -3, etc. if a file
+ * already exists at the target path (in the DB or on disk).
+ */
+async function findUniquePath(destSlug: string, fileName: string): Promise<string> {
+  const ext = extname(fileName);
+  const base = basename(fileName, ext);
+  let candidate = `${destSlug}/${fileName}`;
+
+  // Check DB (unique constraint on files.path) and disk
+  let suffix = 1;
+  while (true) {
+    const existing = await db.query.files.findFirst({
+      where: eq(files.path, candidate),
+      columns: { id: true },
+    });
+    if (!existing && !existsSync(getFilePath(candidate))) {
+      return candidate;
+    }
+    suffix++;
+    candidate = `${destSlug}/${base}-${suffix}${ext}`;
+  }
+}
+
 export async function approveSession(
   sessionFolderId: string,
   destinationFolderId: string,
   destinationSlug: string,
-): Promise<{ approvedCount: number }> {
+): Promise<{ approvedCount: number; skippedCount: number }> {
   const pendingFiles = await db.query.files.findMany({
     where: and(eq(files.folderId, sessionFolderId), eq(files.status, "pending")),
   });
 
+  let skippedCount = 0;
+
   for (const file of pendingFiles) {
-    const newPath = `${destinationSlug}/${file.name}`;
-    await moveFile(file.path, newPath);
+    const newPath = await findUniquePath(destinationSlug, file.name);
+
+    // Move file on disk, skip gracefully if source is missing
+    const sourcePath = getFilePath(file.path);
+    if (existsSync(sourcePath)) {
+      await moveFile(file.path, newPath);
+    } else {
+      // File record exists but disk file is gone -- mark approved anyway
+      // so the record isn't stuck in the inbox forever.
+      skippedCount++;
+    }
+
     await db
       .update(files)
       .set({
@@ -91,7 +130,7 @@ export async function approveSession(
 
   await db.delete(folders).where(eq(folders.id, sessionFolderId));
 
-  return { approvedCount: pendingFiles.length };
+  return { approvedCount: pendingFiles.length, skippedCount };
 }
 
 export async function rejectSession(sessionFolderId: string): Promise<{ rejectedCount: number }> {
