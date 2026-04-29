@@ -1,4 +1,4 @@
-import { Form, redirect, useLoaderData, useActionData, useNavigation } from "react-router";
+import { Form, useLoaderData, useActionData, useNavigation } from "react-router";
 import type { Route } from "./+types/admin.orphans";
 import { userContext } from "~/lib/auth-context.server";
 import { db } from "~/db/connection.server";
@@ -106,9 +106,6 @@ async function performScan(): Promise<ScanResults> {
 // ---------------------------------------------------------------------------
 export async function loader({ request, context }: Route.LoaderArgs) {
   const user = context.get(userContext);
-  if (!user.isAdmin) {
-    throw new Response("Forbidden", { status: 403 });
-  }
 
   const url = new URL(request.url);
   const scan = url.searchParams.get("scan") === "true";
@@ -166,9 +163,6 @@ export async function loader({ request, context }: Route.LoaderArgs) {
 // ---------------------------------------------------------------------------
 export async function action({ request, context }: Route.ActionArgs) {
   const user = context.get(userContext);
-  if (!user.isAdmin) {
-    return { error: "Unauthorized" };
-  }
 
   const formData = await request.formData();
   const _action = formData.get("_action") as string;
@@ -273,21 +267,7 @@ export default function AdminOrphans() {
     scanResults.emptyInboxSessions.length === 0;
 
   return (
-    <main className="max-w-[1400px] mx-auto p-4 bg-bg min-h-[calc(100vh-48px)]">
-      <div className="text-xs text-text-muted mb-4">
-        <a className="text-text-muted hover:text-text" href="/folders">
-          Folders
-        </a>
-        <span className="mx-2">/</span>
-        <a className="text-text-muted hover:text-text" href="/admin/jobs">
-          Admin
-        </a>
-        <span className="mx-2">/</span>
-        <span>Orphans</span>
-      </div>
-
-      <h1 className="text-xl font-normal mb-4 pb-2 border-b border-border-light">Orphan Finder</h1>
-
+    <div>
       {actionData?.error && (
         <div className="bg-red-900/30 border border-red-700 text-red-300 px-3 py-2 text-sm mb-4">
           {actionData.error}
@@ -434,7 +414,7 @@ export default function AdminOrphans() {
         {actionData?.success && actionData.action === "backfill-hashes" && (
           <div className="bg-green-900/30 border border-green-700 text-green-300 px-3 py-2 text-sm mb-3">
             Backfill job queued.{" "}
-            <a href="/admin/jobs" className="underline">
+            <a href="/admin" className="underline">
               View jobs
             </a>
           </div>
@@ -468,21 +448,6 @@ export default function AdminOrphans() {
           <p className="text-sm text-text-muted">No duplicate files found.</p>
         )}
       </div>
-
-      <footer className="mt-6 pt-4 border-t border-border-light flex gap-2">
-        <a href="/admin/jobs" className="btn btn-sm">
-          Jobs
-        </a>
-        <a href="/admin/inbox" className="btn btn-sm">
-          Inbox
-        </a>
-        <a href="/admin/import" className="btn btn-sm">
-          Import
-        </a>
-        <a href="/admin/users" className="btn btn-sm">
-          Users
-        </a>
-      </footer>
-    </main>
+    </div>
   );
 }

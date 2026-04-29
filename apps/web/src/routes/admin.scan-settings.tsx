@@ -1,14 +1,10 @@
-import { Form, redirect, useLoaderData, useActionData } from "react-router";
+import { Form, useLoaderData, useActionData } from "react-router";
 import type { Route } from "./+types/admin.scan-settings";
 import { userContext } from "~/lib/auth-context.server";
 import type { ScanSettings } from "~/lib/settings.server";
 
 export async function loader({ context }: Route.LoaderArgs) {
   const user = context.get(userContext);
-
-  if (!user.isAdmin) {
-    throw redirect("/folders");
-  }
 
   // Import server module inside loader
   const { initializeScanSettings } = await import("~/lib/settings.server");
@@ -24,10 +20,6 @@ export async function loader({ context }: Route.LoaderArgs) {
 
 export async function action({ request, context }: Route.ActionArgs) {
   const user = context.get(userContext);
-
-  if (!user.isAdmin) {
-    return { error: "Unauthorized" };
-  }
 
   // Import server module inside action
   const { updateScanSettings, resetScanSettings } = await import("~/lib/settings.server");
@@ -94,26 +86,7 @@ export default function AdminScanSettings() {
   const actionData = useActionData<typeof action>();
 
   return (
-    <main className="max-w-[900px] mx-auto p-4 bg-bg min-h-[calc(100vh-48px)]">
-      <div className="text-xs text-text-muted mb-4">
-        <a className="text-text-muted hover:text-text" href="/folders">
-          Folders
-        </a>
-        <span className="mx-2">/</span>
-        <a className="text-text-muted hover:text-text" href="/admin/jobs">
-          Admin
-        </a>
-        <span className="mx-2">/</span>
-        <a className="text-text-muted hover:text-text" href="/admin/import">
-          Import
-        </a>
-        <span className="mx-2">/</span>
-        <span>Scan Settings</span>
-      </div>
-
-      <h1 className="text-xl font-normal mb-4 pb-2 border-b border-border-light">
-        Archive Scan Settings
-      </h1>
+    <div>
       <p className="mb-6 text-text-muted">
         Configure which files and directories are included or excluded when scanning for game
         archives.
@@ -210,10 +183,6 @@ export default function AdminScanSettings() {
           </button>
         </div>
       </Form>
-
-      <p className="text-sm text-text-muted">
-        <a href="/admin/import">← Back to Import</a> | <a href="/admin/archives">Browse Archives</a>
-      </p>
-    </main>
+    </div>
   );
 }

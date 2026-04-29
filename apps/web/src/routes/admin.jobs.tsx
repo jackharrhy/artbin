@@ -1,4 +1,4 @@
-import { useLoaderData, redirect, useRevalidator, Form, useNavigation } from "react-router";
+import { useLoaderData, useRevalidator, Form, useNavigation } from "react-router";
 import type { Route } from "./+types/admin.jobs";
 import { userContext } from "~/lib/auth-context.server";
 import { getAllJobs, deleteJob, cancelJob, resetStuckJob, isJobStuck } from "~/lib/jobs.server";
@@ -7,12 +7,6 @@ import { useEffect } from "react";
 const STUCK_THRESHOLD_MINUTES = 30;
 
 export async function loader({ context }: Route.LoaderArgs) {
-  const user = context.get(userContext);
-
-  if (!user.isAdmin) {
-    throw redirect("/");
-  }
-
   const jobs = await getAllJobs(100);
 
   // Add stuck status to each job
@@ -21,7 +15,7 @@ export async function loader({ context }: Route.LoaderArgs) {
     isStuck: isJobStuck(job, STUCK_THRESHOLD_MINUTES),
   }));
 
-  return { user, jobs: jobsWithStatus };
+  return { jobs: jobsWithStatus };
 }
 
 export async function action({ request, context }: Route.ActionArgs) {
@@ -105,7 +99,7 @@ function getStatusBadgeClass(status: string, isStuck: boolean): string {
 }
 
 export default function AdminJobs() {
-  const { user, jobs } = useLoaderData<typeof loader>();
+  const { jobs } = useLoaderData<typeof loader>();
   const revalidator = useRevalidator();
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
@@ -127,11 +121,7 @@ export default function AdminJobs() {
   const completedJobs = jobs.filter((j) => j.status !== "running" && j.status !== "pending");
 
   return (
-    <main className="max-w-[1100px] mx-auto p-4 bg-bg min-h-[calc(100vh-48px)]">
-      <h1 className="text-xl font-normal mb-4 pb-2 border-b border-border-light">
-        Background Jobs
-      </h1>
-
+    <>
       {activeJobs.length > 0 && (
         <div className="mb-2 text-sm text-text-muted">
           Auto-refreshing... {activeJobs.length} active job(s)
@@ -279,11 +269,6 @@ export default function AdminJobs() {
           </table>
         </div>
       )}
-
-      <p className="mt-8 text-sm text-text-muted">
-        <a href="/admin/import">Import</a> | <a href="/admin/archives">Archives</a> |{" "}
-        <a href="/admin/scan-settings">Scan Settings</a>
-      </p>
-    </main>
+    </>
   );
 }

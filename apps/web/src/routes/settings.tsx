@@ -67,15 +67,9 @@ export default function Settings() {
           <h2 className="text-sm font-medium uppercase tracking-wide text-text-muted mb-3">
             Admin
           </h2>
-          <div className="card flex gap-2">
-            <a href="/admin/jobs" className="btn btn-sm">
-              View Jobs
-            </a>
-            <a href="/admin/import" className="btn btn-sm">
-              Import Textures
-            </a>
-            <a href="/admin/users" className="btn btn-sm">
-              Users
+          <div className="card">
+            <a href="/admin" className="btn btn-primary btn-sm">
+              Admin Panel
             </a>
           </div>
         </section>

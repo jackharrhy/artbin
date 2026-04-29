@@ -1,9 +1,9 @@
-import { Form, redirect, useLoaderData, useActionData } from "react-router";
+import { Form, useLoaderData, useActionData } from "react-router";
 import type { Route } from "./+types/admin.import";
 import { userContext } from "~/lib/auth-context.server";
 import { db } from "~/db/connection.server";
 import { files, folders } from "~/db";
-import { count, sum, eq } from "drizzle-orm";
+import { count, sum } from "drizzle-orm";
 import { createJob } from "~/lib/jobs.server";
 import { existsSync } from "fs";
 import { stat } from "fs/promises";
@@ -33,10 +33,6 @@ const IMPORT_SOURCES = [
 
 export async function loader({ context }: Route.LoaderArgs) {
   const user = context.get(userContext);
-
-  if (!user.isAdmin) {
-    throw redirect("/folders");
-  }
 
   // Get current counts and sizes
   const [[{ total: fileCount }], [{ total: folderCount }], [{ total: totalSize }]] =
@@ -188,21 +184,7 @@ export default function AdminImport() {
   const actionData = useActionData<typeof action>();
 
   return (
-    <main className="max-w-[900px] mx-auto p-4 bg-bg min-h-[calc(100vh-48px)]">
-      <div className="text-xs text-text-muted mb-4">
-        <a className="text-text-muted hover:text-text" href="/folders">
-          Folders
-        </a>
-        <span className="mx-2">/</span>
-        <a className="text-text-muted hover:text-text" href="/admin/jobs">
-          Admin
-        </a>
-        <span className="mx-2">/</span>
-        <span>Import</span>
-      </div>
-
-      <h1 className="text-xl font-normal mb-4 pb-2 border-b border-border-light">Import</h1>
-
+    <>
       {actionData?.error && <div className="alert alert-error">{actionData.error}</div>}
 
       {actionData?.success && actionData.action === "texturetown" && (
@@ -211,7 +193,7 @@ export default function AdminImport() {
             <strong>TextureTown import started!</strong>
           </p>
           <p>
-            <a href="/admin/jobs">View job progress</a>
+            <a href="/admin">View job progress</a>
           </p>
         </div>
       )}
@@ -222,7 +204,7 @@ export default function AdminImport() {
             <strong>Texture Station import started!</strong>
           </p>
           <p>
-            <a href="/admin/jobs">View job progress</a>
+            <a href="/admin">View job progress</a>
           </p>
         </div>
       )}
@@ -233,7 +215,7 @@ export default function AdminImport() {
             <strong>Sadgrl Tiled Backgrounds import started!</strong>
           </p>
           <p>
-            <a href="/admin/jobs">View job progress</a>
+            <a href="/admin">View job progress</a>
           </p>
         </div>
       )}
@@ -244,7 +226,7 @@ export default function AdminImport() {
             <strong>Folder import started: {actionData.folderName}</strong>
           </p>
           <p>
-            <a href="/admin/jobs">View job progress</a>
+            <a href="/admin">View job progress</a>
           </p>
         </div>
       )}
@@ -411,10 +393,6 @@ export default function AdminImport() {
           </div>
         ))}
       </section>
-
-      <p className="mt-8 text-sm text-text-muted">
-        <a href="/admin/jobs">View Jobs</a> | <a href="/folders">Browse Folders</a>
-      </p>
-    </main>
+    </>
   );
 }

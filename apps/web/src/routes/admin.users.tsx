@@ -1,17 +1,10 @@
-import { useLoaderData, redirect } from "react-router";
+import { useLoaderData } from "react-router";
 import type { Route } from "./+types/admin.users";
-import { userContext } from "~/lib/auth-context.server";
 import { db } from "~/db/connection.server";
 import { users } from "~/db";
 import { desc } from "drizzle-orm";
 
-export async function loader({ context }: Route.LoaderArgs) {
-  const user = context.get(userContext);
-
-  if (!user.isAdmin) {
-    throw redirect("/");
-  }
-
+export async function loader(_args: Route.LoaderArgs) {
   const allUsers = await db
     .select({
       id: users.id,
@@ -41,11 +34,7 @@ export default function AdminUsers() {
   const { allUsers } = useLoaderData<typeof loader>();
 
   return (
-    <main className="max-w-[800px] mx-auto p-4 bg-bg min-h-[calc(100vh-48px)]">
-      <div className="flex items-center justify-between mb-4 pb-2 border-b border-border-light">
-        <h1 className="text-xl font-normal">Users ({allUsers.length})</h1>
-      </div>
-
+    <div>
       {allUsers.length === 0 ? (
         <p className="text-text-muted">No users yet.</p>
       ) : (
@@ -76,18 +65,6 @@ export default function AdminUsers() {
           </tbody>
         </table>
       )}
-
-      <footer className="mt-6 pt-4 border-t border-border-light flex gap-2">
-        <a href="/admin/jobs" className="btn btn-sm">
-          Jobs
-        </a>
-        <a href="/admin/import" className="btn btn-sm">
-          Import
-        </a>
-        <a href="/settings" className="btn btn-sm">
-          Settings
-        </a>
-      </footer>
-    </main>
+    </div>
   );
 }

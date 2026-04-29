@@ -1,4 +1,4 @@
-import { Form, redirect, useLoaderData, useActionData, useRevalidator } from "react-router";
+import { Form, useLoaderData, useActionData, useRevalidator } from "react-router";
 import { useState, useEffect, useMemo } from "react";
 import type { Route } from "./+types/admin.archives";
 import { userContext } from "~/lib/auth-context.server";
@@ -24,10 +24,6 @@ interface TreeNode {
 
 export async function loader({ context }: Route.LoaderArgs) {
   const user = context.get(userContext);
-
-  if (!user.isAdmin) {
-    throw redirect("/folders");
-  }
 
   // Get most recent scan job
   const recentScanJob = await db.query.jobs.findFirst({
@@ -67,10 +63,6 @@ export async function loader({ context }: Route.LoaderArgs) {
 
 export async function action({ request, context }: Route.ActionArgs) {
   const user = context.get(userContext);
-
-  if (!user.isAdmin) {
-    return { error: "Unauthorized" };
-  }
 
   const formData = await request.formData();
   const intent = formData.get("intent") as string;
@@ -648,26 +640,7 @@ export default function AdminArchives() {
 
   return (
     <>
-      <main className="max-w-[1000px] mx-auto p-4 bg-bg min-h-[calc(100vh-48px)]">
-        <div className="text-xs text-text-muted mb-4">
-          <a className="text-text-muted hover:text-text" href="/folders">
-            Folders
-          </a>
-          <span className="mx-2">/</span>
-          <a className="text-text-muted hover:text-text" href="/admin/jobs">
-            Admin
-          </a>
-          <span className="mx-2">/</span>
-          <a className="text-text-muted hover:text-text" href="/admin/import">
-            Import
-          </a>
-          <span className="mx-2">/</span>
-          <span>Local Archives</span>
-        </div>
-
-        <h1 className="text-xl font-normal mb-4 pb-2 border-b border-border-light">
-          Local Archives
-        </h1>
+      <div>
         <p className="mb-6 text-text-muted">
           Scan your computer for game archives (PAK, PK3, WAD, ZIP) and BSP maps to extract
           textures.
@@ -679,14 +652,14 @@ export default function AdminArchives() {
         {actionData?.success && actionData.action === "import-archive" && (
           <div className="alert alert-success mb-4">
             <strong>Import started!</strong> {actionData.archiveName} is being extracted.{" "}
-            <a href="/admin/jobs">View progress</a>
+            <a href="/admin">View progress</a>
           </div>
         )}
 
         {actionData?.success && actionData.action === "import-bsp" && (
           <div className="alert alert-success mb-4">
             <strong>BSP extraction started!</strong> Extracting textures from{" "}
-            {actionData.archiveName}. <a href="/admin/jobs">View progress</a>
+            {actionData.archiveName}. <a href="/admin">View progress</a>
           </div>
         )}
 
@@ -698,8 +671,7 @@ export default function AdminArchives() {
             {(actionData.archiveCount ?? 0) > 0 && (actionData.bspCount ?? 0) > 0 && " and "}
             {(actionData.bspCount ?? 0) > 0 &&
               `${actionData.bspCount} BSP map${actionData.bspCount !== 1 ? "s" : ""}`}{" "}
-            will be processed into "{actionData.folderName}".{" "}
-            <a href="/admin/jobs">View progress</a>
+            will be processed into "{actionData.folderName}". <a href="/admin">View progress</a>
           </div>
         )}
 
@@ -762,11 +734,7 @@ export default function AdminArchives() {
             No scan results yet. Click "Scan" to search for game archives.
           </div>
         ) : null}
-
-        <p className="mt-8 text-sm text-text-muted">
-          <a href="/admin/import">← Back to Import</a> | <a href="/admin/jobs">View Jobs</a>
-        </p>
-      </main>
+      </div>
 
       <BatchImportButton selectedPaths={selectedPaths} onClear={handleClearSelection} />
     </>

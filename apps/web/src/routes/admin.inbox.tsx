@@ -1,4 +1,4 @@
-import { Form, redirect, useLoaderData, useActionData } from "react-router";
+import { Form, useLoaderData, useActionData } from "react-router";
 import type { Route } from "./+types/admin.inbox";
 import { userContext } from "~/lib/auth-context.server";
 import { db } from "~/db/connection.server";
@@ -8,10 +8,6 @@ import { getPendingSessionsWithFiles, approveSession, rejectSession } from "~/li
 
 export async function loader({ context }: Route.LoaderArgs) {
   const user = context.get(userContext);
-
-  if (!user.isAdmin) {
-    throw redirect("/");
-  }
 
   const [sessions, allFolders] = await Promise.all([
     getPendingSessionsWithFiles(),
@@ -128,10 +124,6 @@ async function handleBulkAction(formData: FormData, _action: string): Promise<Ac
 export async function action({ request, context }: Route.ActionArgs): Promise<ActionResult> {
   const user = context.get(userContext);
 
-  if (!user.isAdmin) {
-    return { error: "Unauthorized" };
-  }
-
   const formData = await request.formData();
   const _action = formData.get("_action") as string;
 
@@ -229,28 +221,13 @@ export default function AdminInbox() {
   const actionData = useActionData<typeof action>();
 
   return (
-    <main className="max-w-[1400px] mx-auto p-4 bg-bg min-h-[calc(100vh-48px)]">
-      <div className="text-xs text-text-muted mb-4">
-        <a className="text-text-muted hover:text-text" href="/folders">
-          Folders
-        </a>
-        <span className="mx-2">/</span>
-        <a className="text-text-muted hover:text-text" href="/admin/jobs">
-          Admin
-        </a>
-        <span className="mx-2">/</span>
-        <span>Inbox</span>
-      </div>
-
-      <h1 className="text-xl font-normal mb-4 pb-2 border-b border-border-light">
-        Upload Inbox
-        {totalPendingFiles > 0 && (
-          <span className="text-sm font-normal text-text-muted ml-2">
-            ({totalPendingFiles} file{totalPendingFiles === 1 ? "" : "s"} in {sessions.length}{" "}
-            session{sessions.length === 1 ? "" : "s"})
-          </span>
-        )}
-      </h1>
+    <>
+      {totalPendingFiles > 0 && (
+        <p className="text-sm text-text-muted mb-4">
+          {totalPendingFiles} file{totalPendingFiles === 1 ? "" : "s"} in {sessions.length} session
+          {sessions.length === 1 ? "" : "s"}
+        </p>
+      )}
 
       {actionData && "error" in actionData && (
         <div className="alert alert-error mb-4">{actionData.error}</div>
@@ -480,18 +457,6 @@ export default function AdminInbox() {
           ))}
         </div>
       )}
-
-      <footer className="mt-6 pt-4 border-t border-border-light flex gap-2">
-        <a href="/admin/jobs" className="btn btn-sm">
-          Jobs
-        </a>
-        <a href="/admin/import" className="btn btn-sm">
-          Import
-        </a>
-        <a href="/admin/users" className="btn btn-sm">
-          Users
-        </a>
-      </footer>
-    </main>
+    </>
   );
 }
