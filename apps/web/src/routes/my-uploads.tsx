@@ -1,14 +1,51 @@
-import { useLoaderData } from "react-router";
+import { useLoaderData, useSearchParams } from "react-router";
 import type { Route } from "./+types/my-uploads";
 import { userContext } from "~/lib/auth-context.server";
 import { db } from "~/db/connection.server";
 import { files, folders } from "~/db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and, sql, lt, or } from "drizzle-orm";
 
-export async function loader({ context }: Route.LoaderArgs) {
+const PAGE_SIZE = 60;
+
+export async function loader({ request, context }: Route.LoaderArgs) {
   const user = context.get(userContext);
+  const url = new URL(request.url);
+  const validStatuses = ["pending", "approved", "rejected"] as const;
+  type FileStatus = (typeof validStatuses)[number];
+  const rawStatus = url.searchParams.get("status") || "pending";
+  const status: FileStatus = validStatuses.includes(rawStatus as FileStatus)
+    ? (rawStatus as FileStatus)
+    : "pending";
+  const cursor = url.searchParams.get("cursor") || undefined;
 
-  const userFiles = await db
+  // Counts per status (always load these for the tabs)
+  const counts = await db
+    .select({ status: files.status, count: sql<number>`count(*)` })
+    .from(files)
+    .where(eq(files.uploaderId, user.id))
+    .groupBy(files.status);
+
+  const countMap: Record<string, number> = { pending: 0, approved: 0, rejected: 0 };
+  for (const row of counts) {
+    if (row.status) countMap[row.status] = row.count;
+  }
+
+  // Build query for current status tab
+  const conditions: any[] = [eq(files.uploaderId, user.id), eq(files.status, status)];
+
+  if (cursor) {
+    const cursorFile = await db.query.files.findFirst({ where: eq(files.id, cursor) });
+    if (cursorFile?.createdAt) {
+      conditions.push(
+        or(
+          lt(files.createdAt, cursorFile.createdAt),
+          and(eq(files.createdAt, cursorFile.createdAt), lt(files.id, cursor)),
+        ),
+      );
+    }
+  }
+
+  const pageFiles = await db
     .select({
       id: files.id,
       path: files.path,
@@ -24,32 +61,30 @@ export async function loader({ context }: Route.LoaderArgs) {
       createdAt: files.createdAt,
     })
     .from(files)
-    .where(eq(files.uploaderId, user.id))
-    .orderBy(desc(files.createdAt));
+    .where(and(...conditions))
+    .orderBy(desc(files.createdAt), desc(files.id))
+    .limit(PAGE_SIZE + 1);
+
+  const hasMore = pageFiles.length > PAGE_SIZE;
+  const displayFiles = hasMore ? pageFiles.slice(0, PAGE_SIZE) : pageFiles;
+  const nextCursor = hasMore ? displayFiles[displayFiles.length - 1].id : null;
 
   // For approved files, load their folder info
-  const approvedFolderIds = [
-    ...new Set(
-      userFiles.filter((f) => f.status === "approved" && f.folderId).map((f) => f.folderId),
-    ),
-  ];
-
   const folderMap: Record<string, { name: string; slug: string }> = {};
-  for (const folderId of approvedFolderIds) {
-    const folder = await db.query.folders.findFirst({
-      where: eq(folders.id, folderId),
-      columns: { name: true, slug: true },
-    });
-    if (folder) {
-      folderMap[folderId] = folder;
+  if (status === "approved") {
+    const folderIds = [...new Set(displayFiles.map((f) => f.folderId))];
+    for (const folderId of folderIds) {
+      const folder = await db.query.folders.findFirst({
+        where: eq(folders.id, folderId),
+        columns: { name: true, slug: true },
+      });
+      if (folder) {
+        folderMap[folderId] = folder;
+      }
     }
   }
 
-  const pending = userFiles.filter((f) => f.status === "pending");
-  const approved = userFiles.filter((f) => f.status === "approved");
-  const rejected = userFiles.filter((f) => f.status === "rejected");
-
-  return { pending, approved, rejected, folderMap };
+  return { files: displayFiles, countMap, status, nextCursor, folderMap };
 }
 
 export function meta() {
@@ -193,48 +228,70 @@ function TextureGrid({ files, linkable }: { files: FileRow[]; linkable: boolean 
 }
 
 export default function MyUploads() {
-  const { pending, approved, rejected, folderMap } = useLoaderData<typeof loader>();
+  const {
+    files: pageFiles,
+    countMap,
+    status,
+    nextCursor,
+    folderMap,
+  } = useLoaderData<typeof loader>();
+  const [searchParams] = useSearchParams();
 
-  const total = pending.length + approved.length + rejected.length;
+  const total = countMap.pending + countMap.approved + countMap.rejected;
 
-  if (total === 0) {
-    return (
-      <main className="max-w-[1400px] mx-auto p-4 bg-bg min-h-[calc(100vh-48px)]">
-        <h1 className="text-xl font-normal mb-4 pb-2 border-b border-border-light">My Uploads</h1>
-        <p className="text-text-muted">You haven't uploaded any files yet.</p>
-      </main>
-    );
-  }
+  const tabs: { key: string; label: string; count: number }[] = [
+    { key: "pending", label: "Pending", count: countMap.pending },
+    { key: "approved", label: "Approved", count: countMap.approved },
+    { key: "rejected", label: "Rejected", count: countMap.rejected },
+  ];
+
+  const linkable = status === "approved";
+
+  // Group approved files by folder
+  const groupedByFolder = (() => {
+    if (status !== "approved") return null;
+    const byFolder: Record<string, FileRow[]> = {};
+    for (const file of pageFiles as FileRow[]) {
+      const key = file.folderId;
+      if (!byFolder[key]) byFolder[key] = [];
+      byFolder[key].push(file);
+    }
+    return byFolder;
+  })();
 
   return (
     <main className="max-w-[1400px] mx-auto p-4 bg-bg min-h-[calc(100vh-48px)]">
       <h1 className="text-xl font-normal mb-4 pb-2 border-b border-border-light">My Uploads</h1>
 
-      {pending.length > 0 && (
-        <section className="mb-8">
-          <h2 className="text-sm font-medium uppercase tracking-wide text-text-muted mb-3">
-            Pending &middot; Waiting for review ({pending.length})
-          </h2>
-          <TextureGrid files={pending as FileRow[]} linkable={false} />
-        </section>
-      )}
+      {total === 0 ? (
+        <p className="text-text-muted">You haven't uploaded any files yet.</p>
+      ) : (
+        <>
+          {/* Status tabs */}
+          <div className="flex gap-0 border-b border-border-light mb-6">
+            {tabs.map((tab) => (
+              <a
+                key={tab.key}
+                href={`/my-uploads?status=${tab.key}`}
+                className={`px-4 py-2 text-sm no-underline border-b-2 -mb-px ${
+                  status === tab.key
+                    ? "border-text text-text font-medium"
+                    : "border-transparent text-text-muted hover:text-text"
+                }`}
+              >
+                {tab.label}
+                {tab.count > 0 && (
+                  <span className="ml-1.5 text-xs text-text-faint">({tab.count})</span>
+                )}
+              </a>
+            ))}
+          </div>
 
-      {approved.length > 0 && (
-        <section className="mb-8">
-          <h2 className="text-sm font-medium uppercase tracking-wide text-text-muted mb-3">
-            Approved ({approved.length})
-          </h2>
-          {/* Show folder info for approved files */}
-          {(() => {
-            // Group approved files by folder
-            const byFolder: Record<string, FileRow[]> = {};
-            for (const file of approved as FileRow[]) {
-              const key = file.folderId;
-              if (!byFolder[key]) byFolder[key] = [];
-              byFolder[key].push(file);
-            }
-
-            return Object.entries(byFolder).map(([folderId, folderFiles]) => {
+          {pageFiles.length === 0 ? (
+            <p className="text-text-muted">No {status} uploads.</p>
+          ) : groupedByFolder ? (
+            // Approved: group by folder
+            Object.entries(groupedByFolder).map(([folderId, folderFiles]) => {
               const folder = folderMap[folderId];
               return (
                 <div key={folderId} className="mb-4">
@@ -252,18 +309,20 @@ export default function MyUploads() {
                   <TextureGrid files={folderFiles} linkable={true} />
                 </div>
               );
-            });
-          })()}
-        </section>
-      )}
+            })
+          ) : (
+            <TextureGrid files={pageFiles as FileRow[]} linkable={linkable} />
+          )}
 
-      {rejected.length > 0 && (
-        <section className="mb-8">
-          <h2 className="text-sm font-medium uppercase tracking-wide text-red-800 mb-3">
-            Rejected ({rejected.length})
-          </h2>
-          <TextureGrid files={rejected as FileRow[]} linkable={false} />
-        </section>
+          {/* Pagination */}
+          {nextCursor && (
+            <div className="mt-6 text-center">
+              <a href={`/my-uploads?status=${status}&cursor=${nextCursor}`} className="btn">
+                Load more
+              </a>
+            </div>
+          )}
+        </>
       )}
     </main>
   );
