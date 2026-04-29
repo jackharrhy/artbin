@@ -25,7 +25,7 @@ async function seedSession() {
     id: "user-1",
     email: "user@example.com",
     username: "user",
-    passwordHash: "hash",
+    fourmId: "fourm-user-1",
   });
   await db.insert(sessions).values({
     id: "session-1",

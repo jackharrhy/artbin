@@ -1,6 +1,11 @@
 import { redirect, useLoaderData, Form } from "react-router";
 import type { Route } from "./+types/settings";
-import { parseSessionCookie, getUserFromSession, getClearSessionCookie } from "~/lib/auth.server";
+import {
+  parseSessionCookie,
+  getUserFromSession,
+  getClearSessionCookie,
+  logout,
+} from "~/lib/auth.server";
 
 export async function loader({ request }: Route.LoaderArgs) {
   const sessionId = parseSessionCookie(request.headers.get("Cookie"));
@@ -25,6 +30,9 @@ export async function action({ request }: Route.ActionArgs) {
   const intent = formData.get("intent");
 
   if (intent === "logout") {
+    if (sessionId) {
+      await logout(sessionId);
+    }
     return redirect("/", {
       headers: {
         "Set-Cookie": getClearSessionCookie(),

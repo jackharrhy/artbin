@@ -4,6 +4,8 @@ import { eq } from "drizzle-orm";
 
 const SESSION_COOKIE = "artbin_session";
 const SESSION_MAX_AGE = 60 * 60 * 24 * 30; // 30 days
+const isProduction = process.env.NODE_ENV === "production";
+const secureSuffix = isProduction ? "; Secure" : "";
 
 export async function logout(sessionId: string): Promise<void> {
   await db.delete(sessions).where(eq(sessions.id, sessionId));
@@ -37,11 +39,11 @@ export async function getUserFromSession(sessionId: string | undefined) {
 }
 
 export function getSessionCookie(sessionId: string): string {
-  return `${SESSION_COOKIE}=${sessionId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_MAX_AGE}`;
+  return `${SESSION_COOKIE}=${sessionId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${SESSION_MAX_AGE}${secureSuffix}`;
 }
 
 export function getClearSessionCookie(): string {
-  return `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
+  return `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secureSuffix}`;
 }
 
 export function parseSessionCookie(cookieHeader: string | null): string | undefined {

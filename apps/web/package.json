@@ -10,14 +10,12 @@
     "ci": "pnpm run typecheck && pnpm run test",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio",
-    "create-admin": "tsx scripts/create-admin.ts"
+    "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
     "@artbin/core": "workspace:*",
     "@react-router/node": "7.14.2",
     "@react-router/serve": "7.14.2",
-    "bcrypt": "^6.0.0",
     "better-result": "^2.8.2",
     "better-sqlite3": "^12.9.0",
     "drizzle-orm": "^0.45.2",
@@ -32,7 +30,6 @@
   "devDependencies": {
     "@react-router/dev": "7.14.2",
     "@tailwindcss/vite": "^4.2.4",
-    "@types/bcrypt": "^6.0.0",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^25",
     "@types/react": "^19.2.14",

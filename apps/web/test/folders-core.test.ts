@@ -24,7 +24,7 @@ async function seedUser(db: ReturnType<typeof setupDatabase>) {
     id: "user-1",
     email: "user@example.com",
     username: "user",
-    passwordHash: "hash",
+    fourmId: "fourm-user-1",
   });
 }
 

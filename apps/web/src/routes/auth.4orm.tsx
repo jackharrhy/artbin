@@ -24,7 +24,8 @@ export async function loader({ request }: Route.LoaderArgs) {
   });
 
   const oauthData = JSON.stringify({ verifier, state });
-  const cookie = `artbin_oauth=${encodeURIComponent(oauthData)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=600`;
+  const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
+  const cookie = `artbin_oauth=${encodeURIComponent(oauthData)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=600${secure}`;
 
   return redirect(`${FOURM_AUTHORIZE_URL}?${params.toString()}`, {
     headers: { "Set-Cookie": cookie },

@@ -15,12 +15,8 @@ export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
   email: text("email").notNull().unique(),
   username: text("username").notNull().unique(),
-  passwordHash: text("password_hash").notNull(),
-  fourmId: text("fourm_id").unique(),
+  fourmId: text("fourm_id").notNull().unique(),
   isAdmin: integer("is_admin", { mode: "boolean" }).default(false),
-  invitedBy: text("invited_by").references((): any => users.id, {
-    onDelete: "set null",
-  }),
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn((): Date => new Date()),
 });
 
@@ -30,18 +26,6 @@ export const sessions = sqliteTable("sessions", {
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
-  createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
-});
-
-export const inviteCodes = sqliteTable("invite_codes", {
-  id: text("id").primaryKey(),
-  code: text("code").notNull().unique(),
-  createdBy: text("created_by")
-    .notNull()
-    .references(() => users.id),
-  maxUses: integer("max_uses"), // null = unlimited
-  useCount: integer("use_count").default(0),
-  isActive: integer("is_active", { mode: "boolean" }).default(true),
   createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn(() => new Date()),
 });
 
@@ -176,7 +160,6 @@ export const settings = sqliteTable("settings", {
 
 export type User = typeof users.$inferSelect;
 export type Session = typeof sessions.$inferSelect;
-export type InviteCode = typeof inviteCodes.$inferSelect;
 export type Folder = typeof folders.$inferSelect;
 export type File = typeof files.$inferSelect;
 export type Tag = typeof tags.$inferSelect;

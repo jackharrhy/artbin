@@ -70,7 +70,6 @@ export async function loader({ request }: Route.LoaderArgs) {
         id: userId,
         email: `${userinfo.username}@4orm.local`,
         username: userinfo.username,
-        passwordHash: "",
         fourmId: userinfo.sub,
         isAdmin: userinfo.is_admin,
       })
@@ -98,7 +97,8 @@ export async function loader({ request }: Route.LoaderArgs) {
     expiresAt,
   });
 
-  const clearOauth = "artbin_oauth=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0";
+  const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
+  const clearOauth = `artbin_oauth=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure}`;
   const headers = new Headers();
   headers.append("Set-Cookie", clearOauth);
   headers.append("Set-Cookie", getSessionCookie(sessionId));
