@@ -250,6 +250,7 @@ export function UploadModal({
     setUploadProgress({ done: 0, total: files.length });
 
     let successCount = 0;
+    let uploadSessionId: string | null = null;
     const updatedFiles = [...files];
 
     for (let i = 0; i < files.length; i++) {
@@ -262,6 +263,9 @@ export function UploadModal({
         formData.append("file", uploadFile.file);
         formData.append("folderId", currentFolder.id);
         formData.append("relativePath", uploadFile.relativePath);
+        if (uploadSessionId) {
+          formData.append("uploadSessionId", uploadSessionId);
+        }
 
         const response = await fetch("/api/upload", {
           method: "POST",
@@ -275,6 +279,9 @@ export function UploadModal({
         } else if (result.pendingUpload) {
           updatedFiles[i] = { ...uploadFile, status: "done" };
           successCount++;
+          if (result.uploadSessionId) {
+            uploadSessionId = result.uploadSessionId;
+          }
           setPendingMessage(result.message);
         } else {
           updatedFiles[i] = { ...uploadFile, status: "done" };

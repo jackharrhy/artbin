@@ -78,7 +78,8 @@ async function handleFileUpload(formData: FormData, userId: string, isAdmin: boo
     return handleAdminUpload(file, folderId, relativePath, userId);
   }
 
-  return handleNonAdminUpload(file, folderId, relativePath, userId);
+  const uploadSessionId = formData.get("uploadSessionId") as string | null;
+  return handleNonAdminUpload(file, folderId, relativePath, userId, uploadSessionId);
 }
 
 async function handleAdminUpload(
@@ -196,9 +197,24 @@ async function handleNonAdminUpload(
   folderId: string | null,
   relativePath: string | null,
   userId: string,
+  existingSessionId?: string | null,
 ) {
   try {
-    const session = await createUploadSession(userId);
+    let session: { id: string; slug: string };
+
+    if (existingSessionId) {
+      // Reuse existing upload session (batch upload)
+      const existing = await db.query.folders.findFirst({
+        where: eq(folders.id, existingSessionId),
+      });
+      if (!existing) {
+        return Response.json({ error: "Upload session not found" }, { status: 400 });
+      }
+      session = { id: existing.id, slug: existing.slug };
+    } else {
+      session = await createUploadSession(userId);
+    }
+
     const buffer = Buffer.from(await file.arrayBuffer());
 
     const { path: filePath, name: savedName } = await saveFile(
@@ -244,6 +260,7 @@ async function handleNonAdminUpload(
 
     return Response.json({
       pendingUpload: true,
+      uploadSessionId: session.id,
       message: "Uploaded! An admin will review your submission.",
     });
   } catch (err) {
