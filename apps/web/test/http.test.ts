@@ -108,8 +108,8 @@ describe.skipIf(!hasBuild)("HTTP integration tests", () => {
       expect(res.headers.get("location")).toBe("/login");
     });
 
-    test("/admin/jobs redirects to /login when not authenticated", async () => {
-      const res = await fetch(`${BASE}/admin/jobs`, { redirect: "manual" });
+    test("/admin redirects to /login when not authenticated", async () => {
+      const res = await fetch(`${BASE}/admin`, { redirect: "manual" });
       expect(res.status).toBe(302);
       expect(res.headers.get("location")).toBe("/login");
     });
