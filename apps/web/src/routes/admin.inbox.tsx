@@ -3,7 +3,7 @@ import type { Route } from "./+types/admin.inbox";
 import { userContext } from "~/lib/auth-context.server";
 import { db } from "~/db/connection.server";
 import { folders } from "~/db";
-import { isNull, not, like, and, desc, eq } from "drizzle-orm";
+import { isNull, and, desc, eq, sql } from "drizzle-orm";
 import { getPendingSessionsWithFiles, approveSession, rejectSession } from "~/lib/inbox.server";
 
 export async function loader({ context }: Route.LoaderArgs) {
@@ -16,7 +16,7 @@ export async function loader({ context }: Route.LoaderArgs) {
   const [sessions, allFolders] = await Promise.all([
     getPendingSessionsWithFiles(),
     db.query.folders.findMany({
-      where: and(isNull(folders.parentId), not(like(folders.slug, "\\_%"))),
+      where: and(isNull(folders.parentId), sql`${folders.slug} NOT LIKE '\\_%' ESCAPE '\\'`),
       orderBy: [desc(folders.createdAt)],
     }),
   ]);

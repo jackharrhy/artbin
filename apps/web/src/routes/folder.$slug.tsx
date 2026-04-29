@@ -11,7 +11,7 @@ import type { Route } from "./+types/folder.$slug";
 import { userContext } from "~/lib/auth-context.server";
 import { db } from "~/db/connection.server";
 import { folders, files, tags } from "~/db";
-import { eq, desc, count, and, not, like } from "drizzle-orm";
+import { eq, desc, count, and, sql } from "drizzle-orm";
 import { BrowseTabs, type ViewMode } from "~/components/BrowseTabs";
 import { SearchBar } from "~/components/SearchBar";
 import { FileGrid } from "~/components/FileGrid";
@@ -71,7 +71,7 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
 
   // Get child folders (exclude system folders starting with _)
   const childFolders = await db.query.folders.findMany({
-    where: and(eq(folders.parentId, folder.id), not(like(folders.slug, "\\_%"))),
+    where: and(eq(folders.parentId, folder.id), sql`${folders.slug} NOT LIKE '\\_%' ESCAPE '\\'`),
     orderBy: [folders.name],
   });
 
