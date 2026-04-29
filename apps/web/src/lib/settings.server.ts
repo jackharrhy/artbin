@@ -2,87 +2,14 @@ import { db } from "~/db/connection.server";
 import { settings } from "~/db";
 import { eq } from "drizzle-orm";
 import { Result } from "better-result";
+import {
+  type ScanSettings,
+  DEFAULT_EXCLUDE_DIRS,
+  DEFAULT_EXCLUDE_FILENAMES,
+  DEFAULT_EXCLUDE_PATH_PATTERNS,
+  DEFAULT_KNOWN_GAME_DIRS,
+} from "@artbin/core/scanning";
 
-// Default directories to exclude from archive scans
-const DEFAULT_EXCLUDE_DIRS = [
-  "node_modules",
-  ".git",
-  ".npm",
-  ".cache",
-  ".Trash",
-  "Library/Caches",
-  "Library/Logs",
-  "Library/Developer",
-  ".local/share/Trash",
-  "__pycache__",
-  ".venv",
-  "venv",
-  ".cargo/registry",
-  ".rustup",
-  "go/pkg",
-  "Electron Framework.framework",
-  "Chromium Embedded Framework.framework",
-  "test/fixture",
-  "tests/fixture",
-  "Battle.net",
-  "zoom.us",
-  "ToDesktop Builder",
-  "minecraft/launcher",
-];
-
-// Default filenames to exclude (never game assets)
-const DEFAULT_EXCLUDE_FILENAMES = [
-  "locale.pak",
-  "locale.zip",
-  "cached.wad",
-  "resources.pak",
-  "resources.zip",
-  "data.zip",
-];
-
-// Default path patterns to exclude (regex strings)
-const DEFAULT_EXCLUDE_PATH_PATTERNS = [
-  "/Electron Framework\\.framework/",
-  "/Chromium Embedded Framework\\.framework/",
-  "/test/fixture",
-  "/tests/fixture",
-  "TrenchBroom.*/test/",
-  "Songs of Syx",
-];
-
-// Default known game directories
-const DEFAULT_KNOWN_GAME_DIRS = [
-  "id1",
-  "hipnotic",
-  "rogue",
-  "quoth",
-  "ad",
-  "alkaline",
-  "baseq2",
-  "ctf",
-  "xatrix",
-  "baseq3",
-  "missionpack",
-  "cpma",
-  "defrag",
-  "valve",
-  "cstrike",
-  "tfc",
-  "dod",
-  "gearbox",
-  "bshift",
-  "doom",
-  "doom2",
-  "plutonia",
-  "tnt",
-  "data",
-  "pak",
-  "paks",
-  "base",
-  "main",
-];
-
-import type { ScanSettings } from "./settings.types";
 export type { ScanSettings };
 
 export async function getSetting<T>(key: string, defaultValue: T): Promise<T> {

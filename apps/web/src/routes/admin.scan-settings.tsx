@@ -1,7 +1,7 @@
 import { Form, redirect, useLoaderData, useActionData } from "react-router";
 import type { Route } from "./+types/admin.scan-settings";
 import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
-import type { ScanSettings } from "~/lib/settings.types";
+import type { ScanSettings } from "~/lib/settings.server";
 
 export async function loader({ request }: Route.LoaderArgs) {
   const sessionId = parseSessionCookie(request.headers.get("Cookie"));
