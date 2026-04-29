@@ -11,7 +11,7 @@ import type { Route } from "./+types/folder.$slug";
 import { userContext } from "~/lib/auth-context.server";
 import { db } from "~/db/connection.server";
 import { folders, files, tags } from "~/db";
-import { eq, desc, count } from "drizzle-orm";
+import { eq, desc, count, and, not, like } from "drizzle-orm";
 import { BrowseTabs, type ViewMode } from "~/components/BrowseTabs";
 import { SearchBar } from "~/components/SearchBar";
 import { FileGrid } from "~/components/FileGrid";
@@ -69,9 +69,9 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
     orderBy: [tags.name],
   });
 
-  // Get child folders
+  // Get child folders (exclude system folders starting with _)
   const childFolders = await db.query.folders.findMany({
-    where: eq(folders.parentId, folder.id),
+    where: and(eq(folders.parentId, folder.id), not(like(folders.slug, "\\_%"))),
     orderBy: [folders.name],
   });
 
@@ -81,7 +81,7 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
   });
 
   if (view === "folders") {
-    // Get files in this folder (direct children only for folder view)
+    // Get files in this folder (direct children only for folder view, approved only)
     const folderFiles = await db
       .select({
         id: files.id,
@@ -95,7 +95,7 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
         hasPreview: files.hasPreview,
       })
       .from(files)
-      .where(eq(files.folderId, folder.id))
+      .where(and(eq(files.folderId, folder.id), eq(files.status, "approved")))
       .orderBy(desc(files.createdAt))
       .limit(500);
 

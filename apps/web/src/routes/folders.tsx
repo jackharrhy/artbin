@@ -5,7 +5,7 @@ import type { Route } from "./+types/folders";
 import { userContext } from "~/lib/auth-context.server";
 import { db } from "~/db/connection.server";
 import { folders, files, tags } from "~/db";
-import { eq, isNull, count, desc, sql } from "drizzle-orm";
+import { eq, isNull, count, desc, sql, and, not, like } from "drizzle-orm";
 import { BrowseTabs, type ViewMode } from "~/components/BrowseTabs";
 import { SearchBar } from "~/components/SearchBar";
 import { FileGrid } from "~/components/FileGrid";
@@ -32,7 +32,7 @@ export async function loader({ request, context }: Route.LoaderArgs) {
   // If viewing folders, load folder data
   if (view === "folders") {
     const rootFolders = await db.query.folders.findMany({
-      where: isNull(folders.parentId),
+      where: and(isNull(folders.parentId), not(like(folders.slug, "\\_%"))),
       orderBy: [desc(folders.createdAt)],
     });
 
@@ -86,11 +86,11 @@ export async function loader({ request, context }: Route.LoaderArgs) {
     limit: 50,
   });
 
-  // Count root folders for tab
+  // Count root folders for tab (exclude system folders)
   const [{ c: folderCount }] = await db
     .select({ c: count() })
     .from(folders)
-    .where(isNull(folders.parentId));
+    .where(and(isNull(folders.parentId), not(like(folders.slug, "\\_%"))));
 
   return {
     user,

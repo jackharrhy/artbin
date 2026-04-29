@@ -248,6 +248,7 @@ export interface SearchFilesOptions {
   folderIds?: string[]; // Limit to these folders (for subtree queries)
   cursor?: string; // Cursor for pagination (file ID)
   limit?: number; // Results per page
+  includeAllStatuses?: boolean; // If true, include pending/rejected files
 }
 
 export interface SearchFilesResult {
@@ -272,6 +273,11 @@ export async function searchFiles(options: SearchFilesOptions): Promise<SearchFi
 
   // Build conditions array
   const conditions: any[] = [];
+
+  // Status filter: only show approved files by default
+  if (!options.includeAllStatuses) {
+    conditions.push(eq(files.status, "approved"));
+  }
 
   // Kind filter
   if (kind) {
@@ -397,8 +403,10 @@ export async function getDescendantFolderIds(folderId: string): Promise<string[]
 }
 
 export async function getFileCountsByKind(folderIds?: string[]): Promise<Record<string, number>> {
-  const condition =
+  const statusFilter = eq(files.status, "approved");
+  const folderFilter =
     folderIds && folderIds.length > 0 ? inArray(files.folderId, folderIds) : undefined;
+  const condition = folderFilter ? and(statusFilter, folderFilter) : statusFilter;
 
   const results = await db
     .select({

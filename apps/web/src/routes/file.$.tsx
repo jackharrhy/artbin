@@ -83,6 +83,15 @@ export async function loader({ params, context }: Route.LoaderArgs) {
     throw new Response("File not found", { status: 404 });
   }
 
+  // Hide non-approved files from public — only uploader and admins may view
+  if (file.status !== "approved") {
+    const isOwner = user && file.uploaderId === user.id;
+    const isAdmin = user?.isAdmin;
+    if (!isOwner && !isAdmin) {
+      throw new Response("Not found", { status: 404 });
+    }
+  }
+
   // Get folder and build ancestor chain for breadcrumbs
   let folder = null;
   const ancestors: { id: string; name: string; slug: string }[] = [];
