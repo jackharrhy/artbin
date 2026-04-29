@@ -36,7 +36,7 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
     where: eq(folders.slug, slug),
   });
 
-  if (!folder) {
+  if (!folder || folder.slug.startsWith("_")) {
     throw new Response("Folder not found", { status: 404 });
   }
 
