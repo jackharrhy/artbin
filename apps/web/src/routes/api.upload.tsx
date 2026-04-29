@@ -18,6 +18,7 @@ import {
 } from "~/lib/files.server";
 import { createJob } from "~/lib/jobs.server";
 import { parseArchive, getFileEntries, getDirectoryPaths } from "~/lib/archives.server";
+import { createUploadSession } from "~/lib/inbox.server";
 
 const ARCHIVE_EXTENSIONS = new Set(["pak", "pk3", "zip"]);
 
@@ -37,21 +38,26 @@ export async function action({ request }: Route.ActionArgs) {
   const formData = await request.formData();
   const actionType = formData.get("_action") as string;
 
-  // Handle archive analysis
+  // Archive analysis and extraction are admin-only
   if (actionType === "analyze") {
+    if (!user.isAdmin) {
+      return Response.json({ error: "Admin access required" }, { status: 403 });
+    }
     return handleAnalyzeArchive(formData);
   }
 
-  // Handle archive extraction
   if (actionType === "extract") {
+    if (!user.isAdmin) {
+      return Response.json({ error: "Admin access required" }, { status: 403 });
+    }
     return handleExtractArchive(formData, user.id);
   }
 
   // Handle single/multi file upload
-  return handleFileUpload(formData, user.id);
+  return handleFileUpload(formData, user.id, !!user.isAdmin);
 }
 
-async function handleFileUpload(formData: FormData, userId: string) {
+async function handleFileUpload(formData: FormData, userId: string, isAdmin: boolean) {
   const file = formData.get("file") as File | null;
   const folderId = formData.get("folderId") as string | null;
   const relativePath = formData.get("relativePath") as string | null;
@@ -60,11 +66,27 @@ async function handleFileUpload(formData: FormData, userId: string) {
     return Response.json({ error: "No file selected" });
   }
 
-  // Check if this is an archive - redirect to analysis flow
+  // Archives are admin-only (redirect to analysis flow)
   if (isArchive(file.name)) {
+    if (!isAdmin) {
+      return Response.json({ error: "Admin access required for archive uploads" }, { status: 403 });
+    }
     return handleAnalyzeArchive(formData);
   }
 
+  if (isAdmin) {
+    return handleAdminUpload(file, folderId, relativePath, userId);
+  }
+
+  return handleNonAdminUpload(file, folderId, relativePath, userId);
+}
+
+async function handleAdminUpload(
+  file: File,
+  folderId: string | null,
+  relativePath: string | null,
+  userId: string,
+) {
   if (!folderId) {
     return Response.json({ error: "Please select a folder" });
   }
@@ -162,6 +184,67 @@ async function handleFileUpload(formData: FormData, userId: string) {
         filePath,
         fileName: savedName,
       },
+    });
+  } catch (err) {
+    console.error("Upload error:", err);
+    return Response.json({ error: `Upload failed: ${err}` });
+  }
+}
+
+async function handleNonAdminUpload(
+  file: File,
+  folderId: string | null,
+  relativePath: string | null,
+  userId: string,
+) {
+  try {
+    const session = await createUploadSession(userId);
+    const buffer = Buffer.from(await file.arrayBuffer());
+
+    const { path: filePath, name: savedName } = await saveFile(
+      buffer,
+      session.slug,
+      relativePath ? basename(relativePath) : file.name,
+      true,
+    );
+
+    const kind = detectKind(savedName);
+    const mimeType = await getMimeType(savedName, buffer);
+
+    let width: number | null = null;
+    let height: number | null = null;
+    let hasPreview = false;
+
+    if (isImageKind(kind)) {
+      const imageInfo = await processImage(filePath);
+      if (imageInfo.isErr()) throw imageInfo.error;
+      width = imageInfo.value.width;
+      height = imageInfo.value.height;
+      hasPreview = imageInfo.value.hasPreview;
+    }
+
+    const fileId = nanoid();
+    const inserted = await insertFileRecord({
+      id: fileId,
+      path: filePath,
+      name: savedName,
+      mimeType,
+      size: buffer.length,
+      kind,
+      width,
+      height,
+      hasPreview,
+      folderId: session.id,
+      uploaderId: userId,
+      source: "upload",
+      status: "pending",
+      suggestedFolderId: folderId || null,
+    });
+    if (inserted.isErr()) throw inserted.error;
+
+    return Response.json({
+      pendingUpload: true,
+      message: "Uploaded! An admin will review your submission.",
     });
   } catch (err) {
     console.error("Upload error:", err);

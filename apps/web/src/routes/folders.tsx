@@ -266,6 +266,7 @@ export default function Folders() {
         onClose={() => setShowUploadModal(false)}
         currentFolder={null}
         onSuccess={() => revalidator.revalidate()}
+        isAdmin={!!user.isAdmin}
       />
     </>
   );

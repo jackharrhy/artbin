@@ -11,6 +11,8 @@ interface UploadModalProps {
   } | null;
   /** Called after successful upload/folder creation to refresh the page */
   onSuccess?: () => void;
+  /** Whether the current user is an admin */
+  isAdmin: boolean;
 }
 
 interface UploadFile {
@@ -47,12 +49,19 @@ function slugify(str: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-export function UploadModal({ isOpen, onClose, currentFolder, onSuccess }: UploadModalProps) {
+export function UploadModal({
+  isOpen,
+  onClose,
+  currentFolder,
+  onSuccess,
+  isAdmin,
+}: UploadModalProps) {
   const [view, setView] = useState<ModalView>("main");
   const [files, setFiles] = useState<UploadFile[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({ done: 0, total: 0 });
+  const [pendingMessage, setPendingMessage] = useState<string | null>(null);
 
   // Folder creation state
   const [folderName, setFolderName] = useState("");
@@ -83,6 +92,7 @@ export function UploadModal({ isOpen, onClose, currentFolder, onSuccess }: Uploa
     setFolderSlug("");
     setCustomSlug(false);
     setArchiveAnalysis(null);
+    setPendingMessage(null);
   }
   if (isOpen && !prevIsOpen) {
     setPrevIsOpen(true);
@@ -128,15 +138,19 @@ export function UploadModal({ isOpen, onClose, currentFolder, onSuccess }: Uploa
         });
       }
 
-      // Check if this is an archive at root level
-      if (isAtRoot && newFiles.length === 1 && isArchive(newFiles[0].file.name)) {
+      // Check if this is an archive at root level (admin only)
+      if (isAdmin && isAtRoot && newFiles.length === 1 && isArchive(newFiles[0].file.name)) {
         // Analyze the archive
         analyzeArchive(newFiles[0].file);
         return;
       }
 
-      // At root, only archives allowed
+      // At root, only archives allowed (for admins) or no uploads (for non-admins)
       if (isAtRoot) {
+        if (!isAdmin) {
+          setError("Please select a folder to upload to.");
+          return;
+        }
         const nonArchives = newFiles.filter((f) => !isArchive(f.file.name));
         if (nonArchives.length > 0) {
           setError(
@@ -149,7 +163,7 @@ export function UploadModal({ isOpen, onClose, currentFolder, onSuccess }: Uploa
       setFiles(newFiles);
       setError(null);
     },
-    [isAtRoot],
+    [isAtRoot, isAdmin],
   );
 
   const analyzeArchive = async (file: File) => {
@@ -258,6 +272,10 @@ export function UploadModal({ isOpen, onClose, currentFolder, onSuccess }: Uploa
 
         if (result.error) {
           updatedFiles[i] = { ...uploadFile, status: "error", error: result.error };
+        } else if (result.pendingUpload) {
+          updatedFiles[i] = { ...uploadFile, status: "done" };
+          successCount++;
+          setPendingMessage(result.message);
         } else {
           updatedFiles[i] = { ...uploadFile, status: "done" };
           successCount++;
@@ -276,7 +294,8 @@ export function UploadModal({ isOpen, onClose, currentFolder, onSuccess }: Uploa
       onSuccess?.();
     }
 
-    if (successCount === files.length) {
+    // If all succeeded and none were pending, auto-close
+    if (successCount === files.length && !pendingMessage) {
       onClose();
     }
   };
@@ -327,7 +346,12 @@ export function UploadModal({ isOpen, onClose, currentFolder, onSuccess }: Uploa
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2 className="modal-title">
-            {view === "main" && (isAtRoot ? "Add to Library" : `Upload to ${currentFolder?.name}`)}
+            {view === "main" &&
+              (isAtRoot
+                ? "Add to Library"
+                : isAdmin
+                  ? `Upload to ${currentFolder?.name}`
+                  : `Upload to ${currentFolder?.name} (for review)`)}
             {view === "create-folder" && "Create Folder"}
             {view === "uploading" && "Uploading..."}
             {view === "archive-analysis" && "Archive Detected"}
@@ -340,8 +364,18 @@ export function UploadModal({ isOpen, onClose, currentFolder, onSuccess }: Uploa
         <div className="modal-body">
           {error && <div className="alert alert-error">{error}</div>}
 
+          {/* Pending upload success message (non-admin) */}
+          {pendingMessage && (
+            <div className="alert alert-success mb-4">
+              <p>{pendingMessage}</p>
+              <button type="button" className="btn mt-2" onClick={onClose}>
+                Close
+              </button>
+            </div>
+          )}
+
           {/* Main view */}
-          {view === "main" && (
+          {!pendingMessage && view === "main" && (
             <>
               {/* File selection area */}
               <div className="upload-zone">
@@ -364,7 +398,7 @@ export function UploadModal({ isOpen, onClose, currentFolder, onSuccess }: Uploa
 
                 {files.length === 0 ? (
                   <div className="upload-zone-empty">
-                    {isAtRoot ? (
+                    {isAtRoot && isAdmin ? (
                       <>
                         <p>Import an archive to create a new folder</p>
                         <p className="text-xs text-text-faint mt-1">Supported: PAK, PK3, ZIP</p>
@@ -377,6 +411,13 @@ export function UploadModal({ isOpen, onClose, currentFolder, onSuccess }: Uploa
                             Select Archive
                           </button>
                         </div>
+                      </>
+                    ) : isAtRoot && !isAdmin ? (
+                      <>
+                        <p>Navigate to a folder to upload files</p>
+                        <p className="text-xs text-text-faint mt-1">
+                          Select a folder first, then you can upload files for review.
+                        </p>
                       </>
                     ) : (
                       <>
@@ -444,15 +485,17 @@ export function UploadModal({ isOpen, onClose, currentFolder, onSuccess }: Uploa
                       : `Upload ${files.length} file${files.length !== 1 ? "s" : ""}`}
                   </button>
                 )}
-                <button type="button" className="btn" onClick={() => setView("create-folder")}>
-                  Create Folder
-                </button>
+                {isAdmin && (
+                  <button type="button" className="btn" onClick={() => setView("create-folder")}>
+                    Create Folder
+                  </button>
+                )}
               </div>
             </>
           )}
 
-          {/* Create folder view */}
-          {view === "create-folder" && (
+          {/* Create folder view (admin only) */}
+          {isAdmin && view === "create-folder" && (
             <form onSubmit={handleCreateFolder}>
               <div className="mb-4">
                 <label className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1">
@@ -510,8 +553,8 @@ export function UploadModal({ isOpen, onClose, currentFolder, onSuccess }: Uploa
             </form>
           )}
 
-          {/* Archive analysis view */}
-          {view === "archive-analysis" && archiveAnalysis && (
+          {/* Archive analysis view (admin only) */}
+          {isAdmin && view === "archive-analysis" && archiveAnalysis && (
             <>
               <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm mb-4">
                 <dt className="font-medium text-text-muted">File</dt>

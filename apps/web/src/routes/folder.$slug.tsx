@@ -527,6 +527,7 @@ export default function FolderView() {
         onClose={() => setShowUploadModal(false)}
         currentFolder={{ id: folder.id, slug: folder.slug, name: folder.name }}
         onSuccess={() => revalidator.revalidate()}
+        isAdmin={!!user.isAdmin}
       />
 
       {user.isAdmin && (
