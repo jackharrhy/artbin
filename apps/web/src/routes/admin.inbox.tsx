@@ -35,7 +35,73 @@ export async function loader({ context }: Route.LoaderArgs) {
   return { sessions, allFolders, uploaders, totalPendingFiles };
 }
 
-export async function action({ request, context }: Route.ActionArgs) {
+type ActionResult =
+  | { error: string }
+  | { success: true; action: string; count: number; sessionCount?: number };
+
+async function handleBulkAction(formData: FormData, _action: string): Promise<ActionResult> {
+  const filterUploaderId = (formData.get("filterUploaderId") as string) || null;
+
+  if (_action === "approve-all") {
+    const destinationFolderId = formData.get("destinationFolderId") as string;
+    if (!destinationFolderId) {
+      return { error: "Please select a destination folder" };
+    }
+
+    const destinationFolder = await db.query.folders.findFirst({
+      where: eq(folders.id, destinationFolderId),
+    });
+    if (!destinationFolder) {
+      return { error: "Destination folder not found" };
+    }
+
+    const allSessions = await getPendingSessionsWithFiles();
+    const sessions = filterUploaderId
+      ? allSessions.filter((s) => s.uploader?.id === filterUploaderId)
+      : allSessions;
+
+    let totalApproved = 0;
+    for (const session of sessions) {
+      const result = await approveSession(
+        session.folder.id,
+        destinationFolderId,
+        destinationFolder.slug,
+      );
+      totalApproved += result.approvedCount;
+    }
+
+    return {
+      success: true,
+      action: "approve-all",
+      count: totalApproved,
+      sessionCount: sessions.length,
+    };
+  }
+
+  if (_action === "reject-all") {
+    const allSessions = await getPendingSessionsWithFiles();
+    const sessions = filterUploaderId
+      ? allSessions.filter((s) => s.uploader?.id === filterUploaderId)
+      : allSessions;
+
+    let totalRejected = 0;
+    for (const session of sessions) {
+      const result = await rejectSession(session.folder.id);
+      totalRejected += result.rejectedCount;
+    }
+
+    return {
+      success: true,
+      action: "reject-all",
+      count: totalRejected,
+      sessionCount: sessions.length,
+    };
+  }
+
+  return { error: "Unknown bulk action" };
+}
+
+export async function action({ request, context }: Route.ActionArgs): Promise<ActionResult> {
   const user = context.get(userContext);
 
   if (!user.isAdmin) {
@@ -44,8 +110,14 @@ export async function action({ request, context }: Route.ActionArgs) {
 
   const formData = await request.formData();
   const _action = formData.get("_action") as string;
-  const sessionFolderId = formData.get("sessionFolderId") as string;
 
+  // Bulk actions (don't require sessionFolderId)
+  if (_action === "approve-all" || _action === "reject-all") {
+    return handleBulkAction(formData, _action);
+  }
+
+  // Single-session actions require sessionFolderId
+  const sessionFolderId = formData.get("sessionFolderId") as string;
   if (!sessionFolderId) {
     return { error: "Missing session folder ID" };
   }
@@ -75,67 +147,6 @@ export async function action({ request, context }: Route.ActionArgs) {
   if (_action === "reject") {
     const result = await rejectSession(sessionFolderId);
     return { success: true, action: "reject", count: result.rejectedCount };
-  }
-
-  if (_action === "approve-all") {
-    const destinationFolderId = formData.get("destinationFolderId") as string;
-    const filterUploaderId = formData.get("filterUploaderId") as string | null;
-
-    if (!destinationFolderId) {
-      return { error: "Please select a destination folder" };
-    }
-
-    const destinationFolder = await db.query.folders.findFirst({
-      where: eq(folders.id, destinationFolderId),
-    });
-
-    if (!destinationFolder) {
-      return { error: "Destination folder not found" };
-    }
-
-    const allSessions = await getPendingSessionsWithFiles();
-    const sessionsToApprove = filterUploaderId
-      ? allSessions.filter((s) => s.uploader?.id === filterUploaderId)
-      : allSessions;
-
-    let totalApproved = 0;
-    for (const session of sessionsToApprove) {
-      const result = await approveSession(
-        session.folder.id,
-        destinationFolderId,
-        destinationFolder.slug,
-      );
-      totalApproved += result.approvedCount;
-    }
-
-    return {
-      success: true,
-      action: "approve-all",
-      count: totalApproved,
-      sessionCount: sessionsToApprove.length,
-    };
-  }
-
-  if (_action === "reject-all") {
-    const filterUploaderId = formData.get("filterUploaderId") as string | null;
-
-    const allSessions = await getPendingSessionsWithFiles();
-    const sessionsToReject = filterUploaderId
-      ? allSessions.filter((s) => s.uploader?.id === filterUploaderId)
-      : allSessions;
-
-    let totalRejected = 0;
-    for (const session of sessionsToReject) {
-      const result = await rejectSession(session.folder.id);
-      totalRejected += result.rejectedCount;
-    }
-
-    return {
-      success: true,
-      action: "reject-all",
-      count: totalRejected,
-      sessionCount: sessionsToReject.length,
-    };
   }
 
   return { error: "Unknown action" };
@@ -207,31 +218,45 @@ export default function AdminInbox() {
         )}
       </h1>
 
-      {actionData?.error && <div className="alert alert-error mb-4">{actionData.error}</div>}
+      {actionData && "error" in actionData && (
+        <div className="alert alert-error mb-4">{actionData.error}</div>
+      )}
 
-      {actionData?.success && actionData.action === "approve" && (
+      {actionData && "success" in actionData && actionData.action === "approve" && (
         <div className="alert alert-success mb-4">
           Approved {actionData.count} file{actionData.count === 1 ? "" : "s"}.
         </div>
       )}
 
-      {actionData?.success && actionData.action === "reject" && (
+      {actionData && "success" in actionData && actionData.action === "reject" && (
         <div className="alert alert-success mb-4">
           Rejected {actionData.count} file{actionData.count === 1 ? "" : "s"}.
         </div>
       )}
 
-      {actionData?.success && actionData.action === "approve-all" && (
+      {actionData && "success" in actionData && actionData.action === "approve-all" && (
         <div className="alert alert-success mb-4">
-          Approved {actionData.count} file{actionData.count === 1 ? "" : "s"} across{" "}
-          {actionData.sessionCount} session{actionData.sessionCount === 1 ? "" : "s"}.
+          Approved {actionData.count} file{actionData.count === 1 ? "" : "s"}
+          {actionData.sessionCount != null && (
+            <>
+              {" "}
+              across {actionData.sessionCount} session{actionData.sessionCount === 1 ? "" : "s"}
+            </>
+          )}
+          .
         </div>
       )}
 
-      {actionData?.success && actionData.action === "reject-all" && (
+      {actionData && "success" in actionData && actionData.action === "reject-all" && (
         <div className="alert alert-success mb-4">
-          Rejected {actionData.count} file{actionData.count === 1 ? "" : "s"} across{" "}
-          {actionData.sessionCount} session{actionData.sessionCount === 1 ? "" : "s"}.
+          Rejected {actionData.count} file{actionData.count === 1 ? "" : "s"}
+          {actionData.sessionCount != null && (
+            <>
+              {" "}
+              across {actionData.sessionCount} session{actionData.sessionCount === 1 ? "" : "s"}
+            </>
+          )}
+          .
         </div>
       )}
 
