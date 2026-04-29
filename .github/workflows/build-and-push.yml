@@ -42,6 +42,9 @@ jobs:
       - name: Build
         run: pnpm run --filter @artbin/web build
 
+      - name: HTTP integration tests
+        run: pnpm run --filter @artbin/web test
+
   push:
     needs: check
     runs-on: ubuntu-latest
