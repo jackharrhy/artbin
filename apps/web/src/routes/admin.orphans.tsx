@@ -230,6 +230,34 @@ export async function action({ request, context }: Route.ActionArgs) {
     return { success: true, action: _action, deleted };
   }
 
+  if (_action === "delete-duplicates") {
+    const keepId = formData.get("keepId") as string;
+    const deleteIdsRaw = formData.get("deleteIds") as string;
+    const deleteIds: string[] = deleteIdsRaw ? JSON.parse(deleteIdsRaw) : [];
+
+    let deleted = 0;
+    for (const id of deleteIds) {
+      // Safety: never delete the file we're keeping
+      if (id === keepId) continue;
+
+      const file = await db.query.files.findFirst({
+        where: eq(files.id, id),
+        columns: { id: true, path: true },
+      });
+      if (!file) continue;
+
+      try {
+        await deleteFile(file.path);
+      } catch {
+        // disk file may already be gone
+      }
+      const result = await deleteFileRecord(id);
+      if (result.isOk()) deleted++;
+    }
+
+    return { success: true, action: _action, deleted };
+  }
+
   if (_action === "backfill-hashes") {
     const job = await createJob({
       type: "backfill-hashes",
@@ -433,8 +461,36 @@ export default function AdminOrphans() {
                   </p>
                   <ul className="text-sm space-y-1">
                     {group.files.map((f) => (
-                      <li key={f.id} className="text-text-muted">
-                        <span className="font-mono text-xs">{f.path}</span>
+                      <li key={f.id} className="flex items-center justify-between gap-2">
+                        <span className="font-mono text-xs text-text-muted truncate">{f.path}</span>
+                        <Form method="post" className="shrink-0">
+                          <input type="hidden" name="_action" value="delete-duplicates" />
+                          <input type="hidden" name="keepId" value={f.id} />
+                          <input
+                            type="hidden"
+                            name="deleteIds"
+                            value={JSON.stringify(
+                              group.files.filter((o) => o.id !== f.id).map((o) => o.id),
+                            )}
+                          />
+                          <button
+                            type="submit"
+                            className="btn btn-sm text-xs"
+                            disabled={isSubmitting}
+                            onClick={(e) => {
+                              const others = group.count - 1;
+                              if (
+                                !confirm(
+                                  `Keep "${f.path}" and delete ${others} duplicate${others === 1 ? "" : "s"}?`,
+                                )
+                              ) {
+                                e.preventDefault();
+                              }
+                            }}
+                          >
+                            Keep
+                          </button>
+                        </Form>
                       </li>
                     ))}
                   </ul>
