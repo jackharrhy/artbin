@@ -8,7 +8,7 @@ import {
 } from "react-router";
 import { useState, useCallback } from "react";
 import type { Route } from "./+types/folder.$slug";
-import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
+import { userContext } from "~/lib/auth-context.server";
 import { db } from "~/db/connection.server";
 import { folders, files, tags } from "~/db";
 import { eq, desc, count } from "drizzle-orm";
@@ -26,13 +26,8 @@ import {
   getFileCountsByKind,
 } from "~/lib/files.server";
 
-export async function loader({ request, params }: Route.LoaderArgs) {
-  const sessionId = parseSessionCookie(request.headers.get("Cookie"));
-  const user = await getUserFromSession(sessionId);
-
-  if (!user) {
-    return redirect("/login");
-  }
+export async function loader({ request, params, context }: Route.LoaderArgs) {
+  const user = context.get(userContext);
 
   // Combine slug and splat for nested folder paths
   const slug = params["*"] ? `${params.slug}/${params["*"]}` : params.slug!;
@@ -155,11 +150,10 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   };
 }
 
-export async function action({ request, params }: Route.ActionArgs) {
-  const sessionId = parseSessionCookie(request.headers.get("Cookie"));
-  const user = await getUserFromSession(sessionId);
+export async function action({ request, params, context }: Route.ActionArgs) {
+  const user = context.get(userContext);
 
-  if (!user || !user.isAdmin) {
+  if (!user.isAdmin) {
     return { error: "Unauthorized" };
   }
 

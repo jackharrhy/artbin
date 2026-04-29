@@ -1,8 +1,8 @@
-import { useLoaderData, redirect, useFetcher, useRevalidator } from "react-router";
+import { useLoaderData, useFetcher, useRevalidator } from "react-router";
 import { useState, useCallback } from "react";
 import { UploadModal } from "~/components/UploadModal";
 import type { Route } from "./+types/folders";
-import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
+import { userContext } from "~/lib/auth-context.server";
 import { db } from "~/db/connection.server";
 import { folders, files, tags } from "~/db";
 import { eq, isNull, count, desc, sql } from "drizzle-orm";
@@ -12,13 +12,8 @@ import { FileGrid } from "~/components/FileGrid";
 import { FileList } from "~/components/FileList";
 import { searchFiles, getFileCountsByKind } from "~/lib/files.server";
 
-export async function loader({ request }: Route.LoaderArgs) {
-  const sessionId = parseSessionCookie(request.headers.get("Cookie"));
-  const user = await getUserFromSession(sessionId);
-
-  if (!user) {
-    return redirect("/login");
-  }
+export async function loader({ request, context }: Route.LoaderArgs) {
+  const user = context.get(userContext);
 
   const url = new URL(request.url);
   const view = (url.searchParams.get("view") || "folders") as ViewMode;

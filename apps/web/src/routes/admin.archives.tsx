@@ -1,7 +1,7 @@
 import { Form, redirect, useLoaderData, useActionData, useRevalidator } from "react-router";
 import { useState, useEffect, useMemo } from "react";
 import type { Route } from "./+types/admin.archives";
-import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
+import { userContext } from "~/lib/auth-context.server";
 import { db } from "~/db/connection.server";
 import { jobs } from "~/db";
 import { eq, desc } from "drizzle-orm";
@@ -22,16 +22,11 @@ interface TreeNode {
   archives: FoundArchive[];
 }
 
-export async function loader({ request }: Route.LoaderArgs) {
-  const sessionId = parseSessionCookie(request.headers.get("Cookie"));
-  const user = await getUserFromSession(sessionId);
-
-  if (!user) {
-    return redirect("/login");
-  }
+export async function loader({ context }: Route.LoaderArgs) {
+  const user = context.get(userContext);
 
   if (!user.isAdmin) {
-    return redirect("/folders");
+    throw redirect("/folders");
   }
 
   // Get most recent scan job
@@ -70,11 +65,10 @@ export async function loader({ request }: Route.LoaderArgs) {
   };
 }
 
-export async function action({ request }: Route.ActionArgs) {
-  const sessionId = parseSessionCookie(request.headers.get("Cookie"));
-  const user = await getUserFromSession(sessionId);
+export async function action({ request, context }: Route.ActionArgs) {
+  const user = context.get(userContext);
 
-  if (!user || !user.isAdmin) {
+  if (!user.isAdmin) {
     return { error: "Unauthorized" };
   }
 

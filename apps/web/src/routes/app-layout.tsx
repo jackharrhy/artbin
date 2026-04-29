@@ -1,11 +1,12 @@
 import { Outlet, useLoaderData } from "react-router";
 import type { Route } from "./+types/app-layout";
-import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
+import { authMiddleware, userContext } from "~/lib/auth-context.server";
 import { Header } from "~/components/Header";
 
-export async function loader({ request }: Route.LoaderArgs) {
-  const sessionId = parseSessionCookie(request.headers.get("Cookie"));
-  const user = await getUserFromSession(sessionId);
+export const middleware = [authMiddleware];
+
+export function loader({ context }: Route.LoaderArgs) {
+  const user = context.get(userContext);
   return { user };
 }
 

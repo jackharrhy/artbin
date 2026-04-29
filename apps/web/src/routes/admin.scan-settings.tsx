@@ -1,18 +1,13 @@
 import { Form, redirect, useLoaderData, useActionData } from "react-router";
 import type { Route } from "./+types/admin.scan-settings";
-import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
+import { userContext } from "~/lib/auth-context.server";
 import type { ScanSettings } from "~/lib/settings.server";
 
-export async function loader({ request }: Route.LoaderArgs) {
-  const sessionId = parseSessionCookie(request.headers.get("Cookie"));
-  const user = await getUserFromSession(sessionId);
-
-  if (!user) {
-    return redirect("/login");
-  }
+export async function loader({ context }: Route.LoaderArgs) {
+  const user = context.get(userContext);
 
   if (!user.isAdmin) {
-    return redirect("/folders");
+    throw redirect("/folders");
   }
 
   // Import server module inside loader
@@ -27,11 +22,10 @@ export async function loader({ request }: Route.LoaderArgs) {
   };
 }
 
-export async function action({ request }: Route.ActionArgs) {
-  const sessionId = parseSessionCookie(request.headers.get("Cookie"));
-  const user = await getUserFromSession(sessionId);
+export async function action({ request, context }: Route.ActionArgs) {
+  const user = context.get(userContext);
 
-  if (!user || !user.isAdmin) {
+  if (!user.isAdmin) {
     return { error: "Unauthorized" };
   }
 

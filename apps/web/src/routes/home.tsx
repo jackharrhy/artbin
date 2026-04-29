@@ -1,17 +1,9 @@
 import { redirect } from "react-router";
-import type { Route } from "./+types/home";
-import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
 
-export async function loader({ request }: Route.LoaderArgs) {
-  const sessionId = parseSessionCookie(request.headers.get("Cookie"));
-  const user = await getUserFromSession(sessionId);
-
-  // If logged in, go straight to folders
-  if (user) {
-    return redirect("/folders");
-  }
-
-  return null;
+export function loader() {
+  // Middleware guarantees we're authenticated at this point,
+  // so always redirect to folders
+  return redirect("/folders");
 }
 
 export function meta() {

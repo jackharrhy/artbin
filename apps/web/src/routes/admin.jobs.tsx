@@ -1,21 +1,16 @@
 import { useLoaderData, redirect, useRevalidator, Form, useNavigation } from "react-router";
 import type { Route } from "./+types/admin.jobs";
-import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
+import { userContext } from "~/lib/auth-context.server";
 import { getAllJobs, deleteJob, cancelJob, resetStuckJob, isJobStuck } from "~/lib/jobs.server";
 import { useEffect } from "react";
 
 const STUCK_THRESHOLD_MINUTES = 30;
 
-export async function loader({ request }: Route.LoaderArgs) {
-  const sessionId = parseSessionCookie(request.headers.get("Cookie"));
-  const user = await getUserFromSession(sessionId);
-
-  if (!user) {
-    return redirect("/login");
-  }
+export async function loader({ context }: Route.LoaderArgs) {
+  const user = context.get(userContext);
 
   if (!user.isAdmin) {
-    return redirect("/");
+    throw redirect("/");
   }
 
   const jobs = await getAllJobs(100);
@@ -29,11 +24,10 @@ export async function loader({ request }: Route.LoaderArgs) {
   return { user, jobs: jobsWithStatus };
 }
 
-export async function action({ request }: Route.ActionArgs) {
-  const sessionId = parseSessionCookie(request.headers.get("Cookie"));
-  const user = await getUserFromSession(sessionId);
+export async function action({ request, context }: Route.ActionArgs) {
+  const user = context.get(userContext);
 
-  if (!user || !user.isAdmin) {
+  if (!user.isAdmin) {
     return { error: "Unauthorized" };
   }
 

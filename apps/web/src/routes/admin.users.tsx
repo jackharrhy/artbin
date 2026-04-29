@@ -1,20 +1,15 @@
 import { useLoaderData, redirect } from "react-router";
 import type { Route } from "./+types/admin.users";
-import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
+import { userContext } from "~/lib/auth-context.server";
 import { db } from "~/db/connection.server";
 import { users } from "~/db";
 import { desc } from "drizzle-orm";
 
-export async function loader({ request }: Route.LoaderArgs) {
-  const sessionId = parseSessionCookie(request.headers.get("Cookie"));
-  const user = await getUserFromSession(sessionId);
-
-  if (!user) {
-    return redirect("/login");
-  }
+export async function loader({ context }: Route.LoaderArgs) {
+  const user = context.get(userContext);
 
   if (!user.isAdmin) {
-    return redirect("/");
+    throw redirect("/");
   }
 
   const allUsers = await db

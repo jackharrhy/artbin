@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { useLoaderData, redirect } from "react-router";
+import { useLoaderData } from "react-router";
 import type { Route } from "./+types/file.$";
-import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
+import { userContext } from "~/lib/auth-context.server";
 import { db } from "~/db/connection.server";
 import { files, folders, fileTags, tags } from "~/db";
 import { eq } from "drizzle-orm";
@@ -65,13 +65,8 @@ function getTextureUrl(textureFile: { path: string; hasPreview: boolean | null }
   return `/uploads/${textureFile.path}`;
 }
 
-export async function loader({ request, params }: Route.LoaderArgs) {
-  const sessionId = parseSessionCookie(request.headers.get("Cookie"));
-  const user = await getUserFromSession(sessionId);
-
-  if (!user) {
-    return redirect("/login");
-  }
+export async function loader({ params, context }: Route.LoaderArgs) {
+  const user = context.get(userContext);
 
   // Get file path from splat
   const filePath = params["*"];

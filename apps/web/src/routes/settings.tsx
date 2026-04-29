@@ -1,35 +1,21 @@
 import { redirect, useLoaderData, Form } from "react-router";
 import type { Route } from "./+types/settings";
-import {
-  parseSessionCookie,
-  getUserFromSession,
-  getClearSessionCookie,
-  logout,
-} from "~/lib/auth.server";
+import { userContext } from "~/lib/auth-context.server";
+import { parseSessionCookie, getClearSessionCookie, logout } from "~/lib/auth.server";
 
-export async function loader({ request }: Route.LoaderArgs) {
-  const sessionId = parseSessionCookie(request.headers.get("Cookie"));
-  const user = await getUserFromSession(sessionId);
-
-  if (!user) {
-    return redirect("/login");
-  }
-
+export function loader({ context }: Route.LoaderArgs) {
+  const user = context.get(userContext);
   return { user };
 }
 
-export async function action({ request }: Route.ActionArgs) {
-  const sessionId = parseSessionCookie(request.headers.get("Cookie"));
-  const user = await getUserFromSession(sessionId);
-
-  if (!user) {
-    return redirect("/login");
-  }
+export async function action({ request, context }: Route.ActionArgs) {
+  const user = context.get(userContext);
 
   const formData = await request.formData();
   const intent = formData.get("intent");
 
   if (intent === "logout") {
+    const sessionId = parseSessionCookie(request.headers.get("Cookie"));
     if (sessionId) {
       await logout(sessionId);
     }
