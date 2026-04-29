@@ -12,6 +12,7 @@ export default [
       route("import", "routes/admin.import.tsx"),
       route("archives", "routes/admin.archives.tsx"),
       route("scan-settings", "routes/admin.scan-settings.tsx"),
+      route("users", "routes/admin.users.tsx"),
     ]),
   ]),
   layout("routes/auth-layout.tsx", [route("login", "routes/login.tsx")]),

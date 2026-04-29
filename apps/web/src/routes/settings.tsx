@@ -88,6 +88,9 @@ export default function Settings() {
             <a href="/admin/import" className="btn btn-sm">
               Import Textures
             </a>
+            <a href="/admin/users" className="btn btn-sm">
+              Users
+            </a>
           </div>
         </section>
       )}
