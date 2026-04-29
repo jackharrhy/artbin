@@ -4,7 +4,7 @@ import { join, dirname } from "path";
 
 const paths = envPaths("artbin", { suffix: "" });
 const CONFIG_FILE = join(paths.config, "config.json");
-const DEFAULT_SERVER_URL = "https://artbin.jack.is";
+const DEFAULT_SERVER_URL = "https://artbin.jackharrhy.dev";
 
 export interface Config {
   serverUrl: string;
