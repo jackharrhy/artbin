@@ -2,7 +2,7 @@ import { existsSync } from "fs";
 import { basename, extname } from "path";
 import { db } from "~/db/connection.server";
 import { folders, files, users } from "~/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import {
   ensureDir,
@@ -60,6 +60,29 @@ export async function createUploadSession(
 }
 
 /**
+ * Collect all folder IDs in a session's tree (the session folder itself
+ * plus any subfolders created from relativePath structure).
+ */
+async function getSessionFolderIds(sessionFolderId: string): Promise<string[]> {
+  const ids: string[] = [sessionFolderId];
+  const queue = [sessionFolderId];
+
+  while (queue.length > 0) {
+    const parentId = queue.shift()!;
+    const children = await db.query.folders.findMany({
+      where: eq(folders.parentId, parentId),
+      columns: { id: true },
+    });
+    for (const child of children) {
+      ids.push(child.id);
+      queue.push(child.id);
+    }
+  }
+
+  return ids;
+}
+
+/**
  * Find a unique destination path by appending -2, -3, etc. if a file
  * already exists at the target path (in the DB or on disk).
  */
@@ -88,22 +111,44 @@ export async function approveSession(
   destinationFolderId: string,
   destinationSlug: string,
 ): Promise<{ approvedCount: number; skippedCount: number }> {
+  // Find all pending files across the session tree (including subfolders)
+  const sessionFolderIds = await getSessionFolderIds(sessionFolderId);
+
+  // Build a map of folder ID -> slug for computing relative paths
+  const folderSlugMap = new Map<string, string>();
+  for (const fid of sessionFolderIds) {
+    const f = await db.query.folders.findFirst({
+      where: eq(folders.id, fid),
+      columns: { id: true, slug: true },
+    });
+    if (f) folderSlugMap.set(f.id, f.slug);
+  }
+
+  const sessionSlug = folderSlugMap.get(sessionFolderId) ?? "";
+
   const pendingFiles = await db.query.files.findMany({
-    where: and(eq(files.folderId, sessionFolderId), eq(files.status, "pending")),
+    where: and(inArray(files.folderId, sessionFolderIds), eq(files.status, "pending")),
   });
 
   let skippedCount = 0;
 
   for (const file of pendingFiles) {
-    const newPath = await findUniquePath(destinationSlug, file.name);
+    // Compute destination path preserving subfolder structure
+    // e.g. session slug = "_inbox/abc123", file's folder slug = "_inbox/abc123/metals/rusty"
+    //   -> relative = "metals/rusty", dest path = "destination/metals/rusty/file.bmp"
+    const fileFolderSlug = folderSlugMap.get(file.folderId) ?? sessionSlug;
+    const relative = fileFolderSlug.startsWith(sessionSlug + "/")
+      ? fileFolderSlug.slice(sessionSlug.length + 1)
+      : "";
+    const destSubfolder = relative ? `${destinationSlug}/${relative}` : destinationSlug;
+
+    const newPath = await findUniquePath(destSubfolder, file.name);
 
     // Move file on disk, skip gracefully if source is missing
     const sourcePath = getFilePath(file.path);
     if (existsSync(sourcePath)) {
       await moveFile(file.path, newPath);
     } else {
-      // File record exists but disk file is gone -- mark approved anyway
-      // so the record isn't stuck in the inbox forever.
       skippedCount++;
     }
 
@@ -119,7 +164,7 @@ export async function approveSession(
 
   await recalculateFolderCounts([destinationFolderId]);
 
-  // Delete the empty session folder record and its disk directory
+  // Delete session folder tree (disk + DB)
   const sessionFolder = await db.query.folders.findFirst({
     where: eq(folders.id, sessionFolderId),
   });
@@ -128,14 +173,21 @@ export async function approveSession(
     await deleteFolder(sessionFolder.slug);
   }
 
+  // Delete subfolders first (children before parent)
+  const subfolderIds = sessionFolderIds.filter((id) => id !== sessionFolderId);
+  if (subfolderIds.length > 0) {
+    await db.delete(folders).where(inArray(folders.id, subfolderIds));
+  }
   await db.delete(folders).where(eq(folders.id, sessionFolderId));
 
   return { approvedCount: pendingFiles.length, skippedCount };
 }
 
 export async function rejectSession(sessionFolderId: string): Promise<{ rejectedCount: number }> {
+  const sessionFolderIds = await getSessionFolderIds(sessionFolderId);
+
   const pendingFiles = await db.query.files.findMany({
-    where: and(eq(files.folderId, sessionFolderId), eq(files.status, "pending")),
+    where: and(inArray(files.folderId, sessionFolderIds), eq(files.status, "pending")),
   });
 
   // Move rejected files to the inbox folder so they survive the cascade
@@ -149,6 +201,11 @@ export async function rejectSession(sessionFolderId: string): Promise<{ rejected
       .where(eq(files.id, file.id));
   }
 
+  // Delete subfolders first, then session folder
+  const subfolderIds = sessionFolderIds.filter((id) => id !== sessionFolderId);
+  if (subfolderIds.length > 0) {
+    await db.delete(folders).where(inArray(folders.id, subfolderIds));
+  }
   await db.delete(folders).where(eq(folders.id, sessionFolderId));
 
   return { rejectedCount: pendingFiles.length };
@@ -182,8 +239,10 @@ export async function getPendingSessionsWithFiles(): Promise<
   }> = [];
 
   for (const sessionFolder of sessionFolders) {
+    // Find files across the whole session tree (including subfolders)
+    const sessionFolderIds = await getSessionFolderIds(sessionFolder.id);
     const pendingFiles = await db.query.files.findMany({
-      where: and(eq(files.folderId, sessionFolder.id), eq(files.status, "pending")),
+      where: and(inArray(files.folderId, sessionFolderIds), eq(files.status, "pending")),
     });
 
     if (pendingFiles.length === 0) {

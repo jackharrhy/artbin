@@ -221,9 +221,45 @@ async function handleNonAdminUpload(
 
     const buffer = Buffer.from(await file.arrayBuffer());
 
+    // Preserve folder structure from relativePath within the session folder
+    // e.g. "metals/rusty/panel.bmp" creates subfolders _inbox/<session>/metals/rusty/
+    let targetFolderSlug = session.slug;
+    let targetFolderId = session.id;
+
+    if (relativePath && relativePath.includes("/")) {
+      const pathParts = relativePath.split("/");
+      pathParts.pop(); // Remove filename
+
+      for (const part of pathParts) {
+        if (!part) continue;
+
+        const nestedSlug = `${targetFolderSlug}/${part.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+
+        let nestedFolder = await db.query.folders.findFirst({
+          where: eq(folders.slug, nestedSlug),
+        });
+
+        if (!nestedFolder) {
+          const nestedId = nanoid();
+          await db.insert(folders).values({
+            id: nestedId,
+            name: part,
+            slug: nestedSlug,
+            parentId: targetFolderId,
+            ownerId: userId,
+          });
+          targetFolderSlug = nestedSlug;
+          targetFolderId = nestedId;
+        } else {
+          targetFolderSlug = nestedSlug;
+          targetFolderId = nestedFolder.id;
+        }
+      }
+    }
+
     const { path: filePath, name: savedName } = await saveFile(
       buffer,
-      session.slug,
+      targetFolderSlug,
       relativePath ? basename(relativePath) : file.name,
       true,
     );
@@ -256,7 +292,7 @@ async function handleNonAdminUpload(
       width,
       height,
       hasPreview,
-      folderId: session.id,
+      folderId: targetFolderId,
       uploaderId: userId,
       source: "upload",
       sha256,
