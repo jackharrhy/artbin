@@ -19,14 +19,19 @@ export function generateCodeChallenge(verifier: string): string {
   return crypto.createHash("sha256").update(verifier).digest("base64url");
 }
 
+export function getCliRedirectUri(): string {
+  return `${ARTBIN_BASE_URL}/auth/cli/callback`;
+}
+
 export async function exchangeCode(
   code: string,
   codeVerifier: string,
+  redirectUri: string = FOURM_REDIRECT_URI,
 ): Promise<{ access_token: string; token_type: string; expires_in: number }> {
   const body = new URLSearchParams({
     grant_type: "authorization_code",
     code,
-    redirect_uri: FOURM_REDIRECT_URI,
+    redirect_uri: redirectUri,
     client_id: FOURM_CLIENT_ID,
     code_verifier: codeVerifier,
   });

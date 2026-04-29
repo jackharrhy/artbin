@@ -20,6 +20,8 @@ export default [
   // OAuth routes (no layout -- server-side redirects only)
   route("auth/4orm", "routes/auth.4orm.tsx"),
   route("auth/4orm/callback", "routes/auth.4orm.callback.tsx"),
+  route("auth/cli/authorize", "routes/auth.cli.authorize.tsx"),
+  route("auth/cli/callback", "routes/auth.cli.callback.tsx"),
 
   // API routes
   route("api/upload", "routes/api.upload.tsx"),
