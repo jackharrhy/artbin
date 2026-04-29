@@ -85,6 +85,14 @@ export const files = sqliteTable(
     sourceArchive: text("source_archive"), // Original archive filename if extracted
     sha256: text("sha256"),
 
+    // Moderation
+    status: text("status", { enum: ["pending", "approved", "rejected"] as const })
+      .notNull()
+      .default("approved"),
+    suggestedFolderId: text("suggested_folder_id").references(() => folders.id, {
+      onDelete: "set null",
+    }),
+
     createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn((): Date => new Date()),
   },
   (table) => ({
@@ -92,6 +100,7 @@ export const files = sqliteTable(
     kindIdx: index("idx_files_kind").on(table.kind),
     createdAtIdx: index("idx_files_created_at").on(table.createdAt),
     kindCreatedIdx: index("idx_files_kind_created").on(table.kind, table.createdAt),
+    statusIdx: index("idx_files_status").on(table.status),
   }),
 );
 

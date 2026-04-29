@@ -446,6 +446,8 @@ export interface CreateFileRecord {
   source?: string | null;
   sourceArchive?: string | null;
   sha256?: string | null;
+  status?: "pending" | "approved" | "rejected";
+  suggestedFolderId?: string | null;
 }
 
 /**
@@ -469,6 +471,8 @@ export async function insertFileRecord(record: CreateFileRecord): Promise<Result
       source: record.source ?? null,
       sourceArchive: record.sourceArchive ?? null,
       sha256: record.sha256 ?? null,
+      status: record.status ?? "approved",
+      suggestedFolderId: record.suggestedFolderId ?? null,
     });
 
     // Increment folder's file count
