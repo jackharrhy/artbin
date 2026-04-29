@@ -227,6 +227,119 @@ describe("approveSession", () => {
       expect(file?.path).toMatch(/^textures\//);
     }
   });
+
+  test("with subfolders creates destination subfolder records and assigns files correctly", async () => {
+    const db = setupDatabase();
+    await seedUser(db);
+
+    await db.insert(folders).values([
+      { id: "inbox-1", name: INBOX_NAME, slug: INBOX_SLUG },
+      {
+        id: "session-1",
+        name: "abc123",
+        slug: "_inbox/abc123",
+        parentId: "inbox-1",
+        ownerId: "user-1",
+      },
+      {
+        id: "session-sub-1",
+        name: "concrete",
+        slug: "_inbox/abc123/concrete",
+        parentId: "session-1",
+        ownerId: "user-1",
+      },
+      {
+        id: "session-sub-2",
+        name: "metal",
+        slug: "_inbox/abc123/metal",
+        parentId: "session-1",
+        ownerId: "user-1",
+      },
+      { id: "dest-1", name: "Textures", slug: "textures" },
+    ]);
+
+    await db.insert(files).values([
+      {
+        id: "file-root",
+        path: "_inbox/abc123/readme.txt",
+        name: "readme.txt",
+        mimeType: "text/plain",
+        size: 50,
+        kind: "other",
+        folderId: "session-1",
+        status: "pending",
+      },
+      {
+        id: "file-concrete",
+        path: "_inbox/abc123/concrete/wall.bmp",
+        name: "wall.bmp",
+        mimeType: "image/bmp",
+        size: 100,
+        kind: "texture",
+        folderId: "session-sub-1",
+        status: "pending",
+      },
+      {
+        id: "file-metal",
+        path: "_inbox/abc123/metal/rust.bmp",
+        name: "rust.bmp",
+        mimeType: "image/bmp",
+        size: 200,
+        kind: "texture",
+        folderId: "session-sub-2",
+        status: "pending",
+      },
+    ]);
+
+    const result = await approveSession("session-1", "dest-1", "textures");
+
+    expect(result.approvedCount).toBe(3);
+
+    // Root file should be in the destination folder directly
+    const rootFile = await db.query.files.findFirst({
+      where: eq(files.id, "file-root"),
+    });
+    expect(rootFile?.status).toBe("approved");
+    expect(rootFile?.folderId).toBe("dest-1");
+    expect(rootFile?.path).toBe("textures/readme.txt");
+
+    // Concrete subfolder should exist in destination
+    const concreteFolder = await db.query.folders.findFirst({
+      where: eq(folders.slug, "textures/concrete"),
+    });
+    expect(concreteFolder).toBeTruthy();
+    expect(concreteFolder?.parentId).toBe("dest-1");
+    expect(concreteFolder?.name).toBe("concrete");
+
+    // File in concrete should point to the concrete folder
+    const concreteFile = await db.query.files.findFirst({
+      where: eq(files.id, "file-concrete"),
+    });
+    expect(concreteFile?.status).toBe("approved");
+    expect(concreteFile?.folderId).toBe(concreteFolder!.id);
+    expect(concreteFile?.path).toBe("textures/concrete/wall.bmp");
+
+    // Metal subfolder should exist in destination
+    const metalFolder = await db.query.folders.findFirst({
+      where: eq(folders.slug, "textures/metal"),
+    });
+    expect(metalFolder).toBeTruthy();
+    expect(metalFolder?.parentId).toBe("dest-1");
+
+    // File in metal should point to the metal folder
+    const metalFile = await db.query.files.findFirst({
+      where: eq(files.id, "file-metal"),
+    });
+    expect(metalFile?.status).toBe("approved");
+    expect(metalFile?.folderId).toBe(metalFolder!.id);
+    expect(metalFile?.path).toBe("textures/metal/rust.bmp");
+
+    // Session folders should be deleted
+    const sessionFolder = await db.query.folders.findFirst({
+      where: eq(folders.id, "session-1"),
+    });
+    expect(sessionFolder).toBeUndefined();
+  });
 });
 
 describe("rejectSession", () => {

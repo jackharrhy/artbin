@@ -132,17 +132,71 @@ export async function approveSession(
 
   let skippedCount = 0;
 
+  // Cache for destination subfolder resolution: relative path -> { id, slug }
+  const destFolderCache = new Map<string, { id: string; slug: string }>();
+  destFolderCache.set("", { id: destinationFolderId, slug: destinationSlug });
+
+  // Resolve (or create) a destination folder for a given relative path
+  // e.g. relative = "metals/rusty" -> creates textures/metals, then textures/metals/rusty
+  async function resolveDestFolder(relative: string): Promise<{ id: string; slug: string }> {
+    if (destFolderCache.has(relative)) return destFolderCache.get(relative)!;
+
+    const parts = relative.split("/");
+    let currentId = destinationFolderId;
+    let currentSlug = destinationSlug;
+
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      const partialRelative = parts.slice(0, i + 1).join("/");
+
+      if (destFolderCache.has(partialRelative)) {
+        const cached = destFolderCache.get(partialRelative)!;
+        currentId = cached.id;
+        currentSlug = cached.slug;
+        continue;
+      }
+
+      const nestedSlug = `${currentSlug}/${part}`;
+      let existing = await db.query.folders.findFirst({
+        where: eq(folders.slug, nestedSlug),
+      });
+
+      if (!existing) {
+        const newId = nanoid();
+        await db.insert(folders).values({
+          id: newId,
+          name: part,
+          slug: nestedSlug,
+          parentId: currentId,
+        });
+        currentId = newId;
+        currentSlug = nestedSlug;
+      } else {
+        currentId = existing.id;
+        currentSlug = existing.slug;
+      }
+      destFolderCache.set(partialRelative, { id: currentId, slug: currentSlug });
+    }
+
+    return { id: currentId, slug: currentSlug };
+  }
+
+  const touchedFolderIds = new Set<string>([destinationFolderId]);
+
   for (const file of pendingFiles) {
-    // Compute destination path preserving subfolder structure
+    // Compute relative subfolder path from session structure
     // e.g. session slug = "_inbox/abc123", file's folder slug = "_inbox/abc123/metals/rusty"
-    //   -> relative = "metals/rusty", dest path = "destination/metals/rusty/file.bmp"
+    //   -> relative = "metals/rusty"
     const fileFolderSlug = folderSlugMap.get(file.folderId) ?? sessionSlug;
     const relative = fileFolderSlug.startsWith(sessionSlug + "/")
       ? fileFolderSlug.slice(sessionSlug.length + 1)
       : "";
-    const destSubfolder = relative ? `${destinationSlug}/${relative}` : destinationSlug;
 
-    const newPath = await findUniquePath(destSubfolder, file.name);
+    // Resolve the destination folder (creating subfolder records as needed)
+    const destFolder = await resolveDestFolder(relative);
+    touchedFolderIds.add(destFolder.id);
+
+    const newPath = await findUniquePath(destFolder.slug, file.name);
 
     // Move file on disk, skip gracefully if source is missing
     const sourcePath = getFilePath(file.path);
@@ -156,13 +210,13 @@ export async function approveSession(
       .update(files)
       .set({
         status: "approved",
-        folderId: destinationFolderId,
+        folderId: destFolder.id,
         path: newPath,
       })
       .where(eq(files.id, file.id));
   }
 
-  await recalculateFolderCounts([destinationFolderId]);
+  await recalculateFolderCounts([...touchedFolderIds]);
 
   // Delete session folder tree (disk + DB)
   const sessionFolder = await db.query.folders.findFirst({
