@@ -3,12 +3,12 @@ import { settings } from "~/db";
 import { eq } from "drizzle-orm";
 import { Result } from "better-result";
 import {
-  type ScanSettings,
   DEFAULT_EXCLUDE_DIRS,
   DEFAULT_EXCLUDE_FILENAMES,
   DEFAULT_EXCLUDE_PATH_PATTERNS,
   DEFAULT_KNOWN_GAME_DIRS,
-} from "@artbin/core/scanning";
+  type ScanSettings,
+} from "@artbin/core/scanning/settings";
 
 export type { ScanSettings };
 

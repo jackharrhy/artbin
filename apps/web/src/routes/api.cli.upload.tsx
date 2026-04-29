@@ -5,8 +5,9 @@ import { folders } from "~/db";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { basename, dirname } from "path";
-import { detectKind, getMimeType } from "@artbin/core";
-import { isBSPFile } from "@artbin/core/parsers";
+import { detectKind } from "@artbin/core/detection/kind";
+import { getMimeType } from "@artbin/core/detection/mime";
+import { isBSPFile } from "@artbin/core/parsers/bsp";
 import {
   saveFile,
   processImage,

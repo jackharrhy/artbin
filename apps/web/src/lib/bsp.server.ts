@@ -10,5 +10,7 @@ export {
   extractTexturesFromBSP,
   isBSPFile,
   getBSPVersion,
-} from "@artbin/core/parsers";
-export type { BSPHeader, MipTexture, ExtractedTexture } from "@artbin/core/parsers";
+  type BSPHeader,
+  type MipTexture,
+  type ExtractedTexture,
+} from "@artbin/core/parsers/bsp";

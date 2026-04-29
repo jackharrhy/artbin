@@ -15,8 +15,10 @@ import {
   parseArchive as parseArchiveFromBuffer,
   getDirectoryPaths,
   getFileEntries,
-} from "@artbin/core/parsers";
-import type { ArchiveEntry, ParsedArchive, ArchiveType } from "@artbin/core/parsers";
+  type ArchiveEntry,
+  type ParsedArchive,
+  type ArchiveType,
+} from "@artbin/core/parsers/archives";
 
 // Re-export types and pure functions for backward compatibility
 export type { ArchiveEntry, ParsedArchive, ArchiveType };

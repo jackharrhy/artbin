@@ -9,10 +9,10 @@ import {
   isImageKind,
   needsPreview,
   isWebImage,
-  getMimeType,
-  sanitizeFilename,
   type FileKind,
-} from "@artbin/core";
+} from "@artbin/core/detection/kind";
+import { getMimeType } from "@artbin/core/detection/mime";
+import { sanitizeFilename } from "@artbin/core/detection/filenames";
 
 const execAsync = promisify(exec);
 

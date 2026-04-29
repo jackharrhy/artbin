@@ -1,19 +1,18 @@
 import { readdir, stat, readFile } from "fs/promises";
 import { join, extname } from "path";
+import { DEFAULT_SCAN_SETTINGS, type ScanSettings } from "@artbin/core/scanning/settings";
 import {
-  DEFAULT_SCAN_SETTINGS,
   shouldExclude,
   findGameDir,
   isImportableFile,
   shouldSkipDirectory,
-  type ScanSettings,
-} from "@artbin/core/scanning";
+} from "@artbin/core/scanning/filters";
 import {
   parseArchive,
   getFileEntries,
   detectArchiveType,
   type ArchiveEntry,
-} from "@artbin/core/parsers";
+} from "@artbin/core/parsers/archives";
 
 const ARCHIVE_EXTENSIONS = new Set(["pak", "pk3", "pk4", "zip", "bsp"]);
 

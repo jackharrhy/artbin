@@ -10,9 +10,11 @@ import {
   extractPk3Entry,
   extractPakEntry,
   getFileEntries,
-} from "@artbin/core/parsers";
-import { detectKind, getMimeType, cleanFolderSlug } from "@artbin/core";
-import { isImportableFile } from "@artbin/core/scanning";
+} from "@artbin/core/parsers/archives";
+import { detectKind } from "@artbin/core/detection/kind";
+import { getMimeType } from "@artbin/core/detection/mime";
+import { cleanFolderSlug } from "@artbin/core/detection/filenames";
+import { isImportableFile } from "@artbin/core/scanning/filters";
 
 interface PreparedFile {
   relativePath: string;

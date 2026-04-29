@@ -4,10 +4,13 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./parsers": "./src/parsers/index.ts",
-    "./detection": "./src/detection/index.ts",
-    "./scanning": "./src/scanning/index.ts"
+    "./detection/kind": "./src/detection/kind.ts",
+    "./detection/mime": "./src/detection/mime.ts",
+    "./detection/filenames": "./src/detection/filenames.ts",
+    "./parsers/archives": "./src/parsers/archives.ts",
+    "./parsers/bsp": "./src/parsers/bsp.ts",
+    "./scanning/settings": "./src/scanning/settings.ts",
+    "./scanning/filters": "./src/scanning/filters.ts"
   },
   "scripts": {
     "test": "vitest run",

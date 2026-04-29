@@ -1,25 +1,43 @@
 {
-  "name": "@artbin/cli",
+  "name": "artbin",
   "version": "0.0.1",
-  "private": true,
+  "description": "CLI tool for scanning game directories and uploading assets to artbin",
+  "keywords": [
+    "cli",
+    "game-assets",
+    "quake",
+    "textures"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jackharrhy/artbin",
+    "directory": "apps/cli"
+  },
   "bin": {
     "artbin": "./dist/index.js"
   },
+  "files": [
+    "dist"
+  ],
   "type": "module",
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
-    "ci": "tsc --noEmit"
+    "ci": "tsc --noEmit",
+    "prepublishOnly": "tsup"
   },
-  "dependencies": {
+  "dependencies": {},
+  "devDependencies": {
     "@artbin/core": "workspace:*",
     "@bomb.sh/args": "^0.3.0",
     "@clack/prompts": "^1.2.0",
-    "env-paths": "^3.0.0"
-  },
-  "devDependencies": {
     "@types/node": "^22.15.18",
+    "env-paths": "^3.0.0",
     "tsup": "^8.4.0",
     "typescript": "^6.0.3"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }
