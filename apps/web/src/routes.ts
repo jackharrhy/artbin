@@ -10,6 +10,7 @@ export default [
     ...prefix("admin", [
       route("jobs", "routes/admin.jobs.tsx"),
       route("import", "routes/admin.import.tsx"),
+      route("inbox", "routes/admin.inbox.tsx"),
       route("archives", "routes/admin.archives.tsx"),
       route("scan-settings", "routes/admin.scan-settings.tsx"),
       route("users", "routes/admin.users.tsx"),

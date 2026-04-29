@@ -27,7 +27,17 @@ export function Header({ user, onUploadClick }: HeaderProps) {
             <a href="/settings" className="text-sm no-underline text-text-muted hover:text-text">
               @{user.username}
             </a>
-            {user.isAdmin && <span className="badge-admin">admin</span>}
+            {user.isAdmin && (
+              <>
+                <a
+                  href="/admin/inbox"
+                  className="text-sm no-underline text-text-muted hover:text-text"
+                >
+                  inbox
+                </a>
+                <span className="badge-admin">admin</span>
+              </>
+            )}
           </>
         ) : (
           <>
