@@ -19,7 +19,7 @@ const THUMB_SIZE = 128; // Each thumbnail is 128x128
 const PREVIEW_SIZE = GRID_SIZE * THUMB_SIZE; // 384x384 total
 
 export function getFolderPreviewPath(folderSlug: string): string {
-  return `${folderSlug}/.folder-preview.png`;
+  return `${folderSlug}/_folder-preview.png`;
 }
 
 export function getFolderPreviewFullPath(folderSlug: string): string {
