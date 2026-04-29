@@ -24,6 +24,9 @@ export function Header({ user, onUploadClick }: HeaderProps) {
                 upload
               </button>
             )}
+            <a href="/my-uploads" className="text-sm no-underline text-text-muted hover:text-text">
+              my uploads
+            </a>
             <a href="/settings" className="text-sm no-underline text-text-muted hover:text-text">
               @{user.username}
             </a>

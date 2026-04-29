@@ -4,6 +4,7 @@ export default [
   layout("routes/app-layout.tsx", [
     index("routes/home.tsx"),
     route("settings", "routes/settings.tsx"),
+    route("my-uploads", "routes/my-uploads.tsx"),
     route("folders", "routes/folders.tsx"),
     route("folder/:slug/*", "routes/folder.$slug.tsx"),
     route("file/*", "routes/file.$.tsx"),
@@ -14,6 +15,7 @@ export default [
       route("archives", "routes/admin.archives.tsx"),
       route("scan-settings", "routes/admin.scan-settings.tsx"),
       route("users", "routes/admin.users.tsx"),
+      route("orphans", "routes/admin.orphans.tsx"),
     ]),
   ]),
   layout("routes/auth-layout.tsx", [route("login", "routes/login.tsx")]),
