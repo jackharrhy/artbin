@@ -445,6 +445,7 @@ export interface CreateFileRecord {
   uploaderId?: string | null;
   source?: string | null;
   sourceArchive?: string | null;
+  sha256?: string | null;
 }
 
 /**
@@ -467,6 +468,7 @@ export async function insertFileRecord(record: CreateFileRecord): Promise<Result
       uploaderId: record.uploaderId ?? null,
       source: record.source ?? null,
       sourceArchive: record.sourceArchive ?? null,
+      sha256: record.sha256 ?? null,
     });
 
     // Increment folder's file count

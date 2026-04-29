@@ -83,6 +83,7 @@ export const files = sqliteTable(
     // Source tracking
     source: text("source"), // "upload", "extracted-pk3", "extracted-pak", etc.
     sourceArchive: text("source_archive"), // Original archive filename if extracted
+    sha256: text("sha256"),
 
     createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn((): Date => new Date()),
   },
