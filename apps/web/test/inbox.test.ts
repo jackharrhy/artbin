@@ -16,6 +16,10 @@ vi.mock("~/lib/files.server", async (importOriginal) => {
   };
 });
 
+vi.mock("~/lib/folder-preview.server", () => ({
+  generateFolderPreview: vi.fn(async () => null),
+}));
+
 import {
   ensureInboxFolder,
   createUploadSession,

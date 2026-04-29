@@ -12,6 +12,7 @@ import {
   recalculateFolderCounts,
   getFilePath,
 } from "./files.server";
+import { generateFolderPreview } from "./folder-preview.server";
 
 export const INBOX_SLUG = "_inbox";
 export const INBOX_NAME = "Inbox";
@@ -217,6 +218,15 @@ export async function approveSession(
   }
 
   await recalculateFolderCounts([...touchedFolderIds]);
+
+  // Generate folder preview images for all touched destination folders
+  for (const folderId of touchedFolderIds) {
+    try {
+      await generateFolderPreview(folderId);
+    } catch {
+      // Preview generation is non-fatal
+    }
+  }
 
   // Delete session folder tree (disk + DB)
   const sessionFolder = await db.query.folders.findFirst({
