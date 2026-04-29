@@ -16,7 +16,7 @@ importers:
         version: 1.61.0
 
   apps/cli:
-    dependencies:
+    devDependencies:
       '@artbin/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -26,13 +26,12 @@ importers:
       '@clack/prompts':
         specifier: ^1.2.0
         version: 1.2.0
-      env-paths:
-        specifier: ^3.0.0
-        version: 3.0.0
-    devDependencies:
       '@types/node':
         specifier: ^22.15.18
         version: 22.19.17
+      env-paths:
+        specifier: ^3.0.0
+        version: 3.0.0
       tsup:
         specifier: ^8.4.0
         version: 8.5.1(jiti@2.6.1)(postcss@8.5.12)(tsx@4.21.0)(typescript@6.0.3)
