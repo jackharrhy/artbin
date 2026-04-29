@@ -14,9 +14,7 @@ export default [
       route("scan-settings", "routes/admin.scan-settings.tsx"),
     ]),
   ]),
-  layout("routes/auth-layout.tsx", [
-    route("login", "routes/login.tsx"),
-  ]),
+  layout("routes/auth-layout.tsx", [route("login", "routes/login.tsx")]),
 
   // OAuth routes (no layout -- server-side redirects only)
   route("auth/4orm", "routes/auth.4orm.tsx"),

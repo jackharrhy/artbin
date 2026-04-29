@@ -17,4 +17,5 @@ COPY --from=build /app/packages/core/ packages/core/
 RUN pnpm install --frozen-lockfile --prod
 COPY --from=build /app/apps/web/build apps/web/build
 WORKDIR /app/apps/web
+RUN mkdir -p public/uploads tmp/uploads
 CMD ["pnpm", "run", "start"]

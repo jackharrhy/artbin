@@ -5,6 +5,6 @@ export default defineConfig({
   out: "./drizzle",
   dialect: "sqlite",
   dbCredentials: {
-    url: "artbin.db",
+    url: process.env.ARTBIN_DB_PATH ?? "data/artbin.db",
   },
 });

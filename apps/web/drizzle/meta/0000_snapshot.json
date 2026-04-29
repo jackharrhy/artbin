@@ -28,12 +28,8 @@
           "name": "file_tags_file_id_files_id_fk",
           "tableFrom": "file_tags",
           "tableTo": "files",
-          "columnsFrom": [
-            "file_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["file_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -41,22 +37,15 @@
           "name": "file_tags_tag_id_tags_id_fk",
           "tableFrom": "file_tags",
           "tableTo": "tags",
-          "columnsFrom": [
-            "tag_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["tag_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
         "file_tags_file_id_tag_id_pk": {
-          "columns": [
-            "file_id",
-            "tag_id"
-          ],
+          "columns": ["file_id", "tag_id"],
           "name": "file_tags_file_id_tag_id_pk"
         }
       },
@@ -170,38 +159,27 @@
       "indexes": {
         "files_path_unique": {
           "name": "files_path_unique",
-          "columns": [
-            "path"
-          ],
+          "columns": ["path"],
           "isUnique": true
         },
         "idx_files_folder_id": {
           "name": "idx_files_folder_id",
-          "columns": [
-            "folder_id"
-          ],
+          "columns": ["folder_id"],
           "isUnique": false
         },
         "idx_files_kind": {
           "name": "idx_files_kind",
-          "columns": [
-            "kind"
-          ],
+          "columns": ["kind"],
           "isUnique": false
         },
         "idx_files_created_at": {
           "name": "idx_files_created_at",
-          "columns": [
-            "created_at"
-          ],
+          "columns": ["created_at"],
           "isUnique": false
         },
         "idx_files_kind_created": {
           "name": "idx_files_kind_created",
-          "columns": [
-            "kind",
-            "created_at"
-          ],
+          "columns": ["kind", "created_at"],
           "isUnique": false
         }
       },
@@ -210,12 +188,8 @@
           "name": "files_folder_id_folders_id_fk",
           "tableFrom": "files",
           "tableTo": "folders",
-          "columnsFrom": [
-            "folder_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["folder_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -223,12 +197,8 @@
           "name": "files_uploader_id_users_id_fk",
           "tableFrom": "files",
           "tableTo": "users",
-          "columnsFrom": [
-            "uploader_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["uploader_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -308,16 +278,12 @@
       "indexes": {
         "folders_slug_unique": {
           "name": "folders_slug_unique",
-          "columns": [
-            "slug"
-          ],
+          "columns": ["slug"],
           "isUnique": true
         },
         "idx_folders_parent_id": {
           "name": "idx_folders_parent_id",
-          "columns": [
-            "parent_id"
-          ],
+          "columns": ["parent_id"],
           "isUnique": false
         }
       },
@@ -326,12 +292,8 @@
           "name": "folders_parent_id_folders_id_fk",
           "tableFrom": "folders",
           "tableTo": "folders",
-          "columnsFrom": [
-            "parent_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["parent_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -339,12 +301,8 @@
           "name": "folders_owner_id_users_id_fk",
           "tableFrom": "folders",
           "tableTo": "users",
-          "columnsFrom": [
-            "owner_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["owner_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -446,16 +404,12 @@
       "indexes": {
         "idx_jobs_status": {
           "name": "idx_jobs_status",
-          "columns": [
-            "status"
-          ],
+          "columns": ["status"],
           "isUnique": false
         },
         "idx_jobs_created_at": {
           "name": "idx_jobs_created_at",
-          "columns": [
-            "created_at"
-          ],
+          "columns": ["created_at"],
           "isUnique": false
         }
       },
@@ -464,12 +418,8 @@
           "name": "jobs_user_id_users_id_fk",
           "tableFrom": "jobs",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -516,12 +466,8 @@
           "name": "sessions_user_id_users_id_fk",
           "tableFrom": "sessions",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -589,16 +535,12 @@
       "indexes": {
         "tags_name_unique": {
           "name": "tags_name_unique",
-          "columns": [
-            "name"
-          ],
+          "columns": ["name"],
           "isUnique": true
         },
         "tags_slug_unique": {
           "name": "tags_slug_unique",
-          "columns": [
-            "slug"
-          ],
+          "columns": ["slug"],
           "isUnique": true
         }
       },
@@ -657,23 +599,17 @@
       "indexes": {
         "users_email_unique": {
           "name": "users_email_unique",
-          "columns": [
-            "email"
-          ],
+          "columns": ["email"],
           "isUnique": true
         },
         "users_username_unique": {
           "name": "users_username_unique",
-          "columns": [
-            "username"
-          ],
+          "columns": ["username"],
           "isUnique": true
         },
         "users_fourm_id_unique": {
           "name": "users_fourm_id_unique",
-          "columns": [
-            "fourm_id"
-          ],
+          "columns": ["fourm_id"],
           "isUnique": true
         }
       },
