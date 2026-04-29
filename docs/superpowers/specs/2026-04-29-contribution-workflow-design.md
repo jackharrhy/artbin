@@ -92,32 +92,28 @@ Shows all files with `status = 'pending'`, grouped by upload session (shared `fo
 
 ### Actions
 
-**Per-file actions:**
-- **Approve** -- opens a small form:
-  - Destination folder (required, pre-filled with suggestion if one exists)
-  - Filename (pre-filled, editable)
-  - Tags (optional, multi-select or create)
-  - On confirm: file moves to destination, status becomes `approved`, path/folderId update
-- **Reject** -- sets `status = 'rejected'` (no rejection reason stored -- keep it simple)
+Approval and rejection operate on the entire upload session (all files in the batch), not individual files.
 
-**Batch actions:**
-- Select multiple files, approve all to the same destination folder
-- Select multiple files, reject all
+- **Approve** -- opens a form:
+  - Destination folder (required, pre-filled with suggestion if one exists)
+  - Tags to apply to all files (optional, multi-select or create)
+  - On confirm: all files in the session move to destination, status becomes `approved`
+- **Reject** -- sets `status = 'rejected'` on all files in the session (no rejection reason stored -- keep it simple)
 
 ### On approval (server-side)
 
 1. Look up destination folder (must exist)
-2. Move file on disk: `_inbox/<session>/<file>` -> `<destination-slug>/<file>` (plus preview if exists)
-3. Update DB record: `status = 'approved'`, `folderId = destinationFolder.id`, `path = newPath`
-4. Increment destination folder's `fileCount`
-5. Decrement session folder's `fileCount`
-6. If session folder is now empty, delete the session folder record and its disk directory
+2. For each file in the session:
+   - Move file on disk: `_inbox/<session>/<file>` -> `<destination-slug>/<file>` (plus preview if exists)
+   - Update DB record: `status = 'approved'`, `folderId = destinationFolder.id`, `path = newPath`
+3. Update destination folder's `fileCount` (increment by number of files)
+4. Delete the now-empty session folder record and its disk directory
 
 ### On rejection (server-side)
 
-1. Set `status = 'rejected'` on the file record
-2. File stays on disk in `_inbox/<session>/` until cleanup
-3. If all files in session are resolved (approved or rejected) and none remain pending, clean up empty session folder
+1. Set `status = 'rejected'` on all files in the session
+2. Files stay on disk in `_inbox/<session>/` until cleanup
+3. Delete the session folder record (files remain on disk for cleanup job to handle)
 
 ## Public View Filtering
 
@@ -164,11 +160,11 @@ This is a maintenance tool, not something that runs automatically. Admin trigger
 - Multiple files in one upload share the same session folder
 
 ### Approval/rejection tests
-- Approve moves file on disk, updates status/path/folderId
-- Approve updates folder file counts (destination increments, inbox decrements)
-- Reject sets status without moving file
-- Empty session folder gets cleaned up after last file resolved
-- Batch approve/reject works
+- Approve moves all session files on disk, updates status/path/folderId for each
+- Approve updates destination folder file count (incremented by session file count)
+- Approve cleans up empty session folder
+- Reject sets status on all session files without moving them
+- Reject cleans up session folder record
 
 ### Public filtering tests
 - Folder view excludes pending/rejected files
