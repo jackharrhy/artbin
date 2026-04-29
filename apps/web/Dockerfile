@@ -16,6 +16,7 @@ COPY --from=build /app/apps/web/package.json apps/web/
 COPY --from=build /app/packages/core/ packages/core/
 RUN pnpm install --frozen-lockfile --prod
 COPY --from=build /app/apps/web/build apps/web/build
+COPY --from=build /app/apps/web/drizzle apps/web/drizzle
 WORKDIR /app/apps/web
 RUN mkdir -p public/uploads tmp/uploads
 CMD ["pnpm", "run", "start"]
