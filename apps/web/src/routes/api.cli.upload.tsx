@@ -87,7 +87,9 @@ async function handleAdminUpload(formData: FormData, metadata: UploadMetadata, u
       });
 
       if (!folder) {
-        errors.push({ path: fileMeta.path, error: `Folder not found: ${folderSlug}` });
+        const msg = `Folder not found: ${folderSlug}`;
+        errors.push({ path: fileMeta.path, error: msg });
+        log.error(new Error(msg), { step: "folder-lookup", file: fileMeta.path, folderSlug });
         continue;
       }
 
@@ -128,6 +130,7 @@ async function handleAdminUpload(formData: FormData, metadata: UploadMetadata, u
 
       if (inserted.isErr()) {
         errors.push({ path: fileMeta.path, error: inserted.error.message });
+        log.error(inserted.error, { step: "insert-record", file: fileMeta.path });
         continue;
       }
 
@@ -148,14 +151,22 @@ async function handleAdminUpload(formData: FormData, metadata: UploadMetadata, u
 
       uploaded.push(fileMeta.path);
     } catch (err) {
-      errors.push({
-        path: fileMeta.path,
-        error: err instanceof Error ? err.message : String(err),
+      const msg = err instanceof Error ? err.message : String(err);
+      errors.push({ path: fileMeta.path, error: msg });
+      log.error(err instanceof Error ? err : new Error(msg), {
+        step: "admin-upload-file",
+        file: fileMeta.path,
       });
     }
   }
 
-  log.set({ cliUpload: { uploadedCount: uploaded.length, errorsCount: errors.length } });
+  log.set({
+    cliUpload: {
+      uploadedCount: uploaded.length,
+      errorsCount: errors.length,
+      sampleErrors: errors.slice(0, 5).map((e) => `${e.path}: ${e.error}`),
+    },
+  });
   return Response.json({ uploaded, errors });
 }
 
@@ -225,14 +236,22 @@ async function handleNonAdminUpload(formData: FormData, metadata: UploadMetadata
 
       uploaded.push(fileMeta.path);
     } catch (err) {
-      errors.push({
-        path: fileMeta.path,
-        error: err instanceof Error ? err.message : String(err),
+      const msg = err instanceof Error ? err.message : String(err);
+      errors.push({ path: fileMeta.path, error: msg });
+      log.error(err instanceof Error ? err : new Error(msg), {
+        step: "non-admin-upload-file",
+        file: fileMeta.path,
       });
     }
   }
 
-  log.set({ cliUpload: { uploadedCount: uploaded.length, errorsCount: errors.length } });
+  log.set({
+    cliUpload: {
+      uploadedCount: uploaded.length,
+      errorsCount: errors.length,
+      sampleErrors: errors.slice(0, 5).map((e) => `${e.path}: ${e.error}`),
+    },
+  });
   return Response.json({
     pendingUpload: true,
     uploadSessionId: session.id,
