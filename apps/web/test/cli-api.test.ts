@@ -779,6 +779,98 @@ describe("/api/cli/upload", () => {
     expect(rootFolder!.parentId).toBeNull();
   });
 
+  test("end-to-end: folders with dirty names -> upload with raw paths -> files land correctly", async () => {
+    const db = setupDatabase();
+    await seedAdminSession(db);
+
+    // Step 1: Create folders via the folders endpoint, using paths with
+    // uppercase, spaces, and special characters -- exactly as the CLI
+    // importer would send them (it calls cleanFolderPath on slugs).
+    const folderRequest = adminRequest("http://localhost/api/cli/folders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        folders: [
+          { slug: "my-game", name: "my-game", parentSlug: null },
+          { slug: "my-game/GOODIES", name: "GOODIES", parentSlug: "my-game" },
+          {
+            slug: "my-game/GOODIES/Wallpapers and PFP's",
+            name: "Wallpapers and PFP's",
+            parentSlug: "my-game/GOODIES",
+          },
+          { slug: "my-game/id1", name: "id1", parentSlug: "my-game" },
+          { slug: "my-game/id1/S_Wrath", name: "S_Wrath", parentSlug: "my-game/id1" },
+        ],
+      }),
+    });
+
+    const folderResponse = await callRoute(foldersAction, folderRequest);
+    const folderBody = await folderResponse.json();
+    expect(folderBody.created).toHaveLength(5);
+
+    // Verify the slugs were cleaned (lowercase, dashes instead of spaces/underscores)
+    const wallpapersFolder = await db.query.folders.findFirst({
+      where: eq(folders.slug, "my-game/goodies/wallpapers-and-pfp-s"),
+    });
+    expect(wallpapersFolder).toBeTruthy();
+
+    const wrathFolder = await db.query.folders.findFirst({
+      where: eq(folders.slug, "my-game/id1/s-wrath"),
+    });
+    expect(wrathFolder).toBeTruthy();
+
+    // Step 2: Upload files with RAW paths (not cleaned) -- the upload handler
+    // must clean the path segments to match the created folder slugs.
+    const formData = new FormData();
+    formData.set(
+      "metadata",
+      JSON.stringify({
+        parentFolder: "my-game",
+        files: [
+          {
+            path: "GOODIES/Wallpapers and PFP's/back.png",
+            kind: "texture",
+            mimeType: "image/png",
+            sha256: "aaa",
+          },
+          {
+            path: "id1/S_Wrath/smash.wav",
+            kind: "other",
+            mimeType: "audio/wav",
+            sha256: "bbb",
+          },
+        ],
+      }),
+    );
+    formData.set("file_0", new Blob([new Uint8Array(32)]), "back.png");
+    formData.set("file_1", new Blob([new Uint8Array(16)]), "smash.wav");
+
+    const uploadRequest = adminRequest("http://localhost/api/cli/upload", {
+      method: "POST",
+      body: formData,
+    });
+
+    const uploadResponse = await callRoute(uploadAction, uploadRequest);
+    const uploadBody = await uploadResponse.json();
+
+    // This is the critical assertion -- files must upload, not error
+    expect(uploadBody.errors).toHaveLength(0);
+    expect(uploadBody.uploaded).toHaveLength(2);
+
+    // Verify files are in the correct cleaned folders
+    const backFile = await db.query.files.findFirst({
+      where: eq(files.path, "my-game/goodies/wallpapers-and-pfp-s/back.png"),
+    });
+    expect(backFile).toBeTruthy();
+    expect(backFile!.folderId).toBe(wallpapersFolder!.id);
+
+    const smashFile = await db.query.files.findFirst({
+      where: eq(files.path, "my-game/id1/s-wrath/smash.wav"),
+    });
+    expect(smashFile).toBeTruthy();
+    expect(smashFile!.folderId).toBe(wrathFolder!.id);
+  });
+
   test("non-admin upload creates pending files in inbox session", async () => {
     const db = setupDatabase();
     await seedNonAdminSession(db);
