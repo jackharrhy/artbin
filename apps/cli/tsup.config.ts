@@ -14,13 +14,16 @@ export default defineConfig({
   // has zero runtime deps. sharp is excluded since the CLI never
   // calls BSP texture extraction (the server handles that).
   noExternal: [/.*/],
+  external: ["sharp", /^@img\/sharp-/],
   define: {
     BROWSE_UI_HTML: JSON.stringify(uiHtml),
   },
-  esbuildOptions(options) {
-    options.external = ["sharp", "@img/sharp-*"];
-  },
+  // Ensure Node builtins aren't wrapped in __require() shims.
+  // tsup's noExternal bundles everything, but CJS deps like mime-types
+  // use require("path") which breaks in ESM. Setting platform: "node"
+  // should handle this, but we also need the banner to create a require
+  // function for CJS interop.
   banner: {
-    js: "#!/usr/bin/env node",
+    js: '#!/usr/bin/env node\nimport { createRequire } from "module";\nconst require = createRequire(import.meta.url);',
   },
 });
