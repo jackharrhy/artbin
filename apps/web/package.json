@@ -28,6 +28,7 @@
     "three": "^0.184.0"
   },
   "devDependencies": {
+    "@artbin/ui": "workspace:*",
     "@react-router/dev": "7.14.2",
     "@tailwindcss/vite": "^4.2.4",
     "@types/better-sqlite3": "^7.6.13",

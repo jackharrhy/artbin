@@ -7,20 +7,8 @@ import { jobs } from "~/db";
 import { eq, desc } from "drizzle-orm";
 import { createJob } from "~/lib/jobs.server";
 
-interface FoundArchive {
-  path: string;
-  name: string;
-  size: number;
-  type: string;
-  gameDir: string | null;
-}
-
-interface TreeNode {
-  name: string;
-  path: string;
-  children: Map<string, TreeNode>;
-  archives: FoundArchive[];
-}
+import { buildTree, countArchives, getAllArchivePaths } from "@artbin/ui";
+import type { FoundArchive, TreeNode } from "@artbin/ui/types";
 
 export async function loader({ context }: Route.LoaderArgs) {
   const user = context.get(userContext);
@@ -233,58 +221,6 @@ function slugify(str: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
-}
-
-function buildTree(archives: FoundArchive[]): TreeNode {
-  const root: TreeNode = {
-    name: "/",
-    path: "/",
-    children: new Map(),
-    archives: [],
-  };
-
-  for (const archive of archives) {
-    // Split path into parts, excluding the filename
-    const parts = archive.path.split("/").filter(Boolean);
-    parts.pop(); // Remove filename
-
-    let current = root;
-    let currentPath = "";
-
-    for (const part of parts) {
-      currentPath += "/" + part;
-
-      if (!current.children.has(part)) {
-        current.children.set(part, {
-          name: part,
-          path: currentPath,
-          children: new Map(),
-          archives: [],
-        });
-      }
-      current = current.children.get(part)!;
-    }
-
-    current.archives.push(archive);
-  }
-
-  return root;
-}
-
-function countArchives(node: TreeNode): number {
-  let count = node.archives.length;
-  for (const child of node.children.values()) {
-    count += countArchives(child);
-  }
-  return count;
-}
-
-function getAllArchivePaths(node: TreeNode): string[] {
-  const paths: string[] = node.archives.map((a) => a.path);
-  for (const child of node.children.values()) {
-    paths.push(...getAllArchivePaths(child));
-  }
-  return paths;
 }
 
 function TreeNodeView({
