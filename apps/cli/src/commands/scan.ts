@@ -1,6 +1,9 @@
 import * as p from "@clack/prompts";
 import { resolve } from "path";
 import { scanDirectory } from "../lib/scanner.ts";
+import { loadConfig } from "../lib/config.ts";
+import { ApiClient } from "../lib/api.ts";
+import { startBrowseServer } from "../lib/browse-server.ts";
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -57,4 +60,75 @@ export async function scan(args: Record<string, unknown>) {
   }
 
   p.outro(`Total: ${result.totalFileCount} files (${formatSize(result.totalSize)})`);
+
+  if (result.archives.length === 0 && result.looseFiles.length === 0) {
+    return;
+  }
+
+  // Prompt to open browse UI (skip prompt if --browse flag is set)
+  let shouldBrowse = !!args.browse;
+  if (!shouldBrowse) {
+    const answer = await p.confirm({
+      message: "Open browser to browse and import?",
+      initialValue: true,
+    });
+    if (p.isCancel(answer)) return;
+    shouldBrowse = answer;
+  }
+
+  if (!shouldBrowse) return;
+
+  // Load config and authenticate
+  const config = await loadConfig();
+  if (!config) {
+    p.log.error("Not logged in. Run: artbin login");
+    process.exit(1);
+  }
+
+  const api = new ApiClient(config);
+
+  const authSpinner = p.spinner();
+  authSpinner.start("Verifying authentication...");
+  let user: { name: string; isAdmin: boolean };
+  try {
+    const whoami = await api.whoami();
+    user = whoami.user;
+    authSpinner.stop(`Authenticated as ${user.name}`);
+  } catch {
+    authSpinner.stop("Authentication failed");
+    p.log.error("Session expired. Run: artbin login");
+    process.exit(1);
+  }
+
+  // Start the browse server
+  const { port, close } = await startBrowseServer({
+    scanResult: result,
+    api,
+    html: BROWSE_UI_HTML,
+    serverUrl: config.serverUrl,
+    user,
+  });
+
+  const url = `http://localhost:${port}/`;
+  p.log.info(`Browse server running at ${url}`);
+
+  // Open browser
+  try {
+    const { default: open } = await import("open");
+    await open(url);
+  } catch {
+    p.log.warning(`Could not open browser. Visit ${url} manually.`);
+  }
+
+  p.log.info("Press Ctrl+C to stop the server");
+
+  // Block until Ctrl+C
+  await new Promise<void>((resolve) => {
+    process.on("SIGINT", () => {
+      close();
+      resolve();
+    });
+  });
+
+  p.outro("Browse server stopped");
 }

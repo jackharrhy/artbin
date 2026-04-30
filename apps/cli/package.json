@@ -22,20 +22,29 @@
   ],
   "type": "module",
   "scripts": {
-    "build": "tsup",
+    "build": "pnpm run build:ui && tsup",
+    "build:ui": "vite build --config ui.vite.config.ts",
     "dev": "tsup --watch",
     "ci": "tsc --noEmit",
     "prepublishOnly": "tsup"
   },
-  "dependencies": {},
   "devDependencies": {
     "@artbin/core": "workspace:*",
+    "@artbin/ui": "workspace:*",
     "@bomb.sh/args": "^0.3.0",
     "@clack/prompts": "^1.2.0",
     "@types/node": "^22.15.18",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
     "env-paths": "^3.0.0",
+    "open": "^11.0.0",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
     "tsup": "^8.4.0",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vite": "^8.0.10",
+    "vite-plugin-singlefile": "^2.3.3"
   },
   "engines": {
     "node": ">=20"

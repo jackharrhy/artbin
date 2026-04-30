@@ -1,4 +1,7 @@
+import { readFileSync } from "fs";
 import { defineConfig } from "tsup";
+
+const uiHtml = readFileSync("dist-ui/index.html", "utf-8");
 
 export default defineConfig({
   entry: ["src/index.ts"],
@@ -11,6 +14,9 @@ export default defineConfig({
   // has zero runtime deps. sharp is excluded since the CLI never
   // calls BSP texture extraction (the server handles that).
   noExternal: [/.*/],
+  define: {
+    BROWSE_UI_HTML: JSON.stringify(uiHtml),
+  },
   esbuildOptions(options) {
     options.external = ["sharp", "@img/sharp-*"];
   },
