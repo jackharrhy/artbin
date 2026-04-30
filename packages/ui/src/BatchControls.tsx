@@ -18,7 +18,7 @@ export function BatchControls({ selectedCount, onClear, children }: BatchControl
       {/* Fixed button in bottom right */}
       <button
         type="button"
-        className="fixed bottom-6 right-6 bg-text text-white border-none px-5 py-3 text-sm font-inherit cursor-pointer shadow-lg z-100 hover:bg-[#333]"
+        className="btn btn-primary fixed bottom-6 right-6 shadow-lg z-100"
         onClick={() => setIsOpen(true)}
       >
         Import {selectedCount} selected

@@ -213,19 +213,11 @@ export function App() {
       {view === "browse" && (
         <>
           <div className="flex items-center gap-4 mb-4">
-            <button
-              type="button"
-              className="text-sm px-3 py-1.5 border border-border-light bg-white cursor-pointer hover:bg-bg-hover"
-              onClick={handleSelectAll}
-            >
+            <button type="button" className="btn btn-sm" onClick={handleSelectAll}>
               Select all
             </button>
             {selectedPaths.size > 0 && (
-              <button
-                type="button"
-                className="text-sm px-3 py-1.5 border border-border-light bg-white cursor-pointer hover:bg-bg-hover"
-                onClick={handleClearSelection}
-              >
+              <button type="button" className="btn btn-sm" onClick={handleClearSelection}>
                 Clear ({selectedPaths.size})
               </button>
             )}
@@ -278,16 +270,12 @@ export function App() {
                 )}
 
                 <div className="flex gap-2 justify-end">
-                  <button
-                    type="button"
-                    className="px-4 py-2 text-sm border border-border-light bg-white cursor-pointer hover:bg-bg-hover"
-                    onClick={close}
-                  >
+                  <button type="button" className="btn" onClick={close}>
                     Cancel
                   </button>
                   <button
                     type="button"
-                    className="px-4 py-2 text-sm bg-text text-white border-none cursor-pointer hover:bg-[#333]"
+                    className="btn btn-primary"
                     onClick={() => handleImport(close)}
                     disabled={!destinationFolder && !newFolderSlug}
                   >
@@ -357,11 +345,7 @@ export function App() {
             </div>
           )}
 
-          <button
-            type="button"
-            className="px-4 py-2 text-sm border border-border-light bg-white cursor-pointer hover:bg-bg-hover"
-            onClick={handleBackToBrowse}
-          >
+          <button type="button" className="btn" onClick={handleBackToBrowse}>
             Back to browse
           </button>
         </div>

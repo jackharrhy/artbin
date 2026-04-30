@@ -1,4 +1,4 @@
 {
   "$schema": "./node_modules/oxfmt/configuration_schema.json",
-  "ignorePatterns": ["apps/web/build/", "apps/web/.react-router/", "apps/web/tmp/", "packages/*/dist/", "apps/cli/dist/"]
+  "ignorePatterns": ["apps/web/build/", "apps/web/.react-router/", "apps/web/tmp/", "packages/*/dist/", "apps/cli/dist/", "apps/cli/dist-ui/"]
 }
