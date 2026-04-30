@@ -8,10 +8,20 @@ import { nanoid } from "nanoid";
 import { basename, dirname } from "path";
 import { detectKind } from "@artbin/core/detection/kind";
 import { getMimeType } from "@artbin/core/detection/mime";
+import { cleanFolderSlug } from "@artbin/core/detection/filenames";
 import { isBSPFile } from "@artbin/core/parsers/bsp";
 import { saveFile, insertFileRecord, getFilePath, computeSha256 } from "~/lib/files.server";
 import { createJob } from "~/lib/jobs.server";
 import { createUploadSession } from "~/lib/inbox.server";
+
+/** Clean a full folder path by cleaning each segment individually, preserving slashes. */
+function cleanFolderPath(path: string): string {
+  return path
+    .split("/")
+    .map((s) => cleanFolderSlug(s))
+    .filter(Boolean)
+    .join("/");
+}
 
 interface FileMetadata {
   path: string;
@@ -77,9 +87,11 @@ async function handleAdminUpload(formData: FormData, metadata: UploadMetadata, u
       const buffer = Buffer.from(await fileField.arrayBuffer());
 
       // Determine the folder slug from parentFolder + file's directory path
+      // Clean each segment to match how folders were created
       const fileDir = dirname(fileMeta.path);
-      const folderSlug =
+      const rawSlug =
         fileDir === "." ? metadata.parentFolder : `${metadata.parentFolder}/${fileDir}`;
+      const folderSlug = cleanFolderPath(rawSlug);
 
       // Look up the folder
       const folder = await db.query.folders.findFirst({
@@ -178,7 +190,7 @@ async function handleNonAdminUpload(formData: FormData, metadata: UploadMetadata
 
   // Look up the parent folder to use as suggestedFolderId
   const parentFolder = await db.query.folders.findFirst({
-    where: eq(folders.slug, metadata.parentFolder),
+    where: eq(folders.slug, cleanFolderPath(metadata.parentFolder)),
   });
   const suggestedFolderId = parentFolder?.id ?? null;
 
