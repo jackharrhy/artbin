@@ -241,7 +241,7 @@ export async function runImport(options: ImportOptions): Promise<ImportResult> {
       "uploading",
       uploaded,
       filesToUpload.length,
-      `Batch ${batchNum}/${totalBatches} (${uploaded}/${filesToUpload.length} uploaded)`,
+      `Uploading batch ${batchNum}/${totalBatches}...`,
     );
 
     const result = await api.uploadBatch(
@@ -260,6 +260,13 @@ export async function runImport(options: ImportOptions): Promise<ImportResult> {
     if (result.errors.length > 0) {
       failed += result.errors.length;
     }
+
+    progress(
+      "uploading",
+      uploaded,
+      filesToUpload.length,
+      `Batch ${batchNum}/${totalBatches} done (${uploaded}/${filesToUpload.length} uploaded)`,
+    );
   }
 
   progress("done", uploaded, filesToUpload.length, "Upload complete");
