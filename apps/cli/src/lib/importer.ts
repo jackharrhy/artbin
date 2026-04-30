@@ -1,5 +1,6 @@
 import { readFile } from "fs/promises";
 import { basename, dirname, join as pathJoin } from "path";
+import pLimit from "p-limit";
 import { createHash } from "crypto";
 import type { ScanResult, ScannedArchive } from "./scanner.ts";
 import type { ApiClient } from "./api.ts";
@@ -247,7 +248,6 @@ export async function runImport(options: ImportOptions): Promise<ImportResult> {
 
   // Upload in batches with concurrency
   const BATCH_SIZE = 50;
-  const CONCURRENCY = 3;
   let uploaded = 0;
   let failed = 0;
 
@@ -256,21 +256,19 @@ export async function runImport(options: ImportOptions): Promise<ImportResult> {
     batches.push(filesToUpload.slice(i, i + BATCH_SIZE));
   }
 
-  // Process batches in groups of CONCURRENCY
-  for (let g = 0; g < batches.length; g += CONCURRENCY) {
-    const group = batches.slice(g, g + CONCURRENCY);
-    const groupStart = g;
+  const limit = pLimit(3);
 
-    progress(
-      "uploading",
-      uploaded,
-      filesToUpload.length,
-      `Uploading batches ${g + 1}-${Math.min(g + group.length, batches.length)}/${batches.length}...`,
-    );
+  await Promise.all(
+    batches.map((batch, i) =>
+      limit(async () => {
+        progress(
+          "uploading",
+          uploaded,
+          filesToUpload.length,
+          `Uploading batch ${i + 1}/${batches.length}...`,
+        );
 
-    const results = await Promise.all(
-      group.map((batch) =>
-        api.uploadBatch(
+        const result = await api.uploadBatch(
           rootSlug,
           batch.map((f) => ({
             path: f.relativePath,
@@ -280,24 +278,22 @@ export async function runImport(options: ImportOptions): Promise<ImportResult> {
             sourceArchive: f.sourceArchive,
             buffer: f.buffer,
           })),
-        ),
-      ),
-    );
+        );
 
-    for (const result of results) {
-      uploaded += result.uploaded.length;
-      if (result.errors.length > 0) {
-        failed += result.errors.length;
-      }
-    }
+        uploaded += result.uploaded.length;
+        if (result.errors.length > 0) {
+          failed += result.errors.length;
+        }
 
-    progress(
-      "uploading",
-      uploaded,
-      filesToUpload.length,
-      `${uploaded}/${filesToUpload.length} uploaded`,
-    );
-  }
+        progress(
+          "uploading",
+          uploaded,
+          filesToUpload.length,
+          `${uploaded}/${filesToUpload.length} uploaded`,
+        );
+      }),
+    ),
+  );
 
   progress("done", uploaded, filesToUpload.length, "Upload complete");
 
