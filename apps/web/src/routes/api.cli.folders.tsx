@@ -1,5 +1,5 @@
 import type { Route } from "./+types/api.cli.folders";
-import { requireCliAdmin } from "~/lib/cli-auth.server";
+import { requireCliAuth } from "~/lib/cli-auth.server";
 import { db } from "~/db/connection.server";
 import { folders } from "~/db";
 import { eq } from "drizzle-orm";
@@ -14,7 +14,7 @@ interface FolderInput {
 }
 
 export async function action({ request }: Route.ActionArgs) {
-  const user = await requireCliAdmin(request);
+  const user = await requireCliAuth(request);
 
   const body = (await request.json()) as { folders: FolderInput[] };
 
@@ -32,6 +32,11 @@ export async function action({ request }: Route.ActionArgs) {
 
     if (found) {
       existing.push({ slug: found.slug, id: found.id });
+      continue;
+    }
+
+    // Non-admin users can only read existing folders, not create new ones
+    if (!user.isAdmin) {
       continue;
     }
 

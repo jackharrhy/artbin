@@ -1,5 +1,5 @@
 import type { Route } from "./+types/api.cli.manifest";
-import { requireCliAdmin } from "~/lib/cli-auth.server";
+import { requireCliAuth } from "~/lib/cli-auth.server";
 import { db } from "~/db/connection.server";
 import { files } from "~/db";
 import { eq } from "drizzle-orm";
@@ -10,7 +10,7 @@ interface ManifestInput {
 }
 
 export async function action({ request }: Route.ActionArgs) {
-  await requireCliAdmin(request);
+  await requireCliAuth(request);
 
   const body = (await request.json()) as ManifestInput;
 

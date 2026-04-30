@@ -1,5 +1,5 @@
 import type { Route } from "./+types/api.cli.upload";
-import { requireCliAdmin } from "~/lib/cli-auth.server";
+import { requireCliAuth } from "~/lib/cli-auth.server";
 import { db } from "~/db/connection.server";
 import { folders } from "~/db";
 import { eq } from "drizzle-orm";
@@ -17,6 +17,7 @@ import {
   computeSha256,
 } from "~/lib/files.server";
 import { createJob } from "~/lib/jobs.server";
+import { createUploadSession } from "~/lib/inbox.server";
 
 interface FileMetadata {
   path: string;
@@ -32,7 +33,7 @@ interface UploadMetadata {
 }
 
 export async function action({ request }: Route.ActionArgs) {
-  const user = await requireCliAdmin(request);
+  const user = await requireCliAuth(request);
 
   const formData = await request.formData();
   const metadataRaw = formData.get("metadata") as string;
@@ -47,6 +48,14 @@ export async function action({ request }: Route.ActionArgs) {
     return Response.json({ error: "Invalid metadata JSON" }, { status: 400 });
   }
 
+  if (user.isAdmin) {
+    return handleAdminUpload(formData, metadata, user.id);
+  }
+
+  return handleNonAdminUpload(formData, metadata, user.id);
+}
+
+async function handleAdminUpload(formData: FormData, metadata: UploadMetadata, userId: string) {
   const uploaded: string[] = [];
   const errors: { path: string; error: string }[] = [];
 
@@ -119,7 +128,7 @@ export async function action({ request }: Route.ActionArgs) {
         height,
         hasPreview,
         folderId: folder.id,
-        uploaderId: user.id,
+        uploaderId: userId,
         source: "cli-upload",
         sourceArchive: fileMeta.sourceArchive ?? null,
         sha256,
@@ -139,9 +148,9 @@ export async function action({ request }: Route.ActionArgs) {
             bspPath: getFilePath(savedPath),
             targetFolderSlug: `${folderSlug}/${bspBaseName}-textures`,
             targetFolderName: `${bspBaseName} Textures`,
-            userId: user.id,
+            userId: userId,
           },
-          userId: user.id,
+          userId: userId,
         });
       }
 
@@ -155,4 +164,96 @@ export async function action({ request }: Route.ActionArgs) {
   }
 
   return Response.json({ uploaded, errors });
+}
+
+async function handleNonAdminUpload(formData: FormData, metadata: UploadMetadata, userId: string) {
+  const session = await createUploadSession(userId);
+  const uploaded: string[] = [];
+  const errors: { path: string; error: string }[] = [];
+
+  // Look up the parent folder to use as suggestedFolderId
+  const parentFolder = await db.query.folders.findFirst({
+    where: eq(folders.slug, metadata.parentFolder),
+  });
+  const suggestedFolderId = parentFolder?.id ?? null;
+
+  for (let i = 0; i < metadata.files.length; i++) {
+    const fileMeta = metadata.files[i];
+    const fileField = formData.get(`file_${i}`) as File | null;
+
+    if (!fileField) {
+      errors.push({ path: fileMeta.path, error: "Missing file data" });
+      continue;
+    }
+
+    try {
+      const buffer = Buffer.from(await fileField.arrayBuffer());
+      const fileName = basename(fileMeta.path);
+
+      // Save the file to the inbox session folder
+      const { path: savedPath, name: savedName } = await saveFile(
+        buffer,
+        session.slug,
+        fileName,
+        true,
+      );
+
+      // Detect kind and mime type server-side
+      const kind = detectKind(savedName);
+      const mimeType = await getMimeType(savedName, buffer);
+
+      let width: number | null = null;
+      let height: number | null = null;
+      let hasPreview = false;
+
+      if (isImageKind(kind)) {
+        const imageInfo = await processImage(savedPath);
+        if (imageInfo.isOk()) {
+          width = imageInfo.value.width;
+          height = imageInfo.value.height;
+          hasPreview = imageInfo.value.hasPreview;
+        }
+      }
+
+      const sha256 = computeSha256(buffer);
+      const fileId = nanoid();
+      const inserted = await insertFileRecord({
+        id: fileId,
+        path: savedPath,
+        name: savedName,
+        mimeType,
+        size: buffer.length,
+        kind,
+        width,
+        height,
+        hasPreview,
+        folderId: session.id,
+        uploaderId: userId,
+        source: "cli-upload",
+        sourceArchive: fileMeta.sourceArchive ?? null,
+        sha256,
+        status: "pending",
+        suggestedFolderId,
+      });
+
+      if (inserted.isErr()) {
+        errors.push({ path: fileMeta.path, error: inserted.error.message });
+        continue;
+      }
+
+      uploaded.push(fileMeta.path);
+    } catch (err) {
+      errors.push({
+        path: fileMeta.path,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  return Response.json({
+    pendingUpload: true,
+    uploadSessionId: session.id,
+    uploaded,
+    errors,
+  });
 }

@@ -80,6 +80,16 @@ function adminRequest(url: string, init?: RequestInit): Request {
   });
 }
 
+function userRequest(url: string, init?: RequestInit): Request {
+  return new Request(url, {
+    ...init,
+    headers: {
+      Cookie: "artbin_session=user-session",
+      ...init?.headers,
+    },
+  });
+}
+
 /**
  * Route handlers using requireCliAdmin throw Response objects on auth failure.
  * This helper catches thrown Responses and returns them.
@@ -238,6 +248,61 @@ describe("/api/cli/folders", () => {
     const response = await callRoute(foldersAction, request);
     expect(response.status).toBe(401);
   });
+
+  test("non-admin can read existing folders without 403", async () => {
+    const db = setupDatabase();
+    await seedAdminSession(db);
+    await seedNonAdminSession(db);
+
+    // Pre-create folders
+    await db.insert(folders).values([
+      { id: "folder-a", name: "Quake", slug: "quake" },
+      { id: "folder-b", name: "Maps", slug: "quake-maps", parentId: "folder-a" },
+    ]);
+
+    const request = userRequest("http://localhost/api/cli/folders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        folders: [
+          { slug: "quake", name: "Quake" },
+          { slug: "quake/maps", name: "Maps", parentSlug: "quake" },
+        ],
+      }),
+    });
+
+    const response = await callRoute(foldersAction, request);
+    expect(response.status).toBe(200);
+
+    const body = await response.json();
+    // Non-admin should see existing folders but not create new ones
+    expect(body.existing).toHaveLength(2);
+    expect(body.created).toHaveLength(0);
+  });
+
+  test("non-admin cannot create new folders", async () => {
+    const db = setupDatabase();
+    await seedNonAdminSession(db);
+
+    const request = userRequest("http://localhost/api/cli/folders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        folders: [{ slug: "new-folder", name: "New Folder" }],
+      }),
+    });
+
+    const response = await callRoute(foldersAction, request);
+    expect(response.status).toBe(200);
+
+    const body = await response.json();
+    expect(body.created).toHaveLength(0);
+    expect(body.existing).toHaveLength(0);
+
+    // Verify nothing was created in DB
+    const all = await db.query.folders.findMany();
+    expect(all).toHaveLength(0);
+  });
 });
 
 // ─── manifest ────────────────────────────────────────────────────────────────
@@ -316,6 +381,41 @@ describe("/api/cli/manifest", () => {
 
     const response = await callRoute(manifestAction, request);
     expect(response.status).toBe(401);
+  });
+
+  test("non-admin can check manifest without 403", async () => {
+    const db = setupDatabase();
+    await seedNonAdminSession(db);
+
+    await db.insert(folders).values({ id: "folder-1", name: "Quake", slug: "quake" });
+    await db.insert(files).values({
+      id: "file-1",
+      path: "quake/brick.png",
+      name: "brick.png",
+      mimeType: "image/png",
+      size: 1024,
+      kind: "texture",
+      folderId: "folder-1",
+    });
+
+    const request = userRequest("http://localhost/api/cli/manifest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        parentFolder: "quake",
+        files: [
+          { path: "brick.png", sha256: "abc", size: 1024 },
+          { path: "stone.png", sha256: "def", size: 2048 },
+        ],
+      }),
+    });
+
+    const response = await callRoute(manifestAction, request);
+    expect(response.status).toBe(200);
+
+    const body = await response.json();
+    expect(body.existingFiles).toEqual(["brick.png"]);
+    expect(body.newFiles).toEqual(["stone.png"]);
   });
 });
 
@@ -525,5 +625,63 @@ describe("/api/cli/upload", () => {
 
     const response = await callRoute(uploadAction, request);
     expect(response.status).toBe(401);
+  });
+
+  test("non-admin upload creates pending files in inbox session", async () => {
+    const db = setupDatabase();
+    await seedNonAdminSession(db);
+
+    // Create the target folder that the non-admin wants to upload to
+    await db.insert(folders).values({
+      id: "folder-1",
+      name: "Quake",
+      slug: "quake",
+      fileCount: 0,
+    });
+
+    const formData = new FormData();
+    formData.set(
+      "metadata",
+      JSON.stringify({
+        parentFolder: "quake",
+        files: [
+          {
+            path: "brick.png",
+            kind: "texture",
+            mimeType: "image/png",
+            sha256: "abc123",
+          },
+        ],
+      }),
+    );
+    formData.set("file_0", new Blob([new Uint8Array(64)]), "brick.png");
+
+    const request = userRequest("http://localhost/api/cli/upload", {
+      method: "POST",
+      body: formData,
+    });
+
+    const response = await callRoute(uploadAction, request);
+    expect(response.status).toBe(200);
+
+    const body = await response.json();
+    expect(body.pendingUpload).toBe(true);
+    expect(body.uploadSessionId).toBeTruthy();
+
+    // Verify the file was created with pending status
+    const allFiles = await db.query.files.findMany();
+    expect(allFiles).toHaveLength(1);
+    expect(allFiles[0].status).toBe("pending");
+    expect(allFiles[0].source).toBe("cli-upload");
+    expect(allFiles[0].suggestedFolderId).toBe("folder-1");
+
+    // Verify the file is in an inbox session folder, not the target folder
+    expect(allFiles[0].folderId).not.toBe("folder-1");
+
+    // Verify an inbox session folder was created
+    const inboxFolder = await db.query.folders.findFirst({
+      where: eq(folders.slug, "_inbox"),
+    });
+    expect(inboxFolder).toBeTruthy();
   });
 });
