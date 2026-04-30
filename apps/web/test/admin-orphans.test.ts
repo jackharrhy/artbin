@@ -21,6 +21,7 @@ vi.mock("~/lib/folder-preview.server", () => ({
 
 // The userContext symbol for the mock context
 const mockUserContextKey = Symbol("userContext");
+const mockLoggerContextKey = Symbol("loggerContext");
 
 vi.mock("~/lib/auth-context.server", () => {
   return {
@@ -28,6 +29,12 @@ vi.mock("~/lib/auth-context.server", () => {
     authMiddleware: vi.fn(),
   };
 });
+
+// Mock evlog logger used by route handlers
+vi.mock("evlog/react-router", () => ({
+  useLogger: () => ({ set: () => {}, error: () => {}, emit: () => {} }),
+  loggerContext: mockLoggerContextKey,
+}));
 
 let currentDb: TestDatabase | undefined;
 
@@ -52,6 +59,7 @@ function makeAdminContext() {
     fourmId: "fourm-admin-1",
     createdAt: new Date(),
   });
+  store.set(mockLoggerContextKey, { set: () => {}, error: () => {}, emit: () => {} });
   return {
     get: (key: any) => store.get(key),
     set: (key: any, value: any) => store.set(key, value),

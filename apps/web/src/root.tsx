@@ -6,9 +6,19 @@ import {
   Scripts,
   ScrollRestoration,
 } from "react-router";
+import { initLogger } from "evlog";
+import { evlog } from "evlog/react-router";
+import { createFsDrain } from "evlog/fs";
 
 import type { Route } from "./+types/root";
 import "./app.css";
+
+initLogger({
+  env: { service: "artbin" },
+  drain: createFsDrain({ maxFiles: 14 }),
+});
+
+export const middleware: Route.MiddlewareFunction[] = [evlog()];
 
 export const links: Route.LinksFunction = () => [
   {

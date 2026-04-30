@@ -1,5 +1,6 @@
 import { redirect } from "react-router";
 import type { Route } from "./+types/auth.cli.callback";
+import { loggerContext } from "evlog/react-router";
 import { exchangeCode, fetchUserinfo, getCliRedirectUri } from "~/lib/oauth.server";
 import { db } from "~/db/connection.server";
 import { users, sessions } from "~/db";
@@ -8,7 +9,8 @@ import { nanoid } from "nanoid";
 
 const SESSION_MAX_AGE = 60 * 60 * 24 * 30;
 
-export async function loader({ request }: Route.LoaderArgs) {
+export async function loader({ request, context }: Route.LoaderArgs) {
+  const log = context.get(loggerContext);
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
@@ -43,6 +45,10 @@ export async function loader({ request }: Route.LoaderArgs) {
   try {
     tokenData = await exchangeCode(code, oauthData.verifier, getCliRedirectUri());
   } catch (err) {
+    log.error(err instanceof Error ? err : new Error(String(err)), {
+      step: "token-exchange",
+      channel: "cli",
+    });
     return new Response(`Token exchange failed: ${err}`, { status: 500 });
   }
 
@@ -50,6 +56,10 @@ export async function loader({ request }: Route.LoaderArgs) {
   try {
     userinfo = await fetchUserinfo(tokenData.access_token);
   } catch (err) {
+    log.error(err instanceof Error ? err : new Error(String(err)), {
+      step: "userinfo-fetch",
+      channel: "cli",
+    });
     return new Response(`Userinfo fetch failed: ${err}`, { status: 500 });
   }
 
@@ -80,8 +90,18 @@ export async function loader({ request }: Route.LoaderArgs) {
   }
 
   if (!localUser.isAdmin && !userinfo.is_admin) {
+    log.set({ auth: { channel: "cli", denied: true, userId: localUser.id, reason: "not-admin" } });
     return new Response("CLI access requires admin privileges", { status: 403 });
   }
+
+  log.set({
+    auth: {
+      channel: "cli",
+      userId: localUser.id,
+      username: localUser.username,
+      fourmId: userinfo.sub,
+    },
+  });
 
   const sessionId = nanoid(32);
   const expiresAt = new Date(Date.now() + SESSION_MAX_AGE * 1000);

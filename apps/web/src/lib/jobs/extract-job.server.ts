@@ -11,6 +11,7 @@ import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { basename, dirname, join } from "path";
 import { unlink } from "fs/promises";
+import { createRequestLogger } from "evlog";
 
 import { registerJobHandler, updateJobProgress } from "../jobs.server";
 import {
@@ -154,6 +155,8 @@ async function handleExtractJob(
   job: Job,
   input: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
+  const log = createRequestLogger();
+  log.set({ job: { id: job.id, type: job.type } });
   const {
     tempFile,
     originalName,
@@ -296,14 +299,20 @@ async function handleExtractJob(
 
                 filesByKind["texture"] = (filesByKind["texture"] || 0) + 1;
               } catch (texError) {
-                console.error(`Failed to save BSP texture ${tex.name}:`, texError);
+                log.error(texError instanceof Error ? texError : new Error(String(texError)), {
+                  step: "save-bsp-texture",
+                  file: tex.name,
+                });
               }
             }
 
-            console.log(`Extracted ${bspTextures.length} textures from ${savedName}`);
+            log.set({ bsp: { file: savedName, texturesExtracted: bspTextures.length } });
           }
         } catch (bspError) {
-          console.error(`Failed to extract textures from BSP ${savedName}:`, bspError);
+          log.error(bspError instanceof Error ? bspError : new Error(String(bspError)), {
+            step: "extract-bsp-textures",
+            file: savedName,
+          });
         }
       }
 
@@ -317,7 +326,10 @@ async function handleExtractJob(
         );
       }
     } catch (error) {
-      console.error(`Failed to extract ${entry.name}:`, error);
+      log.error(error instanceof Error ? error : new Error(String(error)), {
+        step: "extract-entry",
+        file: entry.name,
+      });
       // Continue with other files
     }
   }
@@ -342,10 +354,15 @@ async function handleExtractJob(
     try {
       await generateFolderPreview(folderId);
     } catch (err) {
-      console.error(`Failed to generate preview for folder ${folderId}:`, err);
+      log.error(err instanceof Error ? err : new Error(String(err)), {
+        step: "generate-preview",
+        folderId,
+      });
       // Continue with other folders
     }
   }
+
+  log.emit();
 
   return {
     folderId: folderMap.get("")!,
@@ -362,6 +379,8 @@ async function handleBatchExtractJob(
   job: Job,
   input: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
+  const log = createRequestLogger();
+  log.set({ job: { id: job.id, type: job.type } });
   const { parentFolderSlug, parentFolderName, archives } = input as unknown as BatchExtractJobInput;
 
   await updateJobProgress(job.id, 2, "Creating parent folder...");
@@ -512,18 +531,30 @@ async function handleBatchExtractJob(
 
                     filesExtracted++;
                   } catch (texError) {
-                    console.error(`Failed to save BSP texture ${tex.name}:`, texError);
+                    log.error(texError instanceof Error ? texError : new Error(String(texError)), {
+                      step: "save-bsp-texture",
+                      file: tex.name,
+                      archive: archiveName,
+                    });
                   }
                 }
 
-                console.log(`Extracted ${bspTextures.length} textures from ${savedName}`);
+                log.set({ bsp: { file: savedName, texturesExtracted: bspTextures.length } });
               }
             } catch (bspError) {
-              console.error(`Failed to extract textures from BSP ${savedName}:`, bspError);
+              log.error(bspError instanceof Error ? bspError : new Error(String(bspError)), {
+                step: "extract-bsp-textures",
+                file: savedName,
+                archive: archiveName,
+              });
             }
           }
         } catch (error) {
-          console.error(`Failed to extract ${entry.name} from ${archiveName}:`, error);
+          log.error(error instanceof Error ? error : new Error(String(error)), {
+            step: "extract-entry",
+            file: entry.name,
+            archive: archiveName,
+          });
           // Continue with other files
         }
       }
@@ -534,7 +565,11 @@ async function handleBatchExtractJob(
         try {
           await generateFolderPreview(folderId);
         } catch (err) {
-          console.error(`Failed to generate preview for folder ${folderId}:`, err);
+          log.error(err instanceof Error ? err : new Error(String(err)), {
+            step: "generate-preview",
+            folderId,
+            archive: archiveName,
+          });
         }
       }
 
@@ -547,7 +582,10 @@ async function handleBatchExtractJob(
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`Failed to extract archive ${archiveName}:`, error);
+      log.error(error instanceof Error ? error : new Error(errorMessage), {
+        step: "extract-archive",
+        archive: archiveName,
+      });
       archiveResults.push({
         path: archiveInfo.path,
         subfolderSlug: archiveInfo.subfolderSlug,
@@ -566,8 +604,13 @@ async function handleBatchExtractJob(
   try {
     await generateFolderPreview(parentFolderId);
   } catch (err) {
-    console.error(`Failed to generate preview for parent folder ${parentFolderId}:`, err);
+    log.error(err instanceof Error ? err : new Error(String(err)), {
+      step: "generate-preview",
+      folderId: parentFolderId,
+    });
   }
+
+  log.emit();
 
   return {
     parentFolderId,
@@ -603,6 +646,8 @@ async function handleExtractBSPJob(
   job: Job,
   input: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
+  const log = createRequestLogger();
+  log.set({ job: { id: job.id, type: job.type } });
   const { bspPath, targetFolderSlug, targetFolderName } = input as unknown as ExtractBSPJobInput;
 
   const bspName = basename(bspPath);
@@ -676,7 +721,10 @@ async function handleExtractBSPJob(
         );
       }
     } catch (texError) {
-      console.error(`Failed to save BSP texture ${tex.name}:`, texError);
+      log.error(texError instanceof Error ? texError : new Error(String(texError)), {
+        step: "save-bsp-texture",
+        file: tex.name,
+      });
     }
   }
 
@@ -686,8 +734,13 @@ async function handleExtractBSPJob(
   try {
     await generateFolderPreview(folderId);
   } catch (err) {
-    console.error(`Failed to generate preview for folder ${folderId}:`, err);
+    log.error(err instanceof Error ? err : new Error(String(err)), {
+      step: "generate-preview",
+      folderId,
+    });
   }
+
+  log.emit();
 
   return {
     folderId,
@@ -730,6 +783,8 @@ async function handleBatchExtractBSPJob(
   job: Job,
   input: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
+  const log = createRequestLogger();
+  log.set({ job: { id: job.id, type: job.type } });
   const { parentFolderSlug, parentFolderName, bspFiles } =
     input as unknown as BatchExtractBSPJobInput;
 
@@ -818,7 +873,11 @@ async function handleBatchExtractBSPJob(
 
           texturesExtracted++;
         } catch (texError) {
-          console.error(`Failed to save texture ${tex.name} from ${bspName}:`, texError);
+          log.error(texError instanceof Error ? texError : new Error(String(texError)), {
+            step: "save-bsp-texture",
+            file: tex.name,
+            bsp: bspName,
+          });
         }
       }
 
@@ -827,7 +886,10 @@ async function handleBatchExtractBSPJob(
       try {
         await generateFolderPreview(subFolderId);
       } catch (err) {
-        console.error(`Failed to generate preview for folder ${subFolderId}:`, err);
+        log.error(err instanceof Error ? err : new Error(String(err)), {
+          step: "generate-preview",
+          folderId: subFolderId,
+        });
       }
 
       totalTexturesExtracted += texturesExtracted;
@@ -839,7 +901,10 @@ async function handleBatchExtractBSPJob(
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`Failed to extract BSP ${bspName}:`, error);
+      log.error(error instanceof Error ? error : new Error(errorMessage), {
+        step: "extract-bsp",
+        file: bspName,
+      });
       bspResults.push({
         path: bspInfo.path,
         subfolderSlug: bspInfo.subfolderSlug,
@@ -858,8 +923,13 @@ async function handleBatchExtractBSPJob(
   try {
     await generateFolderPreview(parentFolderId);
   } catch (err) {
-    console.error(`Failed to generate preview for parent folder ${parentFolderId}:`, err);
+    log.error(err instanceof Error ? err : new Error(String(err)), {
+      step: "generate-preview",
+      folderId: parentFolderId,
+    });
   }
+
+  log.emit();
 
   return {
     parentFolderId,

@@ -9,6 +9,7 @@ import { db } from "~/db/connection.server";
 import { folders, files, type Job } from "~/db";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import { createRequestLogger } from "evlog";
 
 import { registerJobHandler, updateJobProgress } from "../jobs.server";
 import {
@@ -185,6 +186,8 @@ async function handleTextureStationImport(
   job: Job,
   input: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
+  const log = createRequestLogger();
+  log.set({ job: { id: job.id, type: job.type } });
   const { categories: requestedCategories, userId } = input as unknown as TextureStationImportInput;
 
   await updateJobProgress(job.id, 2, "Scanning Texture Station categories...");
@@ -211,7 +214,10 @@ async function handleTextureStationImport(
       categoryTextures.set(category, textures);
       totalFiles += textures.length;
     } catch (error) {
-      console.error(`[TextureStation] Failed to fetch ${category.page}:`, error);
+      log.error(error instanceof Error ? error : new Error(String(error)), {
+        step: "fetch-category",
+        page: category.page,
+      });
       categoryTextures.set(category, []);
     }
   }
@@ -306,7 +312,11 @@ async function handleTextureStationImport(
       } catch (error) {
         const msg = `${category.slug}/${filename}: ${error instanceof Error ? error.message : String(error)}`;
         errors.push(msg);
-        console.error(`[TextureStation] ${msg}`);
+        log.error(error instanceof Error ? error : new Error(String(error)), {
+          step: "import-texture",
+          file: filename,
+          category: category.slug,
+        });
       }
 
       processedFiles++;
@@ -332,9 +342,14 @@ async function handleTextureStationImport(
     try {
       await generateFolderPreview(folderId);
     } catch (err) {
-      console.error(`[TextureStation] Failed to generate preview for folder ${folderId}:`, err);
+      log.error(err instanceof Error ? err : new Error(String(err)), {
+        step: "generate-preview",
+        folderId,
+      });
     }
   }
+
+  log.emit();
 
   return {
     totalFiles: importedFiles,

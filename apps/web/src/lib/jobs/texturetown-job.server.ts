@@ -9,6 +9,7 @@ import { db } from "~/db/connection.server";
 import { folders, files, type Job } from "~/db";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import { createRequestLogger } from "evlog";
 
 import { registerJobHandler, updateJobProgress } from "../jobs.server";
 import {
@@ -157,6 +158,8 @@ async function handleTextureTownImport(
   job: Job,
   input: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
+  const log = createRequestLogger();
+  log.set({ job: { id: job.id, type: job.type } });
   const { categories: requestedCategories, userId } = input as unknown as TextureTownImportInput;
 
   await updateJobProgress(job.id, 2, "Fetching TextureTown manifest...");
@@ -261,7 +264,11 @@ async function handleTextureTownImport(
       } catch (error) {
         const msg = `${category.name}/${fileName}: ${error instanceof Error ? error.message : String(error)}`;
         errors.push(msg);
-        console.error(`[TextureTown] ${msg}`);
+        log.error(error instanceof Error ? error : new Error(String(error)), {
+          step: "import-texture",
+          file: fileName,
+          category: category.name,
+        });
       }
 
       processedFiles++;
@@ -287,9 +294,14 @@ async function handleTextureTownImport(
     try {
       await generateFolderPreview(folderId);
     } catch (err) {
-      console.error(`[TextureTown] Failed to generate preview for folder ${folderId}:`, err);
+      log.error(err instanceof Error ? err : new Error(String(err)), {
+        step: "generate-preview",
+        folderId,
+      });
     }
   }
+
+  log.emit();
 
   return {
     totalFiles: importedFiles,

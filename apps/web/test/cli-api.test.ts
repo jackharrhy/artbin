@@ -7,6 +7,15 @@ import { action as manifestAction } from "~/routes/api.cli.manifest";
 import { applyMigrations, createTestDatabase, type TestDatabase } from "./db";
 import { eq } from "drizzle-orm";
 
+// Mock evlog logger used by route handlers
+vi.mock("evlog/react-router", () => {
+  const noopLogger = { set: () => {}, error: () => {}, emit: () => {} };
+  return {
+    useLogger: () => noopLogger,
+    loggerContext: Symbol("loggerContext"),
+  };
+});
+
 // Mock filesystem operations used by the folders endpoint
 vi.mock("~/lib/files.server", async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;

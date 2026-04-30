@@ -12,6 +12,7 @@ import { nanoid } from "nanoid";
 import { basename, dirname, join, extname, relative } from "path";
 import { readdir, stat, readFile } from "fs/promises";
 import { existsSync } from "fs";
+import { createRequestLogger } from "evlog";
 
 import { registerJobHandler, updateJobProgress } from "../jobs.server";
 import {
@@ -194,8 +195,8 @@ async function findImportableFiles(
         }
       }
     }
-  } catch (error) {
-    console.error(`Error scanning directory ${fullPath}:`, error);
+  } catch {
+    // Skip directories we can't read (permissions, etc)
   }
 
   return results;
@@ -229,6 +230,8 @@ async function handleFolderImportJob(
   job: Job,
   input: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
+  const log = createRequestLogger();
+  log.set({ job: { id: job.id, type: job.type } });
   const { sourcePath, targetFolderSlug, targetFolderName } =
     input as unknown as FolderImportJobInput;
 
@@ -355,7 +358,10 @@ async function handleFolderImportJob(
         );
       }
     } catch (error) {
-      console.error(`Failed to import ${fileInfo.relativePath}:`, error);
+      log.error(error instanceof Error ? error : new Error(String(error)), {
+        step: "import-file",
+        file: fileInfo.relativePath,
+      });
       skippedFiles++;
       // Continue with other files
     }
@@ -371,10 +377,15 @@ async function handleFolderImportJob(
     try {
       await generateFolderPreview(folderId);
     } catch (err) {
-      console.error(`Failed to generate preview for folder ${folderId}:`, err);
+      log.error(err instanceof Error ? err : new Error(String(err)), {
+        step: "generate-preview",
+        folderId,
+      });
       // Continue with other folders
     }
   }
+
+  log.emit();
 
   return {
     folderId: baseFolderId,

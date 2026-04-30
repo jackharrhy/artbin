@@ -1,9 +1,18 @@
-import { afterEach, describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { folders, sessions, users } from "~/db/schema";
 import { setDbForTesting } from "~/db/connection.server";
 import { action as createFolderAction } from "~/routes/api.folder";
 import { action as moveFolderAction } from "~/routes/api.folder.move";
 import { applyMigrations, createTestDatabase, type TestDatabase } from "./db";
+
+// Mock evlog logger used by route handlers
+vi.mock("evlog/react-router", () => {
+  const noopLogger = { set: () => {}, error: () => {}, emit: () => {} };
+  return {
+    useLogger: () => noopLogger,
+    loggerContext: Symbol("loggerContext"),
+  };
+});
 
 let currentDb: TestDatabase | undefined;
 

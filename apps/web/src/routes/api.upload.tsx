@@ -1,4 +1,5 @@
 import type { Route } from "./+types/api.upload";
+import { useLogger } from "evlog/react-router";
 import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
 import { db } from "~/db/connection.server";
 import { folders } from "~/db";
@@ -29,6 +30,7 @@ function isArchive(filename: string): boolean {
 }
 
 export async function action({ request }: Route.ActionArgs) {
+  const log = useLogger();
   const sessionId = parseSessionCookie(request.headers.get("Cookie"));
   const user = await getUserFromSession(sessionId);
 
@@ -38,6 +40,7 @@ export async function action({ request }: Route.ActionArgs) {
 
   const formData = await request.formData();
   const actionType = formData.get("_action") as string;
+  log.set({ upload: { action: actionType, userId: user.id, isAdmin: user.isAdmin } });
 
   // Archive analysis and extraction are admin-only
   if (actionType === "analyze") {
@@ -89,6 +92,9 @@ async function handleAdminUpload(
   relativePath: string | null,
   userId: string,
 ) {
+  const log = useLogger();
+  log.set({ upload: { fileName: file.name, fileSize: file.size, folderId } });
+
   if (!folderId) {
     return Response.json({ error: "Please select a folder" });
   }
@@ -191,7 +197,7 @@ async function handleAdminUpload(
       },
     });
   } catch (err) {
-    console.error("Upload error:", err);
+    log.error(err instanceof Error ? err : String(err), { step: "admin-upload" });
     return Response.json({ error: `Upload failed: ${err}` });
   }
 }
@@ -203,6 +209,9 @@ async function handleNonAdminUpload(
   userId: string,
   existingSessionId?: string | null,
 ) {
+  const log = useLogger();
+  log.set({ upload: { fileName: file.name, fileSize: file.size, folderId } });
+
   try {
     let session: { id: string; slug: string };
 
@@ -307,7 +316,7 @@ async function handleNonAdminUpload(
       message: "Uploaded! An admin will review your submission.",
     });
   } catch (err) {
-    console.error("Upload error:", err);
+    log.error(err instanceof Error ? err : String(err), { step: "non-admin-upload" });
     return Response.json({ error: `Upload failed: ${err}` });
   }
 }

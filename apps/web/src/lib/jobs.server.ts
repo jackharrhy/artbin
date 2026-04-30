@@ -3,6 +3,7 @@ import { jobs, type Job, type JobStatus } from "~/db";
 import { eq, and, or, lt } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { Result } from "better-result";
+import { createRequestLogger } from "evlog";
 
 export interface CreateJobInput {
   type: string;
@@ -214,17 +215,26 @@ export async function processJob(job: Job) {
     return Result.err(new Error(`Unknown job type: ${job.type}`));
   }
 
+  const log = createRequestLogger();
+  log.set({ job: { id: job.id, type: job.type } });
+
   try {
     await startJob(job.id);
+    const startTime = Date.now();
     const input = JSON.parse(job.input) as Record<string, unknown>;
     const output = await handler(job, input);
     await completeJob(job.id, output);
     const completedJob = await getJob(job.id);
+    log.set({
+      job: { id: job.id, type: job.type, status: "completed", durationMs: Date.now() - startTime },
+    });
+    log.emit();
     return Result.ok(completedJob!);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     await failJob(job.id, message);
-    console.error(`Job ${job.id} failed:`, error);
+    log.error(error instanceof Error ? error : new Error(message), { step: "process-job" });
+    log.emit();
     return Result.err(new Error(message));
   }
 }
@@ -239,7 +249,9 @@ export function startJobRunner(intervalMs = 2000): void {
   if (isRunning) return;
 
   isRunning = true;
-  console.log("[JobRunner] Started");
+  const runnerLog = createRequestLogger();
+  runnerLog.set({ jobRunner: { event: "started", intervalMs } });
+  runnerLog.emit();
 
   const poll = async () => {
     if (!isRunning) return;
@@ -247,11 +259,13 @@ export function startJobRunner(intervalMs = 2000): void {
     try {
       const job = await getNextJob();
       if (job) {
-        console.log(`[JobRunner] Processing job ${job.id} (${job.type})`);
         await processJob(job);
       }
     } catch (error) {
-      console.error("[JobRunner] Error:", error);
+      const pollLog = createRequestLogger();
+      pollLog.set({ jobRunner: { event: "poll-error" } });
+      pollLog.error(error instanceof Error ? error : new Error(String(error)), { step: "poll" });
+      pollLog.emit();
     }
 
     if (isRunning) {
@@ -269,7 +283,9 @@ export function stopJobRunner(): void {
     clearTimeout(pollInterval);
     pollInterval = null;
   }
-  console.log("[JobRunner] Stopped");
+  const stopLog = createRequestLogger();
+  stopLog.set({ jobRunner: { event: "stopped" } });
+  stopLog.emit();
 }
 
 export function isJobRunnerActive(): boolean {

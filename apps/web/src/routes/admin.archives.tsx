@@ -1,6 +1,7 @@
 import { Form, useLoaderData, useActionData, useRevalidator } from "react-router";
 import { useState, useEffect, useMemo } from "react";
 import type { Route } from "./+types/admin.archives";
+import { loggerContext } from "evlog/react-router";
 import { userContext } from "~/lib/auth-context.server";
 import { db } from "~/db/connection.server";
 import { jobs } from "~/db";
@@ -50,6 +51,7 @@ export async function loader({ context }: Route.LoaderArgs) {
 }
 
 export async function action({ request, context }: Route.ActionArgs) {
+  const log = context.get(loggerContext);
   const user = context.get(userContext);
 
   const formData = await request.formData();
@@ -61,6 +63,7 @@ export async function action({ request, context }: Route.ActionArgs) {
       input: {},
       userId: user.id,
     });
+    log.set({ archives: { action: "scan", jobId: job.id } });
     return { success: true, jobId: job.id, action: "scan" };
   }
 
@@ -87,6 +90,7 @@ export async function action({ request, context }: Route.ActionArgs) {
         userId: user.id,
       });
 
+      log.set({ archives: { action: "import-bsp", jobId: job.id, archivePath } });
       return {
         success: true,
         jobId: job.id,
@@ -108,6 +112,7 @@ export async function action({ request, context }: Route.ActionArgs) {
       userId: user.id,
     });
 
+    log.set({ archives: { action: "import-archive", jobId: job.id, archivePath } });
     return {
       success: true,
       jobId: job.id,
@@ -192,6 +197,15 @@ export async function action({ request, context }: Route.ActionArgs) {
       results.push({ jobId: bspJob.id, action: "batch-bsp", count: bspPaths.length });
     }
 
+    log.set({
+      archives: {
+        action: "batch-import",
+        totalCount: archivePaths.length,
+        archiveCount: regularArchivePaths.length,
+        bspCount: bspPaths.length,
+        jobIds: results.map((r) => r.jobId),
+      },
+    });
     return {
       success: true,
       jobIds: results.map((r) => r.jobId),

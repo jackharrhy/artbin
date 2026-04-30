@@ -9,6 +9,7 @@ import { db } from "~/db/connection.server";
 import { folders, files, type Job } from "~/db";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import { createRequestLogger } from "evlog";
 
 import { registerJobHandler, updateJobProgress } from "../jobs.server";
 import {
@@ -178,6 +179,8 @@ async function handleSadgrlImport(
   job: Job,
   input: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
+  const log = createRequestLogger();
+  log.set({ job: { id: job.id, type: job.type } });
   const { userId } = input as unknown as SadgrlImportInput;
 
   await updateJobProgress(job.id, 2, "Fetching Sadgrl tiled backgrounds page...");
@@ -270,7 +273,10 @@ async function handleSadgrlImport(
             hasPreview = imageInfo.value.hasPreview;
           } catch (imgErr) {
             // Some formats might fail processing, continue anyway
-            console.warn(`[Sadgrl] Image processing failed for ${filename}:`, imgErr);
+            log.error(imgErr instanceof Error ? imgErr : new Error(String(imgErr)), {
+              step: "process-image",
+              file: filename,
+            });
           }
         }
 
@@ -297,7 +303,11 @@ async function handleSadgrlImport(
       } catch (error) {
         const msg = `${category.slug}/${filename}: ${error instanceof Error ? error.message : String(error)}`;
         errors.push(msg);
-        console.error(`[Sadgrl] ${msg}`);
+        log.error(error instanceof Error ? error : new Error(String(error)), {
+          step: "import-file",
+          file: filename,
+          category: category.slug,
+        });
       }
 
       processedFiles++;
@@ -323,9 +333,14 @@ async function handleSadgrlImport(
     try {
       await generateFolderPreview(folderId);
     } catch (err) {
-      console.error(`[Sadgrl] Failed to generate preview for folder ${folderId}:`, err);
+      log.error(err instanceof Error ? err : new Error(String(err)), {
+        step: "generate-preview",
+        folderId,
+      });
     }
   }
+
+  log.emit();
 
   return {
     totalFiles: importedFiles,

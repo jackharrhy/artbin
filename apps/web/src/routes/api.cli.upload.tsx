@@ -1,4 +1,5 @@
 import type { Route } from "./+types/api.cli.upload";
+import { useLogger } from "evlog/react-router";
 import { requireCliAuth } from "~/lib/cli-auth.server";
 import { db } from "~/db/connection.server";
 import { folders } from "~/db";
@@ -26,6 +27,7 @@ interface UploadMetadata {
 }
 
 export async function action({ request }: Route.ActionArgs) {
+  const log = useLogger();
   const user = await requireCliAuth(request);
 
   const formData = await request.formData();
@@ -41,6 +43,15 @@ export async function action({ request }: Route.ActionArgs) {
     return Response.json({ error: "Invalid metadata JSON" }, { status: 400 });
   }
 
+  log.set({
+    cliUpload: {
+      userId: user.id,
+      isAdmin: user.isAdmin,
+      parentFolder: metadata.parentFolder,
+      batchSize: metadata.files.length,
+    },
+  });
+
   if (user.isAdmin) {
     return handleAdminUpload(formData, metadata, user.id);
   }
@@ -49,6 +60,7 @@ export async function action({ request }: Route.ActionArgs) {
 }
 
 async function handleAdminUpload(formData: FormData, metadata: UploadMetadata, userId: string) {
+  const log = useLogger();
   const uploaded: string[] = [];
   const errors: { path: string; error: string }[] = [];
 
@@ -143,10 +155,12 @@ async function handleAdminUpload(formData: FormData, metadata: UploadMetadata, u
     }
   }
 
+  log.set({ cliUpload: { uploadedCount: uploaded.length, errorsCount: errors.length } });
   return Response.json({ uploaded, errors });
 }
 
 async function handleNonAdminUpload(formData: FormData, metadata: UploadMetadata, userId: string) {
+  const log = useLogger();
   const session = await createUploadSession(userId);
   const uploaded: string[] = [];
   const errors: { path: string; error: string }[] = [];
@@ -218,6 +232,7 @@ async function handleNonAdminUpload(formData: FormData, metadata: UploadMetadata
     }
   }
 
+  log.set({ cliUpload: { uploadedCount: uploaded.length, errorsCount: errors.length } });
   return Response.json({
     pendingUpload: true,
     uploadSessionId: session.id,

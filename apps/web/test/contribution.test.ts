@@ -5,6 +5,15 @@ import { setDbForTesting } from "~/db/connection.server";
 import { searchFiles, getFileCountsByKind, insertFileRecord } from "~/lib/files.server";
 import { applyMigrations, createTestDatabase, type TestDatabase } from "./db";
 
+// Mock evlog logger used by route handlers
+vi.mock("evlog/react-router", () => {
+  const noopLogger = { set: () => {}, error: () => {}, emit: () => {} };
+  return {
+    useLogger: () => noopLogger,
+    loggerContext: Symbol("loggerContext"),
+  };
+});
+
 // Mock filesystem operations (same pattern as cli-api tests)
 vi.mock("~/lib/files.server", async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;

@@ -1,5 +1,6 @@
 import { Form, useLoaderData, useActionData, useNavigation } from "react-router";
 import type { Route } from "./+types/admin.orphans";
+import { loggerContext } from "evlog/react-router";
 import { userContext } from "~/lib/auth-context.server";
 import { db } from "~/db/connection.server";
 import { files, folders } from "~/db";
@@ -105,12 +106,25 @@ async function performScan(): Promise<ScanResults> {
 // Loader
 // ---------------------------------------------------------------------------
 export async function loader({ request, context }: Route.LoaderArgs) {
+  const log = context.get(loggerContext);
   const user = context.get(userContext);
 
   const url = new URL(request.url);
   const scan = url.searchParams.get("scan") === "true";
 
   const scanResults = scan ? await performScan() : null;
+
+  if (scanResults) {
+    log.set({
+      orphans: {
+        scan: true,
+        orphanedFiles: scanResults.orphanedFiles.length,
+        missingFiles: scanResults.missingFiles.length,
+        staleRejected: scanResults.staleRejected.length,
+        emptyInboxSessions: scanResults.emptyInboxSessions.length,
+      },
+    });
+  }
 
   // Hash stats (always loaded, cheap query)
   const [hashStats] = await db
@@ -162,6 +176,7 @@ export async function loader({ request, context }: Route.LoaderArgs) {
 // Action
 // ---------------------------------------------------------------------------
 export async function action({ request, context }: Route.ActionArgs) {
+  const log = context.get(loggerContext);
   const user = context.get(userContext);
 
   const formData = await request.formData();
@@ -180,6 +195,7 @@ export async function action({ request, context }: Route.ActionArgs) {
         // skip files that can't be deleted
       }
     }
+    log.set({ orphans: { action: "delete-orphans", requested: paths.length, deleted } });
     return { success: true, action: _action, deleted };
   }
 
@@ -191,6 +207,7 @@ export async function action({ request, context }: Route.ActionArgs) {
       const result = await deleteFileRecord(id);
       if (result.isOk()) deleted++;
     }
+    log.set({ orphans: { action: "delete-missing", requested: ids.length, deleted } });
     return { success: true, action: _action, deleted };
   }
 
@@ -207,6 +224,7 @@ export async function action({ request, context }: Route.ActionArgs) {
       const result = await deleteFileRecord(item.id);
       if (result.isOk()) deleted++;
     }
+    log.set({ orphans: { action: "cleanup-rejected", requested: items.length, deleted } });
     return { success: true, action: _action, deleted };
   }
 
@@ -227,6 +245,7 @@ export async function action({ request, context }: Route.ActionArgs) {
         // skip on error
       }
     }
+    log.set({ orphans: { action: "cleanup-sessions", requested: sessionList.length, deleted } });
     return { success: true, action: _action, deleted };
   }
 
@@ -255,6 +274,9 @@ export async function action({ request, context }: Route.ActionArgs) {
       if (result.isOk()) deleted++;
     }
 
+    log.set({
+      orphans: { action: "delete-duplicates", keepId, requested: deleteIds.length, deleted },
+    });
     return { success: true, action: _action, deleted };
   }
 
@@ -264,6 +286,7 @@ export async function action({ request, context }: Route.ActionArgs) {
       input: {},
       userId: user.id,
     });
+    log.set({ orphans: { action: "backfill-hashes", jobId: job.id } });
     return { success: true, action: _action, deleted: 0, jobId: job.id };
   }
 

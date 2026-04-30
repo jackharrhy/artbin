@@ -2,6 +2,7 @@ import type { EntryContext } from "react-router";
 import { ServerRouter } from "react-router";
 import { renderToPipeableStream } from "react-dom/server";
 import { PassThrough } from "node:stream";
+import { createRequestLogger } from "evlog";
 
 // Import and start the job runner
 import { startJobRunner, isJobRunnerActive } from "~/lib/jobs.server";
@@ -18,7 +19,6 @@ import "~/lib/jobs/backfill-hashes-job.server";
 // Start the job runner (only once)
 if (!isJobRunnerActive()) {
   startJobRunner(2000); // Poll every 2 seconds
-  console.log("[Server] Job runner started");
 }
 
 const ABORT_DELAY = 5_000;
@@ -56,7 +56,12 @@ export default function handleRequest(
         onError(error: unknown) {
           responseStatusCode = 500;
           if (shellRendered) {
-            console.error(error);
+            const log = createRequestLogger();
+            log.set({ render: { error: "stream-error" } });
+            log.error(error instanceof Error ? error : new Error(String(error)), {
+              step: "render-stream",
+            });
+            log.emit();
           }
         },
       },

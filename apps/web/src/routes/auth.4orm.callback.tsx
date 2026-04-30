@@ -1,5 +1,6 @@
 import { redirect } from "react-router";
 import type { Route } from "./+types/auth.4orm.callback";
+import { loggerContext } from "evlog/react-router";
 import { exchangeCode, fetchUserinfo } from "~/lib/oauth.server";
 import { db } from "~/db/connection.server";
 import { users, sessions } from "~/db";
@@ -9,7 +10,8 @@ import { getSessionCookie } from "~/lib/auth.server";
 
 const SESSION_MAX_AGE = 60 * 60 * 24 * 30;
 
-export async function loader({ request }: Route.LoaderArgs) {
+export async function loader({ request, context }: Route.LoaderArgs) {
+  const log = context.get(loggerContext);
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
@@ -44,7 +46,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   try {
     tokenData = await exchangeCode(code, oauthData.verifier);
   } catch (err) {
-    console.error("Token exchange failed:", err);
+    log.error(err instanceof Error ? err : new Error(String(err)), { step: "token-exchange" });
     return redirect("/login?error=token_exchange_failed");
   }
 
@@ -52,7 +54,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   try {
     userinfo = await fetchUserinfo(tokenData.access_token);
   } catch (err) {
-    console.error("Userinfo fetch failed:", err);
+    log.error(err instanceof Error ? err : new Error(String(err)), { step: "userinfo-fetch" });
     return redirect("/login?error=userinfo_failed");
   }
 
@@ -74,6 +76,7 @@ export async function loader({ request }: Route.LoaderArgs) {
       })
       .returning();
     localUser = created;
+    log.set({ auth: { newUser: true, userId, username: userinfo.username } });
   } else {
     // Sync username and admin status from 4orm on each login
     const updates: Partial<{ username: string; isAdmin: boolean }> = {};
@@ -87,6 +90,8 @@ export async function loader({ request }: Route.LoaderArgs) {
       await db.update(users).set(updates).where(eq(users.id, localUser.id));
     }
   }
+
+  log.set({ auth: { userId: localUser.id, username: localUser.username, fourmId: userinfo.sub } });
 
   const sessionId = nanoid(32);
   const expiresAt = new Date(Date.now() + SESSION_MAX_AGE * 1000);

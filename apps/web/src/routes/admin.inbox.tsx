@@ -1,10 +1,16 @@
 import { Form, useLoaderData, useActionData } from "react-router";
 import type { Route } from "./+types/admin.inbox";
+import { loggerContext } from "evlog/react-router";
 import { userContext } from "~/lib/auth-context.server";
 import { db } from "~/db/connection.server";
 import { folders } from "~/db";
 import { isNull, and, desc, eq, sql } from "drizzle-orm";
 import { getPendingSessionsWithFiles, approveSession, rejectSession } from "~/lib/inbox.server";
+import type { RequestLogger } from "evlog";
+
+function toError(e: unknown): Error {
+  return e instanceof Error ? e : new Error(String(e));
+}
 
 export async function loader({ context }: Route.LoaderArgs) {
   const user = context.get(userContext);
@@ -42,7 +48,11 @@ type ActionResult =
       failedSessions?: number;
     };
 
-async function handleBulkAction(formData: FormData, _action: string): Promise<ActionResult> {
+async function handleBulkAction(
+  formData: FormData,
+  _action: string,
+  log: RequestLogger,
+): Promise<ActionResult> {
   const filterUploaderId = (formData.get("filterUploaderId") as string) || null;
 
   if (_action === "approve-all") {
@@ -76,10 +86,20 @@ async function handleBulkAction(formData: FormData, _action: string): Promise<Ac
         totalApproved += result.approvedCount;
         totalSkipped += result.skippedCount;
       } catch (e) {
-        console.error(`Failed to approve session ${session.folder.id}:`, e);
+        log.error(toError(e), { step: "approve-session", sessionId: session.folder.id });
         failedSessions++;
       }
     }
+
+    log.set({
+      inbox: {
+        action: "approve-all",
+        sessionCount: sessions.length,
+        totalApproved,
+        totalSkipped,
+        failedSessions,
+      },
+    });
 
     return {
       success: true,
@@ -104,10 +124,19 @@ async function handleBulkAction(formData: FormData, _action: string): Promise<Ac
         const result = await rejectSession(session.folder.id);
         totalRejected += result.rejectedCount;
       } catch (e) {
-        console.error(`Failed to reject session ${session.folder.id}:`, e);
+        log.error(toError(e), { step: "reject-session", sessionId: session.folder.id });
         rejectFailedSessions++;
       }
     }
+
+    log.set({
+      inbox: {
+        action: "reject-all",
+        sessionCount: sessions.length,
+        totalRejected,
+        failedSessions: rejectFailedSessions,
+      },
+    });
 
     return {
       success: true,
@@ -122,6 +151,7 @@ async function handleBulkAction(formData: FormData, _action: string): Promise<Ac
 }
 
 export async function action({ request, context }: Route.ActionArgs): Promise<ActionResult> {
+  const log = context.get(loggerContext);
   const user = context.get(userContext);
 
   const formData = await request.formData();
@@ -129,7 +159,7 @@ export async function action({ request, context }: Route.ActionArgs): Promise<Ac
 
   // Bulk actions (don't require sessionFolderId)
   if (_action === "approve-all" || _action === "reject-all") {
-    return handleBulkAction(formData, _action);
+    return handleBulkAction(formData, _action, log);
   }
 
   // Single-session actions require sessionFolderId
@@ -158,6 +188,14 @@ export async function action({ request, context }: Route.ActionArgs): Promise<Ac
         destinationFolderId,
         destinationFolder.slug,
       );
+      log.set({
+        inbox: {
+          action: "approve",
+          sessionId: sessionFolderId,
+          approvedCount: result.approvedCount,
+          skippedCount: result.skippedCount,
+        },
+      });
       return {
         success: true,
         action: "approve",
@@ -165,13 +203,16 @@ export async function action({ request, context }: Route.ActionArgs): Promise<Ac
         skippedCount: result.skippedCount,
       };
     } catch (e) {
-      console.error(`Failed to approve session ${sessionFolderId}:`, e);
+      log.error(toError(e), { step: "approve-session", sessionId: sessionFolderId });
       return { error: `Approval failed: ${e instanceof Error ? e.message : String(e)}` };
     }
   }
 
   if (_action === "reject") {
     const result = await rejectSession(sessionFolderId);
+    log.set({
+      inbox: { action: "reject", sessionId: sessionFolderId, rejectedCount: result.rejectedCount },
+    });
     return { success: true, action: "reject", count: result.rejectedCount };
   }
 

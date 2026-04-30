@@ -1,4 +1,5 @@
 import type { Route } from "./+types/api.cli.folders";
+import { useLogger } from "evlog/react-router";
 import { requireCliAuth } from "~/lib/cli-auth.server";
 import { db } from "~/db/connection.server";
 import { folders } from "~/db";
@@ -23,9 +24,13 @@ interface FolderInput {
 }
 
 export async function action({ request }: Route.ActionArgs) {
+  const log = useLogger();
   const user = await requireCliAuth(request);
 
   const body = (await request.json()) as { folders: FolderInput[] };
+  log.set({
+    cliFolders: { userId: user.id, isAdmin: user.isAdmin, inputCount: body.folders.length },
+  });
 
   const created: { slug: string; id: string }[] = [];
   const existing: { slug: string; id: string }[] = [];
@@ -77,5 +82,6 @@ export async function action({ request }: Route.ActionArgs) {
     created.push({ slug, id });
   }
 
+  log.set({ cliFolders: { createdCount: created.length, existingCount: existing.length } });
   return Response.json({ created, existing });
 }

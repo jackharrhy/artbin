@@ -1,8 +1,10 @@
 import type { Route } from "./+types/api.folder";
+import { useLogger } from "evlog/react-router";
 import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
 import { createFolder } from "~/lib/folders.server";
 
 export async function action({ request }: Route.ActionArgs) {
+  const log = useLogger();
   const sessionId = parseSessionCookie(request.headers.get("Cookie"));
   const user = await getUserFromSession(sessionId);
 
@@ -12,6 +14,7 @@ export async function action({ request }: Route.ActionArgs) {
 
   const body = await request.json();
   const { name, slug, parentId } = body;
+  log.set({ folder: { action: "create", name, slug, parentId, userId: user.id } });
 
   try {
     const result = await createFolder({
@@ -29,7 +32,7 @@ export async function action({ request }: Route.ActionArgs) {
       folder: result.value,
     });
   } catch (err) {
-    console.error("Create folder error:", err);
+    log.error(err instanceof Error ? err : String(err), { step: "create-folder" });
     return Response.json({ error: `Failed to create folder: ${err}` });
   }
 }

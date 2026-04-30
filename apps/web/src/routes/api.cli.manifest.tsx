@@ -1,4 +1,5 @@
 import type { Route } from "./+types/api.cli.manifest";
+import { useLogger } from "evlog/react-router";
 import { requireCliAuth } from "~/lib/cli-auth.server";
 import { db } from "~/db/connection.server";
 import { files } from "~/db";
@@ -10,9 +11,11 @@ interface ManifestInput {
 }
 
 export async function action({ request }: Route.ActionArgs) {
+  const log = useLogger();
   await requireCliAuth(request);
 
   const body = (await request.json()) as ManifestInput;
+  log.set({ manifest: { parentFolder: body.parentFolder, fileCount: body.files.length } });
 
   const newFiles: string[] = [];
   const existingFiles: string[] = [];
@@ -31,5 +34,6 @@ export async function action({ request }: Route.ActionArgs) {
     }
   }
 
+  log.set({ manifest: { newCount: newFiles.length, existingCount: existingFiles.length } });
   return Response.json({ newFiles, existingFiles });
 }

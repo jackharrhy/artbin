@@ -12,6 +12,7 @@ import { join } from "path";
 import { existsSync } from "fs";
 import { unlink } from "fs/promises";
 import { UPLOADS_DIR, getFilePath, slugToPath, ensureDir } from "./files.server";
+import { createRequestLogger } from "evlog";
 
 // Preview configuration
 const GRID_SIZE = 3; // 3x3 grid
@@ -140,7 +141,9 @@ export async function generateFolderPreview(folderId: string): Promise<string | 
   });
 
   if (!folder) {
-    console.error(`[FolderPreview] Folder not found: ${folderId}`);
+    const log = createRequestLogger();
+    log.set({ folderPreview: { folderId, error: "not-found" } });
+    log.emit();
     return null;
   }
 
@@ -148,7 +151,6 @@ export async function generateFolderPreview(folderId: string): Promise<string | 
   const texturePaths = await getPreviewTexturesRecursive(folderId);
 
   if (texturePaths.length === 0) {
-    console.log(`[FolderPreview] No textures found for folder: ${folder.slug}`);
     return null;
   }
 
@@ -176,14 +178,12 @@ export async function generateFolderPreview(folderId: string): Promise<string | 
           top: row * THUMB_SIZE,
           left: col * THUMB_SIZE,
         });
-      } catch (err) {
-        console.error(`[FolderPreview] Failed to process ${texturePath}:`, err);
+      } catch {
         // Continue with other images
       }
     }
 
     if (thumbnails.length === 0) {
-      console.log(`[FolderPreview] No valid thumbnails generated for: ${folder.slug}`);
       return null;
     }
 
@@ -212,12 +212,12 @@ export async function generateFolderPreview(folderId: string): Promise<string | 
     // Update folder record with preview path
     await db.update(folders).set({ previewPath }).where(eq(folders.id, folderId));
 
-    console.log(
-      `[FolderPreview] Generated preview for: ${folder.slug} (${thumbnails.length} images)`,
-    );
     return previewPath;
   } catch (err) {
-    console.error(`[FolderPreview] Failed to generate preview for ${folder.slug}:`, err);
+    const log = createRequestLogger();
+    log.set({ folderPreview: { folderSlug: folder.slug, error: "generation-failed" } });
+    log.error(err instanceof Error ? err : new Error(String(err)), { step: "generate-preview" });
+    log.emit();
     return null;
   }
 }
