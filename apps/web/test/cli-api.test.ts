@@ -170,7 +170,7 @@ describe("/api/cli/folders", () => {
     const body = await response.json();
     expect(body.created).toHaveLength(2);
     expect(body.created[0].slug).toBe("quake");
-    expect(body.created[1].slug).toBe("quake-id1");
+    expect(body.created[1].slug).toBe("quake/id1");
     expect(body.existing).toHaveLength(0);
 
     // Verify in DB
@@ -207,7 +207,7 @@ describe("/api/cli/folders", () => {
     expect(body.existing[0].slug).toBe("quake");
     expect(body.existing[0].id).toBe("existing-1");
     expect(body.created).toHaveLength(1);
-    expect(body.created[0].slug).toBe("quake-maps");
+    expect(body.created[0].slug).toBe("quake/maps");
   });
 
   test("links child folders to parent", async () => {
@@ -230,7 +230,7 @@ describe("/api/cli/folders", () => {
     expect(body.created).toHaveLength(2);
 
     const child = await db.query.folders.findFirst({
-      where: eq(folders.slug, "root-child"),
+      where: eq(folders.slug, "root/child"),
     });
     expect(child).toBeTruthy();
     expect(child!.parentId).toBe(body.created[0].id);
@@ -257,7 +257,7 @@ describe("/api/cli/folders", () => {
     // Pre-create folders
     await db.insert(folders).values([
       { id: "folder-a", name: "Quake", slug: "quake" },
-      { id: "folder-b", name: "Maps", slug: "quake-maps", parentId: "folder-a" },
+      { id: "folder-b", name: "Maps", slug: "quake/maps", parentId: "folder-a" },
     ]);
 
     const request = userRequest("http://localhost/api/cli/folders", {
@@ -625,6 +625,149 @@ describe("/api/cli/upload", () => {
 
     const response = await callRoute(uploadAction, request);
     expect(response.status).toBe(401);
+  });
+
+  test("uploads files with deep nested paths to correct folders", async () => {
+    const db = setupDatabase();
+    await seedAdminSession(db);
+
+    // Simulate what the CLI importer does: first create the folder hierarchy,
+    // then upload files referencing those folders by path.
+    // This mimics scanning ~/games/bdd3/ which has structure like:
+    //   AVIAOZIN3/id1/maps/myhouse.bsp
+    //   AVIAOZIN3/id1/gfx/conchars.png
+
+    // Step 1: Create folder hierarchy (as api.cli.folders would)
+    await db.insert(folders).values([
+      { id: "root", name: "bdd3", slug: "bdd3", fileCount: 0 },
+      { id: "av", name: "aviaozin3", slug: "bdd3/aviaozin3", parentId: "root", fileCount: 0 },
+      { id: "id1", name: "id1", slug: "bdd3/aviaozin3/id1", parentId: "av", fileCount: 0 },
+      {
+        id: "maps",
+        name: "maps",
+        slug: "bdd3/aviaozin3/id1/maps",
+        parentId: "id1",
+        fileCount: 0,
+      },
+      { id: "gfx", name: "gfx", slug: "bdd3/aviaozin3/id1/gfx", parentId: "id1", fileCount: 0 },
+    ]);
+
+    // Step 2: Upload files with paths that include subdirectories
+    const formData = new FormData();
+    formData.set(
+      "metadata",
+      JSON.stringify({
+        parentFolder: "bdd3",
+        files: [
+          {
+            path: "aviaozin3/id1/maps/myhouse.bsp",
+            kind: "map",
+            mimeType: "application/octet-stream",
+            sha256: "aaa",
+          },
+          {
+            path: "aviaozin3/id1/gfx/conchars.png",
+            kind: "texture",
+            mimeType: "image/png",
+            sha256: "bbb",
+          },
+          {
+            path: "aviaozin3/readme.txt",
+            kind: "other",
+            mimeType: "text/plain",
+            sha256: "ccc",
+          },
+        ],
+      }),
+    );
+    formData.set("file_0", new Blob([new Uint8Array(64)]), "myhouse.bsp");
+    formData.set("file_1", new Blob([new Uint8Array(32)]), "conchars.png");
+    formData.set("file_2", new Blob([new Uint8Array(16)]), "readme.txt");
+
+    const request = adminRequest("http://localhost/api/cli/upload", {
+      method: "POST",
+      body: formData,
+    });
+
+    const response = await callRoute(uploadAction, request);
+    const body = await response.json();
+
+    expect(body.uploaded).toHaveLength(3);
+    expect(body.errors).toHaveLength(0);
+
+    // Verify files landed in the correct folders
+    const bspFile = await db.query.files.findFirst({
+      where: eq(files.path, "bdd3/aviaozin3/id1/maps/myhouse.bsp"),
+    });
+    expect(bspFile).toBeTruthy();
+    expect(bspFile!.folderId).toBe("maps");
+
+    const gfxFile = await db.query.files.findFirst({
+      where: eq(files.path, "bdd3/aviaozin3/id1/gfx/conchars.png"),
+    });
+    expect(gfxFile).toBeTruthy();
+    expect(gfxFile!.folderId).toBe("gfx");
+
+    const readmeFile = await db.query.files.findFirst({
+      where: eq(files.path, "bdd3/aviaozin3/readme.txt"),
+    });
+    expect(readmeFile).toBeTruthy();
+    expect(readmeFile!.folderId).toBe("av");
+  });
+
+  test("folder creation endpoint builds correct parent hierarchy", async () => {
+    const db = setupDatabase();
+    await seedAdminSession(db);
+
+    // Simulate CLI importer sending sorted folder slugs (parents first)
+    const request = adminRequest("http://localhost/api/cli/folders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        folders: [
+          { slug: "game", name: "game", parentSlug: null },
+          { slug: "game/aviaozin3", name: "aviaozin3", parentSlug: "game" },
+          { slug: "game/aviaozin3/id1", name: "id1", parentSlug: "game/aviaozin3" },
+          {
+            slug: "game/aviaozin3/id1/maps",
+            name: "maps",
+            parentSlug: "game/aviaozin3/id1",
+          },
+          { slug: "game/aviaozin3/id1/gfx", name: "gfx", parentSlug: "game/aviaozin3/id1" },
+        ],
+      }),
+    });
+
+    const response = await callRoute(foldersAction, request);
+    const body = await response.json();
+
+    expect(body.created).toHaveLength(5);
+    expect(body.existing).toHaveLength(0);
+
+    // Verify parent-child relationships
+    const mapsFolder = await db.query.folders.findFirst({
+      where: eq(folders.slug, "game/aviaozin3/id1/maps"),
+    });
+    expect(mapsFolder).toBeTruthy();
+
+    const id1Folder = await db.query.folders.findFirst({
+      where: eq(folders.slug, "game/aviaozin3/id1"),
+    });
+    expect(id1Folder).toBeTruthy();
+    expect(mapsFolder!.parentId).toBe(id1Folder!.id);
+
+    const avFolder = await db.query.folders.findFirst({
+      where: eq(folders.slug, "game/aviaozin3"),
+    });
+    expect(avFolder).toBeTruthy();
+    expect(id1Folder!.parentId).toBe(avFolder!.id);
+
+    const rootFolder = await db.query.folders.findFirst({
+      where: eq(folders.slug, "game"),
+    });
+    expect(rootFolder).toBeTruthy();
+    expect(avFolder!.parentId).toBe(rootFolder!.id);
+    expect(rootFolder!.parentId).toBeNull();
   });
 
   test("non-admin upload creates pending files in inbox session", async () => {

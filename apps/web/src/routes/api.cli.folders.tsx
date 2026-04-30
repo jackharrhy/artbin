@@ -7,6 +7,15 @@ import { nanoid } from "nanoid";
 import { cleanFolderSlug } from "@artbin/core/detection/filenames";
 import { ensureDir, slugToPath } from "~/lib/files.server";
 
+/** Clean a full folder path by cleaning each segment individually, preserving slashes. */
+function cleanFolderPath(path: string): string {
+  return path
+    .split("/")
+    .map((s) => cleanFolderSlug(s))
+    .filter(Boolean)
+    .join("/");
+}
+
 interface FolderInput {
   slug: string;
   name: string;
@@ -22,7 +31,7 @@ export async function action({ request }: Route.ActionArgs) {
   const existing: { slug: string; id: string }[] = [];
 
   for (const input of body.folders) {
-    const slug = cleanFolderSlug(input.slug);
+    const slug = cleanFolderPath(input.slug);
     if (!slug) continue;
 
     // Check if folder already exists
@@ -43,7 +52,7 @@ export async function action({ request }: Route.ActionArgs) {
     // Look up parent if parentSlug provided
     let parentId: string | null = null;
     if (input.parentSlug) {
-      const parentSlug = cleanFolderSlug(input.parentSlug);
+      const parentSlug = cleanFolderPath(input.parentSlug);
       const parent = await db.query.folders.findFirst({
         where: eq(folders.slug, parentSlug),
       });

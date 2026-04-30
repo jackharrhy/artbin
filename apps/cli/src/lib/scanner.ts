@@ -1,5 +1,5 @@
 import { readdir, stat, readFile } from "fs/promises";
-import { join, extname } from "path";
+import { join, extname, relative } from "path";
 import { DEFAULT_SCAN_SETTINGS, type ScanSettings } from "@artbin/core/scanning/settings";
 import {
   shouldExclude,
@@ -18,6 +18,7 @@ const ARCHIVE_EXTENSIONS = new Set(["pak", "pk3", "pk4", "zip", "bsp"]);
 
 export interface ScannedArchive {
   path: string;
+  relativePath: string; // path relative to scan root (e.g. "AVIAOZIN3/id1/maps/myhouse.bsp")
   name: string;
   size: number;
   type: string;
@@ -27,6 +28,7 @@ export interface ScannedArchive {
 
 export interface ScannedFile {
   path: string;
+  relativePath: string; // path relative to scan root
   name: string;
   size: number;
   gameDir: string | null;
@@ -97,11 +99,13 @@ export async function scanDirectory(
             const buffer = await readFile(fullPath);
             const archiveType = detectArchiveType(buffer);
 
+            const relPath = relative(rootPath, fullPath);
             if (archiveType !== "unknown") {
               const parsed = parseArchive(buffer);
               const fileEntries = getFileEntries(parsed.entries);
               archives.push({
                 path: fullPath,
+                relativePath: relPath,
                 name: entry.name,
                 size: stats.size,
                 type: ext,
@@ -111,6 +115,7 @@ export async function scanDirectory(
             } else if (ext === "bsp") {
               archives.push({
                 path: fullPath,
+                relativePath: relPath,
                 name: entry.name,
                 size: stats.size,
                 type: "bsp",
@@ -124,6 +129,7 @@ export async function scanDirectory(
         } else if (isImportableFile(entry.name)) {
           looseFiles.push({
             path: fullPath,
+            relativePath: relative(rootPath, fullPath),
             name: entry.name,
             size: stats.size,
             gameDir,

@@ -8,14 +8,7 @@ import { basename, dirname } from "path";
 import { detectKind } from "@artbin/core/detection/kind";
 import { getMimeType } from "@artbin/core/detection/mime";
 import { isBSPFile } from "@artbin/core/parsers/bsp";
-import {
-  saveFile,
-  processImage,
-  insertFileRecord,
-  isImageKind,
-  getFilePath,
-  computeSha256,
-} from "~/lib/files.server";
+import { saveFile, insertFileRecord, getFilePath, computeSha256 } from "~/lib/files.server";
 import { createJob } from "~/lib/jobs.server";
 import { createUploadSession } from "~/lib/inbox.server";
 
@@ -100,21 +93,8 @@ async function handleAdminUpload(formData: FormData, metadata: UploadMetadata, u
       const kind = detectKind(savedName);
       const mimeType = await getMimeType(savedName, buffer);
 
-      let width: number | null = null;
-      let height: number | null = null;
-      let hasPreview = false;
-
-      // Process image if applicable
-      if (isImageKind(kind)) {
-        const imageInfo = await processImage(savedPath);
-        if (imageInfo.isOk()) {
-          width = imageInfo.value.width;
-          height = imageInfo.value.height;
-          hasPreview = imageInfo.value.hasPreview;
-        }
-      }
-
-      // Compute sha256 server-side from the actual bytes (don't trust client)
+      // Skip image processing during CLI uploads for speed.
+      // Previews and dimensions are generated lazily or via backfill.
       const sha256 = computeSha256(buffer);
       const fileId = nanoid();
       const inserted = await insertFileRecord({
@@ -124,9 +104,9 @@ async function handleAdminUpload(formData: FormData, metadata: UploadMetadata, u
         mimeType,
         size: buffer.length,
         kind,
-        width,
-        height,
-        hasPreview,
+        width: null,
+        height: null,
+        hasPreview: false,
         folderId: folder.id,
         uploaderId: userId,
         source: "cli-upload",
@@ -202,19 +182,7 @@ async function handleNonAdminUpload(formData: FormData, metadata: UploadMetadata
       const kind = detectKind(savedName);
       const mimeType = await getMimeType(savedName, buffer);
 
-      let width: number | null = null;
-      let height: number | null = null;
-      let hasPreview = false;
-
-      if (isImageKind(kind)) {
-        const imageInfo = await processImage(savedPath);
-        if (imageInfo.isOk()) {
-          width = imageInfo.value.width;
-          height = imageInfo.value.height;
-          hasPreview = imageInfo.value.hasPreview;
-        }
-      }
-
+      // Skip image processing during CLI uploads for speed.
       const sha256 = computeSha256(buffer);
       const fileId = nanoid();
       const inserted = await insertFileRecord({
@@ -224,9 +192,9 @@ async function handleNonAdminUpload(formData: FormData, metadata: UploadMetadata
         mimeType,
         size: buffer.length,
         kind,
-        width,
-        height,
-        hasPreview,
+        width: null,
+        height: null,
+        hasPreview: false,
         folderId: session.id,
         uploaderId: userId,
         source: "cli-upload",

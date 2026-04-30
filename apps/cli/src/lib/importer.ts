@@ -1,5 +1,5 @@
 import { readFile } from "fs/promises";
-import { basename, dirname } from "path";
+import { basename, dirname, join as pathJoin } from "path";
 import { createHash } from "crypto";
 import type { ScanResult, ScannedArchive } from "./scanner.ts";
 import type { ApiClient } from "./api.ts";
@@ -12,6 +12,15 @@ import {
 import { detectKind } from "@artbin/core/detection/kind";
 import { getMimeType } from "@artbin/core/detection/mime";
 import { cleanFolderSlug } from "@artbin/core/detection/filenames";
+
+/** Clean a full folder path by cleaning each segment individually, preserving slashes. */
+function cleanFolderPath(path: string): string {
+  return path
+    .split("/")
+    .map((s) => cleanFolderSlug(s))
+    .filter(Boolean)
+    .join("/");
+}
 import { isImportableFile } from "@artbin/core/scanning/filters";
 
 interface PreparedFile {
@@ -47,15 +56,24 @@ async function extractArchiveFiles(archive: ScannedArchive): Promise<PreparedFil
   const files: PreparedFile[] = [];
   const buffer = await readFile(archive.path);
 
+  // Use the archive's relative path within the scan tree to preserve directory structure.
+  // e.g. archive at "AVIAOZIN3/id1/maps/myhouse.bsp" gets the dir "AVIAOZIN3/id1/maps"
+  const archiveDir = dirname(archive.relativePath);
   const archiveBase = basename(archive.name, "." + archive.type);
   const archiveSlug = cleanFolderSlug(archiveBase);
 
+  // For archives with entries, put extracted files under archiveDir/archiveSlug/
+  // For BSPs (single files), put the BSP directly under its directory
+  const archivePrefix = archiveDir !== "." ? `${archiveDir}/${archiveSlug}` : archiveSlug;
+
   if (archive.type === "bsp") {
+    // BSPs are single files -- put them in the directory they came from
+    const bspRelPath = archiveDir !== "." ? `${archiveDir}/${archive.name}` : archive.name;
     const hash = sha256(buffer);
     const kind = detectKind(archive.name);
     const mimeType = await getMimeType(archive.name, buffer);
     files.push({
-      relativePath: `${archiveSlug}/${archive.name}`,
+      relativePath: bspRelPath,
       buffer,
       sha256: hash,
       kind,
@@ -87,8 +105,8 @@ async function extractArchiveFiles(archive: ScannedArchive): Promise<PreparedFil
       const entryDir = dirname(entry.name);
       const relativePath =
         entryDir && entryDir !== "."
-          ? `${archiveSlug}/${entryDir}/${fileName}`
-          : `${archiveSlug}/${fileName}`;
+          ? `${archivePrefix}/${entryDir}/${fileName}`
+          : `${archivePrefix}/${fileName}`;
 
       files.push({
         relativePath,
@@ -147,7 +165,7 @@ export async function runImport(options: ImportOptions): Promise<ImportResult> {
       const mimeType = await getMimeType(loose.name, buffer);
 
       allFiles.push({
-        relativePath: loose.name,
+        relativePath: loose.relativePath,
         buffer,
         sha256: hash,
         kind,
@@ -192,9 +210,9 @@ export async function runImport(options: ImportOptions): Promise<ImportResult> {
     const name = parts[parts.length - 1];
     const parentSlug = parts.length > 1 ? parts.slice(0, -1).join("/") : null;
     return {
-      slug: cleanFolderSlug(slug),
+      slug: cleanFolderPath(slug),
       name,
-      parentSlug: parentSlug ? cleanFolderSlug(parentSlug) : null,
+      parentSlug: parentSlug ? cleanFolderPath(parentSlug) : null,
     };
   });
 
@@ -227,45 +245,57 @@ export async function runImport(options: ImportOptions): Promise<ImportResult> {
   const newFileSet = new Set(newFilePaths);
   const filesToUpload = allFiles.filter((f) => newFileSet.has(f.relativePath));
 
-  // Upload in batches
-  const BATCH_SIZE = 10;
+  // Upload in batches with concurrency
+  const BATCH_SIZE = 50;
+  const CONCURRENCY = 3;
   let uploaded = 0;
   let failed = 0;
 
+  const batches: PreparedFile[][] = [];
   for (let i = 0; i < filesToUpload.length; i += BATCH_SIZE) {
-    const batch = filesToUpload.slice(i, i + BATCH_SIZE);
-    const batchNum = Math.floor(i / BATCH_SIZE) + 1;
-    const totalBatches = Math.ceil(filesToUpload.length / BATCH_SIZE);
+    batches.push(filesToUpload.slice(i, i + BATCH_SIZE));
+  }
+
+  // Process batches in groups of CONCURRENCY
+  for (let g = 0; g < batches.length; g += CONCURRENCY) {
+    const group = batches.slice(g, g + CONCURRENCY);
+    const groupStart = g;
 
     progress(
       "uploading",
       uploaded,
       filesToUpload.length,
-      `Uploading batch ${batchNum}/${totalBatches}...`,
+      `Uploading batches ${g + 1}-${Math.min(g + group.length, batches.length)}/${batches.length}...`,
     );
 
-    const result = await api.uploadBatch(
-      rootSlug,
-      batch.map((f) => ({
-        path: f.relativePath,
-        kind: f.kind,
-        mimeType: f.mimeType,
-        sha256: f.sha256,
-        sourceArchive: f.sourceArchive,
-        buffer: f.buffer,
-      })),
+    const results = await Promise.all(
+      group.map((batch) =>
+        api.uploadBatch(
+          rootSlug,
+          batch.map((f) => ({
+            path: f.relativePath,
+            kind: f.kind,
+            mimeType: f.mimeType,
+            sha256: f.sha256,
+            sourceArchive: f.sourceArchive,
+            buffer: f.buffer,
+          })),
+        ),
+      ),
     );
 
-    uploaded += result.uploaded.length;
-    if (result.errors.length > 0) {
-      failed += result.errors.length;
+    for (const result of results) {
+      uploaded += result.uploaded.length;
+      if (result.errors.length > 0) {
+        failed += result.errors.length;
+      }
     }
 
     progress(
       "uploading",
       uploaded,
       filesToUpload.length,
-      `Batch ${batchNum}/${totalBatches} done (${uploaded}/${filesToUpload.length} uploaded)`,
+      `${uploaded}/${filesToUpload.length} uploaded`,
     );
   }
 
