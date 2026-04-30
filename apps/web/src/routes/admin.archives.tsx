@@ -7,8 +7,8 @@ import { jobs } from "~/db";
 import { eq, desc } from "drizzle-orm";
 import { createJob } from "~/lib/jobs.server";
 
-import { buildTree, countArchives, getAllArchivePaths } from "@artbin/ui";
-import type { FoundArchive, TreeNode } from "@artbin/ui/types";
+import { buildTree, ScanTreeView, ArchiveItem, BatchControls } from "@artbin/ui";
+import type { FoundArchive } from "@artbin/ui/types";
 
 export async function loader({ context }: Route.LoaderArgs) {
   const user = context.get(userContext);
@@ -210,12 +210,6 @@ export function meta() {
   return [{ title: "Local Archives - Admin - artbin" }];
 }
 
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
 function slugify(str: string): string {
   return str
     .toLowerCase()
@@ -223,193 +217,62 @@ function slugify(str: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-function TreeNodeView({
-  node,
-  depth = 0,
-  selectedPaths,
-  onToggleArchive,
-  onToggleFolder,
-}: {
-  node: TreeNode;
-  depth?: number;
-  selectedPaths: Set<string>;
-  onToggleArchive: (path: string) => void;
-  onToggleFolder: (paths: string[], selected: boolean) => void;
-}) {
-  const archiveCount = countArchives(node);
-
-  if (archiveCount === 0) return null;
-
-  // Collect path segments that have only one child and no archives
-  let displayNode = node;
-  let displayPath = node.name;
-
-  while (displayNode.children.size === 1 && displayNode.archives.length === 0) {
-    const onlyChild = Array.from(displayNode.children.values())[0];
-    displayPath += "/" + onlyChild.name;
-    displayNode = onlyChild;
-  }
-
-  const hasChildren = displayNode.children.size > 0;
-  const hasArchives = displayNode.archives.length > 0;
-
-  // Sort children by name
-  const sortedChildren = Array.from(displayNode.children.values()).sort((a, b) =>
-    a.name.localeCompare(b.name),
-  );
-
-  // Sort archives by name
-  const sortedArchives = [...displayNode.archives].sort((a, b) => a.name.localeCompare(b.name));
-
-  // Calculate folder selection state
-  const allPaths = getAllArchivePaths(displayNode);
-  const selectedCount = allPaths.filter((p) => selectedPaths.has(p)).length;
-  const isAllSelected = selectedCount === allPaths.length && allPaths.length > 0;
-  const isPartiallySelected = selectedCount > 0 && selectedCount < allPaths.length;
-
-  return (
-    <div className="flex items-start gap-2">
-      <input
-        type="checkbox"
-        className="w-4 h-4 m-0 cursor-pointer accent-text shrink-0"
-        checked={isAllSelected}
-        ref={(el) => {
-          if (el) el.indeterminate = isPartiallySelected;
-        }}
-        onChange={() => onToggleFolder(allPaths, !isAllSelected)}
-      />
-      <details className="flex-1" open>
-        <summary className="flex items-center gap-2 py-1.5 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
-          <span className="text-base">{hasChildren || hasArchives ? "📁" : "📂"}</span>
-          <span className="flex-1 font-mono text-xs break-all">{displayPath}</span>
-          <span className="text-[0.7rem] text-text-muted px-1.5 py-0.5 bg-bg-hover">
-            {archiveCount} archive{archiveCount !== 1 ? "s" : ""}
-          </span>
-        </summary>
-
-        <div className="ml-5 border-l border-border-light pl-3">
-          {/* Child folders */}
-          {sortedChildren.map((child) => (
-            <TreeNodeView
-              key={child.path}
-              node={child}
-              depth={depth + 1}
-              selectedPaths={selectedPaths}
-              onToggleArchive={onToggleArchive}
-              onToggleFolder={onToggleFolder}
-            />
-          ))}
-
-          {/* Archives in this folder */}
-          {sortedArchives.map((archive) => (
-            <ArchiveItem
-              key={archive.path}
-              archive={archive}
-              isSelected={selectedPaths.has(archive.path)}
-              onToggle={() => onToggleArchive(archive.path)}
-            />
-          ))}
-        </div>
-      </details>
-    </div>
-  );
-}
-
-function ArchiveItem({
-  archive,
-  isSelected,
-  onToggle,
-}: {
-  archive: FoundArchive;
-  isSelected: boolean;
-  onToggle: () => void;
-}) {
+function ImportArchiveForm({ archive }: { archive: FoundArchive }) {
   const defaultName = archive.gameDir
     ? `${archive.gameDir} - ${archive.name.replace(/\.[^.]+$/, "")}`
     : archive.name.replace(/\.[^.]+$/, "");
 
   return (
-    <div className={`flex items-start gap-2 mb-1 ${isSelected ? "bg-[#f0f7ff]" : ""}`}>
-      <input
-        type="checkbox"
-        className="w-4 h-4 m-0 cursor-pointer accent-text shrink-0"
-        checked={isSelected}
-        onChange={onToggle}
-      />
-      <details className="flex-1">
-        <summary className="flex items-center gap-2 py-1 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
-          <span className="text-base">
-            {archive.type === "pak" && "📦"}
-            {archive.type === "pk3" && "📦"}
-            {archive.type === "wad" && "🎮"}
-            {archive.type === "zip" && "🗜️"}
-            {archive.type === "bsp" && "🗺️"}
-          </span>
-          <span className="font-medium text-[0.8125rem]">{archive.name}</span>
-          <span className="flex items-center gap-2 ml-auto">
-            <span className="text-[0.625rem] font-semibold px-1.5 py-0.5 bg-bg-subtle font-mono">
-              {archive.type.toUpperCase()}
-            </span>
-            <span className="text-[0.7rem] text-text-muted">{formatSize(archive.size)}</span>
-            {archive.gameDir && (
-              <span className="text-[0.625rem] px-1.5 py-0.5 bg-[#d4edda]">{archive.gameDir}</span>
-            )}
-          </span>
-        </summary>
+    <Form method="post">
+      <input type="hidden" name="intent" value="import-archive" />
+      <input type="hidden" name="archivePath" value={archive.path} />
+      <input type="hidden" name="archiveType" value={archive.type} />
 
-        <div className="p-3 mt-1 bg-[#fafafa] border border-border-light">
-          <Form method="post">
-            <input type="hidden" name="intent" value="import-archive" />
-            <input type="hidden" name="archivePath" value={archive.path} />
-            <input type="hidden" name="archiveType" value={archive.type} />
-
-            <div className="flex gap-3 items-end max-sm:flex-col max-sm:items-stretch">
-              <div className="mb-4 flex-1">
-                <label className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1">
-                  Folder Name
-                </label>
-                <input
-                  type="text"
-                  name="folderName"
-                  className="input w-full"
-                  defaultValue={defaultName}
-                  required
-                />
-              </div>
-
-              <div className="mb-4 flex-1">
-                <label className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1">
-                  Slug
-                </label>
-                <input
-                  type="text"
-                  name="folderSlug"
-                  className="input w-full"
-                  defaultValue={slugify(defaultName)}
-                  pattern="[a-z0-9-]+"
-                  required
-                />
-              </div>
-
-              <button type="submit" className="btn btn-primary btn-sm self-end">
-                Import
-              </button>
-            </div>
-          </Form>
+      <div className="flex gap-3 items-end max-sm:flex-col max-sm:items-stretch">
+        <div className="mb-4 flex-1">
+          <label className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1">
+            Folder Name
+          </label>
+          <input
+            type="text"
+            name="folderName"
+            className="input w-full"
+            defaultValue={defaultName}
+            required
+          />
         </div>
-      </details>
-    </div>
+
+        <div className="mb-4 flex-1">
+          <label className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1">
+            Slug
+          </label>
+          <input
+            type="text"
+            name="folderSlug"
+            className="input w-full"
+            defaultValue={slugify(defaultName)}
+            pattern="[a-z0-9-]+"
+            required
+          />
+        </div>
+
+        <button type="submit" className="btn btn-primary btn-sm self-end">
+          Import
+        </button>
+      </div>
+    </Form>
   );
 }
 
-function BatchImportButton({
+function BatchImportForm({
   selectedPaths,
   onClear,
+  close,
 }: {
   selectedPaths: Set<string>;
   onClear: () => void;
+  close: () => void;
 }) {
-  const [isOpen, setIsOpen] = useState(false);
   const [folderName, setFolderName] = useState("");
   const [folderSlug, setFolderSlug] = useState("");
 
@@ -419,92 +282,51 @@ function BatchImportButton({
     setFolderSlug(slugify(name));
   };
 
-  if (selectedPaths.size === 0) return null;
-
   return (
-    <>
-      {/* Fixed button in bottom right */}
-      <button
-        type="button"
-        className="fixed bottom-6 right-6 bg-text text-white border-none px-5 py-3 text-sm font-inherit cursor-pointer shadow-lg z-100 hover:bg-[#333]"
-        onClick={() => setIsOpen(true)}
-      >
-        Import {selectedPaths.size} selected
-      </button>
+    <Form method="post" onSubmit={() => close()}>
+      <input type="hidden" name="intent" value="batch-import" />
+      <input type="hidden" name="archivePaths" value={JSON.stringify([...selectedPaths])} />
 
-      {/* Modal */}
-      {isOpen && (
-        <div className="modal-overlay" onClick={() => setIsOpen(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2 className="modal-title">Batch Import</h2>
-              <button type="button" className="modal-close" onClick={() => setIsOpen(false)}>
-                &times;
-              </button>
-            </div>
-            <div className="modal-body">
-              <p className="mb-4 text-text-muted">
-                Import <strong>{selectedPaths.size}</strong> archives as subfolders of a new parent
-                folder. Each archive will become a subfolder named after its filename.
-              </p>
+      <div className="mb-4">
+        <label className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1">
+          Parent Folder Name
+        </label>
+        <input
+          type="text"
+          name="folderName"
+          className="input w-full"
+          placeholder="e.g. Thirty Flights of Loving"
+          value={folderName}
+          onChange={handleNameChange}
+          required
+        />
+      </div>
 
-              <Form method="post" onSubmit={() => setIsOpen(false)}>
-                <input type="hidden" name="intent" value="batch-import" />
-                <input
-                  type="hidden"
-                  name="archivePaths"
-                  value={JSON.stringify([...selectedPaths])}
-                />
+      <div className="mb-4">
+        <label className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1">
+          Slug
+        </label>
+        <input
+          type="text"
+          name="folderSlug"
+          className="input w-full"
+          placeholder="thirty-flights-of-loving"
+          value={folderSlug}
+          onChange={(e) => setFolderSlug(e.target.value)}
+          pattern="[a-z0-9-]+"
+          required
+        />
+      </div>
 
-                <div className="mb-4">
-                  <label className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1">
-                    Parent Folder Name
-                  </label>
-                  <input
-                    type="text"
-                    name="folderName"
-                    className="input w-full"
-                    placeholder="e.g. Thirty Flights of Loving"
-                    value={folderName}
-                    onChange={handleNameChange}
-                    required
-                  />
-                </div>
-
-                <div className="mb-4">
-                  <label className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1">
-                    Slug
-                  </label>
-                  <input
-                    type="text"
-                    name="folderSlug"
-                    className="input w-full"
-                    placeholder="thirty-flights-of-loving"
-                    value={folderSlug}
-                    onChange={(e) => setFolderSlug(e.target.value)}
-                    pattern="[a-z0-9-]+"
-                    required
-                  />
-                </div>
-
-                <div className="modal-actions">
-                  <button type="button" className="btn" onClick={onClear}>
-                    Clear Selection
-                  </button>
-                  <button
-                    type="submit"
-                    className="btn btn-primary"
-                    disabled={!folderName || !folderSlug}
-                  >
-                    Import as Subfolders
-                  </button>
-                </div>
-              </Form>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
+      <div className="modal-actions">
+        <button type="button" className="btn" onClick={onClear}>
+          Clear Selection
+        </button>
+        <button type="submit" className="btn btn-primary" disabled={!folderName || !folderSlug}>
+          Import as Subfolders
+        </button>
+      </div>
+    </Form>
   );
 }
 
@@ -652,12 +474,21 @@ export default function AdminArchives() {
             </div>
 
             {topLevelNodes.map((node) => (
-              <TreeNodeView
+              <ScanTreeView
                 key={node.path}
                 node={node}
                 selectedPaths={selectedPaths}
-                onToggleArchive={handleToggleArchive}
                 onToggleFolder={handleToggleFolder}
+                renderArchive={(archive, isSelected) => (
+                  <ArchiveItem
+                    key={archive.path}
+                    archive={archive}
+                    isSelected={isSelected}
+                    onToggle={() => handleToggleArchive(archive.path)}
+                  >
+                    <ImportArchiveForm archive={archive} />
+                  </ArchiveItem>
+                )}
               />
             ))}
           </div>
@@ -672,7 +503,15 @@ export default function AdminArchives() {
         ) : null}
       </div>
 
-      <BatchImportButton selectedPaths={selectedPaths} onClear={handleClearSelection} />
+      <BatchControls selectedCount={selectedPaths.size} onClear={handleClearSelection}>
+        {({ close }) => (
+          <BatchImportForm
+            selectedPaths={selectedPaths}
+            onClear={handleClearSelection}
+            close={close}
+          />
+        )}
+      </BatchControls>
     </>
   );
 }
