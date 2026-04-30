@@ -67,3 +67,10 @@ cli-build:
 # dev the cli (watch mode)
 cli-dev:
     pnpm run cli:dev
+
+# build the cli and symlink to ~/.local/bin/artbin
+cli-install:
+    just cli-build
+    ln -sf {{justfile_directory()}}/apps/cli/dist/index.js ~/.local/bin/artbin
+    chmod +x ~/.local/bin/artbin
+    @echo "artbin installed to ~/.local/bin/artbin"
