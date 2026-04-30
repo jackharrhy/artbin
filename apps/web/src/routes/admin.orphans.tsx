@@ -241,8 +241,11 @@ export async function action({ request, context }: Route.ActionArgs) {
       try {
         await db.delete(folders).where(eq(folders.id, session.id));
         deleted++;
-      } catch {
-        // skip on error
+      } catch (err) {
+        log.error(err instanceof Error ? err : new Error(String(err)), {
+          step: "delete-session-record",
+          sessionId: session.id,
+        });
       }
     }
     log.set({ orphans: { action: "cleanup-sessions", requested: sessionList.length, deleted } });

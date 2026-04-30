@@ -13,6 +13,7 @@ import {
   getFilePath,
 } from "./files.server";
 import { generateFolderPreview } from "./folder-preview.server";
+import { useLogger } from "evlog/react-router";
 
 export const INBOX_SLUG = "_inbox";
 export const INBOX_NAME = "Inbox";
@@ -223,8 +224,12 @@ export async function approveSession(
   for (const folderId of touchedFolderIds) {
     try {
       await generateFolderPreview(folderId);
-    } catch {
-      // Preview generation is non-fatal
+    } catch (err) {
+      const log = useLogger();
+      log.error(err instanceof Error ? err : new Error(String(err)), {
+        step: "folder-preview",
+        folderId,
+      });
     }
   }
 

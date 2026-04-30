@@ -231,6 +231,7 @@ async function handleNonAdminUpload(formData: FormData, metadata: UploadMetadata
 
       if (inserted.isErr()) {
         errors.push({ path: fileMeta.path, error: inserted.error.message });
+        log.error(inserted.error, { step: "insert-record", file: fileMeta.path });
         continue;
       }
 

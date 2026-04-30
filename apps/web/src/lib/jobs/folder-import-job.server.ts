@@ -195,8 +195,13 @@ async function findImportableFiles(
         }
       }
     }
-  } catch {
-    // Skip directories we can't read (permissions, etc)
+  } catch (err) {
+    const log = createRequestLogger();
+    log.error(err instanceof Error ? err : new Error(String(err)), {
+      step: "scan-directory",
+      path: fullPath,
+    });
+    log.emit();
   }
 
   return results;

@@ -178,8 +178,13 @@ export async function generateFolderPreview(folderId: string): Promise<string | 
           top: row * THUMB_SIZE,
           left: col * THUMB_SIZE,
         });
-      } catch {
-        // Continue with other images
+      } catch (err) {
+        const log = createRequestLogger();
+        log.error(err instanceof Error ? err : new Error(String(err)), {
+          step: "resize-thumbnail",
+          texture: texturePath,
+        });
+        log.emit();
       }
     }
 

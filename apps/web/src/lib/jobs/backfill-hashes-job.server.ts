@@ -4,6 +4,7 @@ import { eq, isNull } from "drizzle-orm";
 import { registerJobHandler, updateJobProgress } from "../jobs.server";
 import { getFilePath, computeSha256FromFile } from "../files.server";
 import { existsSync } from "fs";
+import { createRequestLogger } from "evlog";
 import type { Job } from "~/db";
 
 async function handleBackfillHashes(
@@ -33,7 +34,13 @@ async function handleBackfillHashes(
         const sha256 = await computeSha256FromFile(absolutePath);
         await db.update(files).set({ sha256 }).where(eq(files.id, file.id));
         hashed++;
-      } catch {
+      } catch (err) {
+        const log = createRequestLogger();
+        log.error(err instanceof Error ? err : new Error(String(err)), {
+          step: "compute-hash",
+          file: file.path,
+        });
+        log.emit();
         skipped++;
       }
     }

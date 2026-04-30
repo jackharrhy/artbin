@@ -14,6 +14,7 @@ import { basename, dirname } from "path";
 import { registerJobHandler, updateJobProgress } from "../jobs.server";
 import { getScanSettings, type ScanSettings } from "../settings.server";
 import { homedir } from "os";
+import { createRequestLogger } from "evlog";
 
 const execAsync = promisify(exec);
 
@@ -208,8 +209,13 @@ async function handleScanArchives(
         parentDir: basename(dirname(filePath)),
         gameDir: findGameDir(filePath, knownGameDirs),
       });
-    } catch {
-      // Skip files we can't stat (permissions, etc)
+    } catch (err) {
+      const log = createRequestLogger();
+      log.error(err instanceof Error ? err : new Error(String(err)), {
+        step: "stat-archive",
+        path: filePath,
+      });
+      log.emit();
     }
 
     processed++;

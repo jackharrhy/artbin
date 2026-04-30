@@ -366,6 +366,8 @@ async function handleAnalyzeArchive(formData: FormData) {
       },
     });
   } catch (err) {
+    const log = useLogger();
+    log.error(err instanceof Error ? err : new Error(String(err)), { step: "analyze-archive" });
     return Response.json({ error: `Failed to analyze archive: ${err}` });
   }
 }
