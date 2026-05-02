@@ -5,20 +5,10 @@
  * Images are hosted on sadhost.neocities.org/images/tiles/
  */
 
-import { db } from "~/db/connection.server";
-import { folders, files, type Job } from "~/db";
-import { eq } from "drizzle-orm";
-import { nanoid } from "nanoid";
-import { createRequestLogger } from "evlog";
+import type { Job } from "~/db";
 
 import { registerJobHandler, updateJobProgress } from "../jobs.server";
-import { ingestFile, ensureDir, slugToPath, recalculateFolderCounts } from "../files.server";
-import { generateFolderPreview } from "../folder-preview.server";
-
-interface Category {
-  name: string; // Display name
-  slug: string; // URL slug for folder
-}
+import { runScraper, downloadUrl, type ScraperCategory } from "./scraper-runner.server";
 
 export interface SadgrlImportInput {
   userId?: string;
@@ -33,11 +23,8 @@ export interface SadgrlImportOutput {
 
 const PAGE_URL =
   "https://sadgrlonline.github.io/archived-sadgrl.online/webmastery/downloads/tiledbgs.html";
-const PARENT_SLUG = "sadgrl-tiled-backgrounds";
-const PARENT_NAME = "Sadgrl Tiled Backgrounds";
 
-// Categories in the order they appear on the page
-const CATEGORIES: Category[] = [
+const CATEGORY_DEFS = [
   { name: "Reds", slug: "reds" },
   { name: "Yellows & Oranges", slug: "yellows-oranges" },
   { name: "Greens", slug: "greens" },
@@ -48,7 +35,7 @@ const CATEGORIES: Category[] = [
   { name: "Grays", slug: "grays" },
   { name: "Whites", slug: "whites" },
   { name: "Transparents", slug: "transparents" },
-];
+] as const;
 
 /**
  * Parse HTML to extract image URLs organized by category
@@ -56,8 +43,6 @@ const CATEGORIES: Category[] = [
 function parseImagesByCategory(html: string): Map<string, string[]> {
   const result = new Map<string, string[]>();
 
-  // Split by category headers
-  // Pattern: <strong>CategoryName</strong><br><br> followed by images until next <strong> or end
   const categoryPattern =
     /<strong>([^<]+)<\/strong>\s*<br>\s*<br>([\s\S]*?)(?=<br>\s*<br>\s*<strong>|<\/div>)/gi;
 
@@ -66,12 +51,9 @@ function parseImagesByCategory(html: string): Map<string, string[]> {
     const categoryName = match[1].trim();
     const imageSection = match[2];
 
-    // Find the matching category
-    const category = CATEGORIES.find((c) => c.name.toLowerCase() === categoryName.toLowerCase());
-
+    const category = CATEGORY_DEFS.find((c) => c.name.toLowerCase() === categoryName.toLowerCase());
     if (!category) continue;
 
-    // Extract image URLs from this section
     const imgPattern = /src="(https:\/\/sadhost\.neocities\.org\/images\/tiles\/[^"]+)"/gi;
     const images: string[] = [];
 
@@ -89,92 +71,19 @@ function parseImagesByCategory(html: string): Map<string, string[]> {
   return result;
 }
 
-/**
- * Get filename from URL
- */
 function getFilenameFromUrl(url: string): string {
   const parts = url.split("/");
   return parts[parts.length - 1];
-}
-
-/**
- * Download an image
- */
-async function downloadImage(url: string): Promise<Buffer> {
-  const res = await fetch(url);
-
-  if (!res.ok) {
-    throw new Error(`Failed to download ${url}: ${res.status}`);
-  }
-
-  const arrayBuffer = await res.arrayBuffer();
-  return Buffer.from(arrayBuffer);
-}
-
-/**
- * Get or create the parent folder
- */
-async function getOrCreateParentFolder(): Promise<string> {
-  const existing = await db.query.folders.findFirst({
-    where: eq(folders.slug, PARENT_SLUG),
-  });
-
-  if (existing) {
-    return existing.id;
-  }
-
-  const id = nanoid();
-  await db.insert(folders).values({
-    id,
-    name: PARENT_NAME,
-    slug: PARENT_SLUG,
-    description: "Tiled backgrounds from sadgrl.online archive",
-  });
-
-  await ensureDir(slugToPath(PARENT_SLUG));
-
-  return id;
-}
-
-/**
- * Get or create a category folder
- */
-async function getOrCreateCategoryFolder(category: Category, parentId: string): Promise<string> {
-  const slug = `${PARENT_SLUG}/${category.slug}`;
-
-  const existing = await db.query.folders.findFirst({
-    where: eq(folders.slug, slug),
-  });
-
-  if (existing) {
-    return existing.id;
-  }
-
-  const id = nanoid();
-  await db.insert(folders).values({
-    id,
-    name: category.name,
-    slug,
-    parentId,
-    description: `${category.name} tiled backgrounds`,
-  });
-
-  await ensureDir(slugToPath(slug));
-
-  return id;
 }
 
 async function handleSadgrlImport(
   job: Job,
   input: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
-  const log = createRequestLogger();
-  log.set({ job: { id: job.id, type: job.type } });
   const { userId } = input as unknown as SadgrlImportInput;
 
   await updateJobProgress(job.id, 2, "Fetching Sadgrl tiled backgrounds page...");
 
-  // Fetch the page
   const res = await fetch(PAGE_URL);
   if (!res.ok) {
     throw new Error(`Failed to fetch page: ${res.status} ${res.statusText}`);
@@ -183,10 +92,8 @@ async function handleSadgrlImport(
 
   await updateJobProgress(job.id, 5, "Parsing image categories...");
 
-  // Parse images by category
   const imagesByCategory = parseImagesByCategory(html);
 
-  // Count total images
   let totalFiles = 0;
   for (const images of imagesByCategory.values()) {
     totalFiles += images.length;
@@ -198,107 +105,33 @@ async function handleSadgrlImport(
     `Found ${totalFiles} images in ${imagesByCategory.size} categories`,
   );
 
-  // Create parent folder
-  const parentFolderId = await getOrCreateParentFolder();
-  const createdFolderIds: string[] = [parentFolderId];
+  // Build categories for the shared runner
+  const categories: ScraperCategory[] = CATEGORY_DEFS.filter((def) =>
+    imagesByCategory.has(def.slug),
+  ).map((def) => ({
+    name: def.name,
+    slug: def.slug,
+    files: (imagesByCategory.get(def.slug) || []).map((url) => ({
+      filename: getFilenameFromUrl(url),
+      download: () => downloadUrl(url),
+    })),
+  }));
 
-  let processedFiles = 0;
-  let importedFiles = 0;
-  const errors: string[] = [];
-  const categoriesImported: string[] = [];
-
-  // Process each category
-  for (const category of CATEGORIES) {
-    const images = imagesByCategory.get(category.slug);
-    if (!images || images.length === 0) continue;
-
-    const folderId = await getOrCreateCategoryFolder(category, parentFolderId);
-    createdFolderIds.push(folderId);
-    categoriesImported.push(category.name);
-
-    const folderSlug = `${PARENT_SLUG}/${category.slug}`;
-
-    for (const imageUrl of images) {
-      const filename = getFilenameFromUrl(imageUrl);
-
-      try {
-        // Check if file already exists
-        const filePath = `${folderSlug}/${filename}`;
-        const existing = await db.query.files.findFirst({
-          where: eq(files.path, filePath),
-        });
-
-        if (existing) {
-          processedFiles++;
-          continue; // Skip already imported files
-        }
-
-        // Download the image
-        const buffer = await downloadImage(imageUrl);
-
-        // Ingest file (save, detect, process, hash, insert)
-        const ingested = await ingestFile({
-          buffer,
-          fileName: filename,
-          folderSlug,
-          folderId,
-          source: "sadgrl",
-          uploaderId: userId || null,
-        });
-        if (ingested.isErr()) throw ingested.error;
-
-        importedFiles++;
-      } catch (error) {
-        const msg = `${category.slug}/${filename}: ${error instanceof Error ? error.message : String(error)}`;
-        errors.push(msg);
-        log.error(error instanceof Error ? error : new Error(String(error)), {
-          step: "import-file",
-          file: filename,
-          category: category.slug,
-        });
-      }
-
-      processedFiles++;
-
-      // Update progress every 10 files
-      if (processedFiles % 10 === 0 || processedFiles === totalFiles) {
-        const progress = 10 + Math.floor((processedFiles / totalFiles) * 85);
-        await updateJobProgress(
-          job.id,
-          progress,
-          `Imported ${importedFiles}/${processedFiles} images (${category.name})...`,
-        );
-      }
-    }
-  }
-
-  // Recalculate folder counts and generate previews
-  await updateJobProgress(job.id, 95, "Updating folder counts...");
-  await recalculateFolderCounts(createdFolderIds);
-
-  await updateJobProgress(job.id, 96, "Generating folder previews...");
-  for (const folderId of createdFolderIds) {
-    try {
-      await generateFolderPreview(folderId);
-    } catch (err) {
-      log.error(err instanceof Error ? err : new Error(String(err)), {
-        step: "generate-preview",
-        folderId,
-      });
-    }
-  }
-
-  log.emit();
-
-  return {
-    totalFiles: importedFiles,
-    totalFolders: categoriesImported.length,
-    categoriesImported,
-    errors: errors.slice(0, 50), // Limit errors in output
-  };
+  return runScraper(
+    job,
+    {
+      parentSlug: "sadgrl-tiled-backgrounds",
+      parentName: "Sadgrl Tiled Backgrounds",
+      parentDescription: "Tiled backgrounds from sadgrl.online archive",
+      source: "sadgrl",
+      uploaderId: userId || null,
+      categoryDescription: (name) => `${name} tiled backgrounds`,
+    },
+    categories,
+    10,
+  );
 }
 
-// Register the job handler
 registerJobHandler("sadgrl-import", handleSadgrlImport);
 
 export { handleSadgrlImport };

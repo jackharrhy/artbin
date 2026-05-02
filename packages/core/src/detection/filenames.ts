@@ -13,3 +13,12 @@ export function cleanFolderSlug(slug: string): string {
     .replace(/[^a-z0-9-]+/g, "-")
     .replace(/^-+|-+$/g, "");
 }
+
+/** Clean a full folder path by cleaning each segment individually, preserving slashes. */
+export function cleanFolderPath(path: string): string {
+  return path
+    .split("/")
+    .map((s) => cleanFolderSlug(s))
+    .filter(Boolean)
+    .join("/");
+}

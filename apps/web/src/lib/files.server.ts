@@ -686,6 +686,7 @@ export async function getOrCreateFolder(
   slug: string,
   name: string,
   parentId: typeof ROOT_FOLDER | string,
+  description?: string,
 ): Promise<string> {
   const existing = await db.query.folders.findFirst({
     where: eq(folders.slug, slug),
@@ -701,6 +702,7 @@ export async function getOrCreateFolder(
     name,
     slug,
     parentId: parentId === ROOT_FOLDER ? null : parentId,
+    ...(description ? { description } : {}),
   });
 
   await ensureDir(slugToPath(slug));

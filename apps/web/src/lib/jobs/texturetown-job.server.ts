@@ -5,15 +5,10 @@
  * Creates folders for each category and downloads all textures.
  */
 
-import { db } from "~/db/connection.server";
-import { folders, files, type Job } from "~/db";
-import { eq } from "drizzle-orm";
-import { nanoid } from "nanoid";
-import { createRequestLogger } from "evlog";
+import type { Job } from "~/db";
 
 import { registerJobHandler, updateJobProgress } from "../jobs.server";
-import { ingestFile, ensureDir, slugToPath, recalculateFolderCounts } from "../files.server";
-import { generateFolderPreview } from "../folder-preview.server";
+import { runScraper, downloadUrl, type ScraperCategory } from "./scraper-runner.server";
 
 interface TextureTownManifest {
   info: {
@@ -29,7 +24,7 @@ interface TextureTownManifest {
 }
 
 export interface TextureTownImportInput {
-  categories?: string[]; // If empty/undefined, import all categories
+  categories?: string[];
   userId?: string;
 }
 
@@ -41,11 +36,7 @@ export interface TextureTownImportOutput {
 }
 
 const TEXTURETOWN_MANIFEST_URL = "https://textures.neocities.org/manifest.json";
-const TEXTURETOWN_BASE_URL = "https://textures.neocities.org";
 
-/**
- * Fetch the TextureTown manifest
- */
 async function fetchManifest(): Promise<TextureTownManifest> {
   const res = await fetch(TEXTURETOWN_MANIFEST_URL);
   if (!res.ok) {
@@ -54,101 +45,17 @@ async function fetchManifest(): Promise<TextureTownManifest> {
   return res.json();
 }
 
-const TEXTURETOWN_PARENT_SLUG = "texturetown";
-const TEXTURETOWN_PARENT_NAME = "TextureTown";
-
-/**
- * Create slug from category name (nested under parent)
- */
 function categoryToSlug(categoryName: string): string {
-  const catSlug = categoryName
+  return categoryName
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
-  return `${TEXTURETOWN_PARENT_SLUG}/${catSlug}`;
-}
-
-/**
- * Get or create the parent TextureTown folder
- */
-async function getOrCreateParentFolder(): Promise<string> {
-  const existing = await db.query.folders.findFirst({
-    where: eq(folders.slug, TEXTURETOWN_PARENT_SLUG),
-  });
-
-  if (existing) {
-    return existing.id;
-  }
-
-  const id = nanoid();
-  await db.insert(folders).values({
-    id,
-    name: TEXTURETOWN_PARENT_NAME,
-    slug: TEXTURETOWN_PARENT_SLUG,
-    description: "Textures imported from textures.neocities.org",
-  });
-
-  await ensureDir(slugToPath(TEXTURETOWN_PARENT_SLUG));
-
-  return id;
-}
-
-/**
- * Get or create a folder for a TextureTown category
- */
-async function getOrCreateCategoryFolder(
-  slug: string,
-  name: string,
-  parentId: string,
-): Promise<string> {
-  const existing = await db.query.folders.findFirst({
-    where: eq(folders.slug, slug),
-  });
-
-  if (existing) {
-    return existing.id;
-  }
-
-  const id = nanoid();
-  await db.insert(folders).values({
-    id,
-    name,
-    slug,
-    parentId,
-    description: `${name} textures from TextureTown`,
-  });
-
-  await ensureDir(slugToPath(slug));
-
-  return id;
-}
-
-/**
- * Download a single texture file
- */
-async function downloadTexture(
-  baseUrl: string,
-  texturesFolder: string,
-  categoryName: string,
-  fileName: string,
-): Promise<Buffer> {
-  const url = `${baseUrl}/${texturesFolder}/${categoryName}/${fileName}`;
-  const res = await fetch(url);
-
-  if (!res.ok) {
-    throw new Error(`Failed to download ${url}: ${res.status}`);
-  }
-
-  const arrayBuffer = await res.arrayBuffer();
-  return Buffer.from(arrayBuffer);
 }
 
 async function handleTextureTownImport(
   job: Job,
   input: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
-  const log = createRequestLogger();
-  log.set({ job: { id: job.id, type: job.type } });
   const { categories: requestedCategories, userId } = input as unknown as TextureTownImportInput;
 
   await updateJobProgress(job.id, 2, "Fetching TextureTown manifest...");
@@ -156,118 +63,47 @@ async function handleTextureTownImport(
   const manifest = await fetchManifest();
   const { base_url, textures_folder } = manifest.info;
 
-  // Filter categories if specific ones were requested
-  let categoriesToImport = manifest.catalogue;
+  let catalogue = manifest.catalogue;
   if (requestedCategories && requestedCategories.length > 0) {
-    categoriesToImport = manifest.catalogue.filter((cat) => requestedCategories.includes(cat.name));
+    catalogue = manifest.catalogue.filter((cat) => requestedCategories.includes(cat.name));
   }
 
-  if (categoriesToImport.length === 0) {
+  if (catalogue.length === 0) {
     throw new Error("No categories to import");
   }
 
-  // Count total files for progress tracking
-  const totalFiles = categoriesToImport.reduce((sum, cat) => sum + cat.files.length, 0);
-  let processedFiles = 0;
-  let importedFiles = 0;
-  const errors: string[] = [];
-  const categoriesImported: string[] = [];
-
+  const totalFiles = catalogue.reduce((sum, cat) => sum + cat.files.length, 0);
   await updateJobProgress(
     job.id,
     5,
-    `Found ${totalFiles} textures in ${categoriesToImport.length} categories`,
+    `Found ${totalFiles} textures in ${catalogue.length} categories`,
   );
 
-  // Create parent TextureTown folder
-  const parentFolderId = await getOrCreateParentFolder();
-  const createdFolderIds: string[] = [parentFolderId];
+  // Build categories for the shared runner
+  const categories: ScraperCategory[] = catalogue.map((cat) => ({
+    name: cat.niceName,
+    slug: categoryToSlug(cat.name),
+    files: cat.files.map((fileName) => ({
+      filename: fileName,
+      download: () => downloadUrl(`${base_url}/${textures_folder}/${cat.name}/${fileName}`),
+    })),
+  }));
 
-  for (const category of categoriesToImport) {
-    const folderSlug = categoryToSlug(category.name);
-    const folderId = await getOrCreateCategoryFolder(folderSlug, category.niceName, parentFolderId);
-    createdFolderIds.push(folderId);
-    categoriesImported.push(category.niceName);
-
-    for (const fileName of category.files) {
-      try {
-        // Check if file already exists
-        const filePath = `${folderSlug}/${fileName}`;
-        const existing = await db.query.files.findFirst({
-          where: eq(files.path, filePath),
-        });
-
-        if (existing) {
-          processedFiles++;
-          continue; // Skip already imported files
-        }
-
-        // Download the texture
-        const buffer = await downloadTexture(base_url, textures_folder, category.name, fileName);
-
-        // Ingest file (save, detect, process, hash, insert)
-        const ingested = await ingestFile({
-          buffer,
-          fileName,
-          folderSlug,
-          folderId,
-          source: "texturetown",
-          uploaderId: userId || null,
-        });
-        if (ingested.isErr()) throw ingested.error;
-
-        importedFiles++;
-      } catch (error) {
-        const msg = `${category.name}/${fileName}: ${error instanceof Error ? error.message : String(error)}`;
-        errors.push(msg);
-        log.error(error instanceof Error ? error : new Error(String(error)), {
-          step: "import-texture",
-          file: fileName,
-          category: category.name,
-        });
-      }
-
-      processedFiles++;
-
-      // Update progress every 10 files
-      if (processedFiles % 10 === 0 || processedFiles === totalFiles) {
-        const progress = 5 + Math.floor((processedFiles / totalFiles) * 90);
-        await updateJobProgress(
-          job.id,
-          progress,
-          `Imported ${importedFiles}/${processedFiles} textures (${category.niceName})...`,
-        );
-      }
-    }
-  }
-
-  // Recalculate folder counts and generate previews
-  await updateJobProgress(job.id, 95, "Updating folder counts...");
-  await recalculateFolderCounts(createdFolderIds);
-
-  await updateJobProgress(job.id, 96, "Generating folder previews...");
-  for (const folderId of createdFolderIds) {
-    try {
-      await generateFolderPreview(folderId);
-    } catch (err) {
-      log.error(err instanceof Error ? err : new Error(String(err)), {
-        step: "generate-preview",
-        folderId,
-      });
-    }
-  }
-
-  log.emit();
-
-  return {
-    totalFiles: importedFiles,
-    totalFolders: categoriesImported.length,
-    categoriesImported,
-    errors: errors.slice(0, 50), // Limit errors in output
-  };
+  return runScraper(
+    job,
+    {
+      parentSlug: "texturetown",
+      parentName: "TextureTown",
+      parentDescription: "Textures imported from textures.neocities.org",
+      source: "texturetown",
+      uploaderId: userId || null,
+      categoryDescription: (name) => `${name} textures from TextureTown`,
+    },
+    categories,
+    5,
+  );
 }
 
-// Register the job handler
 registerJobHandler("texturetown-import", handleTextureTownImport);
 
 export { handleTextureTownImport };

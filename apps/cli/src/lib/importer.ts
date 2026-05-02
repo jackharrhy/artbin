@@ -12,16 +12,7 @@ import {
 } from "@artbin/core/parsers/archives";
 import { detectKind } from "@artbin/core/detection/kind";
 import { getMimeType } from "@artbin/core/detection/mime";
-import { cleanFolderSlug } from "@artbin/core/detection/filenames";
-
-/** Clean a full folder path by cleaning each segment individually, preserving slashes. */
-function cleanFolderPath(path: string): string {
-  return path
-    .split("/")
-    .map((s) => cleanFolderSlug(s))
-    .filter(Boolean)
-    .join("/");
-}
+import { cleanFolderSlug, cleanFolderPath } from "@artbin/core/detection/filenames";
 import { isImportableFile } from "@artbin/core/scanning/filters";
 
 interface PreparedFile {

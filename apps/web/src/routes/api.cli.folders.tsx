@@ -5,17 +5,8 @@ import { db } from "~/db/connection.server";
 import { folders } from "~/db";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
-import { cleanFolderSlug } from "@artbin/core/detection/filenames";
+import { cleanFolderPath } from "@artbin/core/detection/filenames";
 import { ensureDir, slugToPath } from "~/lib/files.server";
-
-/** Clean a full folder path by cleaning each segment individually, preserving slashes. */
-function cleanFolderPath(path: string): string {
-  return path
-    .split("/")
-    .map((s) => cleanFolderSlug(s))
-    .filter(Boolean)
-    .join("/");
-}
 
 interface FolderInput {
   slug: string;

@@ -5,20 +5,11 @@ import { db } from "~/db/connection.server";
 import { folders } from "~/db";
 import { eq } from "drizzle-orm";
 import { basename, dirname } from "path";
-import { cleanFolderSlug } from "@artbin/core/detection/filenames";
+import { cleanFolderSlug, cleanFolderPath } from "@artbin/core/detection/filenames";
 import { isBSPFile } from "@artbin/core/parsers/bsp";
 import { ingestFile, getFilePath } from "~/lib/files.server";
 import { createJob } from "~/lib/jobs.server";
 import { createUploadSession } from "~/lib/inbox.server";
-
-/** Clean a full folder path by cleaning each segment individually, preserving slashes. */
-function cleanFolderPath(path: string): string {
-  return path
-    .split("/")
-    .map((s) => cleanFolderSlug(s))
-    .filter(Boolean)
-    .join("/");
-}
 
 interface FileMetadata {
   path: string;
