@@ -5,19 +5,9 @@ import { db } from "~/db/connection.server";
 import { folders } from "~/db";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
-import { join, basename, dirname } from "path";
+import { join, basename } from "path";
 import { writeFile } from "fs/promises";
-import {
-  saveFile,
-  getMimeType,
-  detectKind,
-  processImage,
-  isImageKind,
-  TEMP_DIR,
-  ensureDir,
-  insertFileRecord,
-  computeSha256,
-} from "~/lib/files.server";
+import { ingestFile, TEMP_DIR, ensureDir } from "~/lib/files.server";
 import { createJob } from "~/lib/jobs.server";
 import { parseArchive, getFileEntries, getDirectoryPaths } from "~/lib/archives.server";
 import { createUploadSession } from "~/lib/inbox.server";
@@ -147,53 +137,21 @@ async function handleAdminUpload(
       }
     }
 
-    const { path: filePath, name: savedName } = await saveFile(
+    const ingested = await ingestFile({
       buffer,
-      targetFolderSlug,
-      relativePath ? basename(relativePath) : file.name,
-      true,
-    );
-
-    const kind = detectKind(savedName);
-    const mimeType = await getMimeType(savedName, buffer);
-
-    let width: number | null = null;
-    let height: number | null = null;
-    let hasPreview = false;
-
-    if (isImageKind(kind)) {
-      const imageInfo = await processImage(filePath);
-      if (imageInfo.isOk()) {
-        width = imageInfo.value.width;
-        height = imageInfo.value.height;
-        hasPreview = imageInfo.value.hasPreview;
-      }
-    }
-
-    const sha256 = computeSha256(buffer);
-    const fileId = nanoid();
-    const inserted = await insertFileRecord({
-      id: fileId,
-      path: filePath,
-      name: savedName,
-      mimeType,
-      size: buffer.length,
-      kind,
-      width,
-      height,
-      hasPreview,
+      fileName: relativePath ? basename(relativePath) : file.name,
+      folderSlug: targetFolderSlug,
       folderId: targetFolderId,
-      uploaderId: userId,
       source: "upload",
-      sha256,
+      uploaderId: userId,
     });
-    if (inserted.isErr()) throw inserted.error;
+    if (ingested.isErr()) throw ingested.error;
 
     return Response.json({
       fileSuccess: {
-        fileId,
-        filePath,
-        fileName: savedName,
+        fileId: ingested.value.fileId,
+        filePath: ingested.value.path,
+        fileName: ingested.value.name,
       },
     });
   } catch (err) {
@@ -266,49 +224,17 @@ async function handleNonAdminUpload(
       }
     }
 
-    const { path: filePath, name: savedName } = await saveFile(
+    const ingested = await ingestFile({
       buffer,
-      targetFolderSlug,
-      relativePath ? basename(relativePath) : file.name,
-      true,
-    );
-
-    const kind = detectKind(savedName);
-    const mimeType = await getMimeType(savedName, buffer);
-
-    let width: number | null = null;
-    let height: number | null = null;
-    let hasPreview = false;
-
-    if (isImageKind(kind)) {
-      const imageInfo = await processImage(filePath);
-      if (imageInfo.isOk()) {
-        width = imageInfo.value.width;
-        height = imageInfo.value.height;
-        hasPreview = imageInfo.value.hasPreview;
-      }
-    }
-
-    const sha256 = computeSha256(buffer);
-    const fileId = nanoid();
-    const inserted = await insertFileRecord({
-      id: fileId,
-      path: filePath,
-      name: savedName,
-      mimeType,
-      size: buffer.length,
-      kind,
-      width,
-      height,
-      hasPreview,
+      fileName: relativePath ? basename(relativePath) : file.name,
+      folderSlug: targetFolderSlug,
       folderId: targetFolderId,
-      uploaderId: userId,
       source: "upload",
-      sha256,
+      uploaderId: userId,
       status: "pending",
       suggestedFolderId: folderId || null,
     });
-    if (inserted.isErr()) throw inserted.error;
+    if (ingested.isErr()) throw ingested.error;
 
     return Response.json({
       pendingUpload: true,

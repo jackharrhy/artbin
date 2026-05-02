@@ -4,13 +4,10 @@ import { requireCliAuth } from "~/lib/cli-auth.server";
 import { db } from "~/db/connection.server";
 import { folders } from "~/db";
 import { eq } from "drizzle-orm";
-import { nanoid } from "nanoid";
 import { basename, dirname } from "path";
-import { detectKind } from "@artbin/core/detection/kind";
-import { getMimeType } from "@artbin/core/detection/mime";
 import { cleanFolderSlug } from "@artbin/core/detection/filenames";
 import { isBSPFile } from "@artbin/core/parsers/bsp";
-import { saveFile, insertFileRecord, getFilePath, computeSha256 } from "~/lib/files.server";
+import { ingestFile, getFilePath } from "~/lib/files.server";
 import { createJob } from "~/lib/jobs.server";
 import { createUploadSession } from "~/lib/inbox.server";
 
@@ -107,53 +104,35 @@ async function handleAdminUpload(formData: FormData, metadata: UploadMetadata, u
 
       const fileName = basename(fileMeta.path);
 
-      // Save the file to disk
-      const { path: savedPath, name: savedName } = await saveFile(
+      const ingested = await ingestFile({
         buffer,
-        folderSlug,
         fileName,
-        true,
-      );
-
-      // Detect kind and mime type server-side
-      const kind = detectKind(savedName);
-      const mimeType = await getMimeType(savedName, buffer);
-
-      // Skip image processing during CLI uploads for speed.
-      // Previews and dimensions are generated lazily or via backfill.
-      const sha256 = computeSha256(buffer);
-      const fileId = nanoid();
-      const inserted = await insertFileRecord({
-        id: fileId,
-        path: savedPath,
-        name: savedName,
-        mimeType,
-        size: buffer.length,
-        kind,
-        width: null,
-        height: null,
-        hasPreview: false,
+        folderSlug,
         folderId: folder.id,
-        uploaderId: userId,
         source: "cli-upload",
+        uploaderId: userId,
         sourceArchive: fileMeta.sourceArchive ?? null,
-        sha256,
+        processImages: false,
       });
 
-      if (inserted.isErr()) {
-        errors.push({ path: fileMeta.path, error: inserted.error.message });
-        log.error(inserted.error, { step: "insert-record", file: fileMeta.path });
+      if (ingested.isErr()) {
+        errors.push({ path: fileMeta.path, error: ingested.error.message });
+        log.error(ingested.error, { step: "ingest-file", file: fileMeta.path });
         continue;
       }
 
       // If BSP file, queue an extract-bsp job
-      if (kind === "map" && savedName.toLowerCase().endsWith(".bsp") && isBSPFile(buffer)) {
-        const bspBaseName = savedName.replace(/\.bsp$/i, "");
+      if (
+        ingested.value.kind === "map" &&
+        ingested.value.name.toLowerCase().endsWith(".bsp") &&
+        isBSPFile(buffer)
+      ) {
+        const bspBaseName = ingested.value.name.replace(/\.bsp$/i, "");
         const bspSlug = cleanFolderSlug(bspBaseName);
         await createJob({
           type: "extract-bsp",
           input: {
-            bspPath: getFilePath(savedPath),
+            bspPath: getFilePath(ingested.value.path),
             targetFolderSlug: `${folderSlug}/${bspSlug}-textures`,
             targetFolderName: `${bspBaseName} Textures`,
             userId: userId,
@@ -208,43 +187,22 @@ async function handleNonAdminUpload(formData: FormData, metadata: UploadMetadata
       const buffer = Buffer.from(await fileField.arrayBuffer());
       const fileName = basename(fileMeta.path);
 
-      // Save the file to the inbox session folder
-      const { path: savedPath, name: savedName } = await saveFile(
+      const ingested = await ingestFile({
         buffer,
-        session.slug,
         fileName,
-        true,
-      );
-
-      // Detect kind and mime type server-side
-      const kind = detectKind(savedName);
-      const mimeType = await getMimeType(savedName, buffer);
-
-      // Skip image processing during CLI uploads for speed.
-      const sha256 = computeSha256(buffer);
-      const fileId = nanoid();
-      const inserted = await insertFileRecord({
-        id: fileId,
-        path: savedPath,
-        name: savedName,
-        mimeType,
-        size: buffer.length,
-        kind,
-        width: null,
-        height: null,
-        hasPreview: false,
+        folderSlug: session.slug,
         folderId: session.id,
-        uploaderId: userId,
         source: "cli-upload",
+        uploaderId: userId,
         sourceArchive: fileMeta.sourceArchive ?? null,
-        sha256,
+        processImages: false,
         status: "pending",
         suggestedFolderId,
       });
 
-      if (inserted.isErr()) {
-        errors.push({ path: fileMeta.path, error: inserted.error.message });
-        log.error(inserted.error, { step: "insert-record", file: fileMeta.path });
+      if (ingested.isErr()) {
+        errors.push({ path: fileMeta.path, error: ingested.error.message });
+        log.error(ingested.error, { step: "ingest-file", file: fileMeta.path });
         continue;
       }
 
