@@ -68,6 +68,10 @@ cli-build:
 cli-dev:
     pnpm run cli:dev
 
+# release the cli to npm (interactive)
+cli-release:
+    node apps/cli/scripts/release.mjs
+
 # build the cli and symlink to ~/.local/bin/artbin
 cli-install:
     just cli-build

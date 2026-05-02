@@ -2,7 +2,8 @@ import { afterEach, beforeAll, describe, expect, test, vi } from "vitest";
 import { eq, and } from "drizzle-orm";
 import { folders, files, sessions, users } from "~/db/schema";
 import { setDbForTesting } from "~/db/connection.server";
-import { searchFiles, getFileCountsByKind, insertFileRecord } from "~/lib/files.server";
+import { searchFiles, getFileCountsByKind } from "~/lib/file-queries.server";
+import { insertFileRecord } from "~/lib/files.server";
 import { applyMigrations, createTestDatabase, type TestDatabase } from "./db";
 
 // Mock evlog logger used by route handlers

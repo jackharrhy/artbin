@@ -1,6 +1,6 @@
 {
   "name": "artbin",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "CLI tool for scanning game directories and uploading assets to artbin",
   "keywords": [
     "cli",
@@ -26,7 +26,7 @@
     "build:ui": "vite build --config ui.vite.config.ts",
     "dev": "tsup --watch",
     "ci": "tsc --noEmit",
-    "prepublishOnly": "tsup"
+    "prepublishOnly": "pnpm run build"
   },
   "devDependencies": {
     "@artbin/core": "workspace:*",

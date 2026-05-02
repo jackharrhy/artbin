@@ -10,7 +10,7 @@ import { BrowseTabs, type ViewMode } from "~/components/BrowseTabs";
 import { SearchBar } from "~/components/SearchBar";
 import { FileGrid } from "~/components/FileGrid";
 import { FileList } from "~/components/FileList";
-import { searchFiles, getFileCountsByKind } from "~/lib/files.server";
+import { searchFiles, getFileCountsByKind } from "~/lib/file-queries.server";
 
 export async function loader({ request, context }: Route.LoaderArgs) {
   const user = context.get(userContext);

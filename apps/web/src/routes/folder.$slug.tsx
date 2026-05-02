@@ -18,13 +18,12 @@ import { FileGrid } from "~/components/FileGrid";
 import { FileList } from "~/components/FileList";
 import { UploadModal } from "~/components/UploadModal";
 import { MoveFolderModal } from "~/components/MoveFolderModal";
+import { deleteFile, deleteFolder } from "~/lib/files.server";
 import {
-  deleteFile,
-  deleteFolder,
   searchFiles,
   getDescendantFolderIds,
   getFileCountsByKind,
-} from "~/lib/files.server";
+} from "~/lib/file-queries.server";
 
 export async function loader({ request, params, context }: Route.LoaderArgs) {
   const user = context.get(userContext);

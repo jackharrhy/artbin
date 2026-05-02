@@ -10,7 +10,7 @@ import { folders, type Job } from "~/db";
 import { eq } from "drizzle-orm";
 import { basename, dirname } from "path";
 import { unlink } from "fs/promises";
-import { createRequestLogger } from "evlog";
+import { createRequestLogger, type AuditableLogger } from "evlog";
 
 import { registerJobHandler, updateJobProgress } from "../jobs.server";
 import {
@@ -71,6 +71,110 @@ export interface ExtractJobOutput {
   totalFolders: number;
   filesByKind: Record<string, number>;
 }
+
+// ---------------------------------------------------------------------------
+// Shared helpers (extracted to deduplicate handler code)
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve the parent folder ID from a slug that may contain slashes.
+ * If the slug has no slashes the parent is ROOT_FOLDER.
+ */
+async function resolveParentFromSlug(slug: string): Promise<string | typeof ROOT_FOLDER> {
+  if (!slug.includes("/")) return ROOT_FOLDER;
+  const grandparentSlug = slug.split("/").slice(0, -1).join("/");
+  const grandparent = await db.query.folders.findFirst({
+    where: eq(folders.slug, grandparentSlug),
+  });
+  return grandparent?.id ?? ROOT_FOLDER;
+}
+
+/**
+ * Extract textures embedded in a BSP file and ingest them into a textures
+ * subfolder. Returns the number of textures successfully saved.
+ */
+async function extractBSPTextures(
+  buffer: Buffer,
+  bspFileName: string,
+  parentFolderSlug: string,
+  parentFolderId: string,
+  folderMap: Map<string, string>,
+  entryDir: string,
+  log: AuditableLogger,
+  archiveName?: string,
+): Promise<{ textureCount: number }> {
+  let textureCount = 0;
+  if (!isBSPFile(buffer)) return { textureCount };
+
+  try {
+    const bspTextures = await extractTexturesFromBSP(buffer);
+    if (bspTextures.length === 0) return { textureCount };
+
+    // Create a textures subfolder for this BSP
+    const bspBaseName = bspFileName.replace(/\.bsp$/i, "");
+    const texFolderSlug = `${parentFolderSlug}/${pathToSlug(bspBaseName)}-textures`;
+    const texFolderName = `${bspBaseName} textures`;
+    const texFolderId = await getOrCreateFolder(texFolderSlug, texFolderName, parentFolderId);
+    folderMap.set(`${entryDir}/${bspBaseName}-textures`, texFolderId);
+
+    for (const tex of bspTextures) {
+      try {
+        const texFileName = `${tex.name}.png`;
+        const texIngested = await ingestFile({
+          buffer: tex.pngBuffer,
+          fileName: texFileName,
+          folderSlug: texFolderSlug,
+          folderId: texFolderId,
+          source: "bsp-extracted",
+          sourceArchive: bspFileName,
+          kind: "texture",
+          mimeType: "image/png",
+          width: tex.width,
+          height: tex.height,
+        });
+        if (texIngested.isErr()) throw texIngested.error;
+        textureCount++;
+      } catch (texError) {
+        log.error(texError instanceof Error ? texError : new Error(String(texError)), {
+          step: "save-bsp-texture",
+          file: tex.name,
+          ...(archiveName ? { archive: archiveName } : {}),
+        });
+      }
+    }
+
+    log.set({ bsp: { file: bspFileName, texturesExtracted: bspTextures.length } });
+  } catch (bspError) {
+    log.error(bspError instanceof Error ? bspError : new Error(String(bspError)), {
+      step: "extract-bsp-textures",
+      file: bspFileName,
+      ...(archiveName ? { archive: archiveName } : {}),
+    });
+  }
+
+  return { textureCount };
+}
+
+/**
+ * Recalculate folder counts and generate previews for a list of folder IDs.
+ */
+async function finalizeFolders(folderIds: string[], log: AuditableLogger): Promise<void> {
+  await recalculateFolderCounts(folderIds);
+  for (const folderId of folderIds) {
+    try {
+      await generateFolderPreview(folderId);
+    } catch (err) {
+      log.error(err instanceof Error ? err : new Error(String(err)), {
+        step: "generate-preview",
+        folderId,
+      });
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Pure utilities
+// ---------------------------------------------------------------------------
 
 function pathToSlug(path: string): string {
   return path
@@ -188,52 +292,17 @@ async function handleExtractJob(
       processedFiles++;
 
       // Extract textures from BSP files (Quake 1 / Half-Life maps)
-      if (ingested.value.name.toLowerCase().endsWith(".bsp") && isBSPFile(buffer)) {
-        try {
-          const bspTextures = await extractTexturesFromBSP(buffer);
-
-          if (bspTextures.length > 0) {
-            // Create a textures subfolder for this BSP
-            const bspBaseName = ingested.value.name.replace(/\.bsp$/i, "");
-            const texFolderSlug = `${folderSlug}/${pathToSlug(bspBaseName)}-textures`;
-            const texFolderName = `${bspBaseName} textures`;
-            const texFolderId = await getOrCreateFolder(texFolderSlug, texFolderName, folderId);
-            folderMap.set(`${entryDir}/${bspBaseName}-textures`, texFolderId);
-
-            for (const tex of bspTextures) {
-              try {
-                const texFileName = `${tex.name}.png`;
-                const texIngested = await ingestFile({
-                  buffer: tex.pngBuffer,
-                  fileName: texFileName,
-                  folderSlug: texFolderSlug,
-                  folderId: texFolderId,
-                  source: "bsp-extracted",
-                  sourceArchive: ingested.value.name,
-                  kind: "texture",
-                  mimeType: "image/png",
-                  width: tex.width,
-                  height: tex.height,
-                });
-                if (texIngested.isErr()) throw texIngested.error;
-
-                filesByKind["texture"] = (filesByKind["texture"] || 0) + 1;
-              } catch (texError) {
-                log.error(texError instanceof Error ? texError : new Error(String(texError)), {
-                  step: "save-bsp-texture",
-                  file: tex.name,
-                });
-              }
-            }
-
-            log.set({ bsp: { file: ingested.value.name, texturesExtracted: bspTextures.length } });
-          }
-        } catch (bspError) {
-          log.error(bspError instanceof Error ? bspError : new Error(String(bspError)), {
-            step: "extract-bsp-textures",
-            file: ingested.value.name,
-          });
-        }
+      if (ingested.value.name.toLowerCase().endsWith(".bsp")) {
+        const { textureCount } = await extractBSPTextures(
+          buffer,
+          ingested.value.name,
+          folderSlug,
+          folderId,
+          folderMap,
+          entryDir,
+          log,
+        );
+        filesByKind["texture"] = (filesByKind["texture"] || 0) + textureCount;
       }
 
       // Update progress
@@ -264,23 +333,10 @@ async function handleExtractJob(
     }
   }
 
-  // Recalculate file counts for all created folders
+  // Recalculate file counts and generate folder previews
   await updateJobProgress(job.id, 96, "Updating folder counts...");
-  await recalculateFolderCounts(Array.from(folderMap.values()));
-
-  // Generate folder previews for all created folders
   await updateJobProgress(job.id, 97, "Generating folder previews...");
-  for (const [, folderId] of folderMap) {
-    try {
-      await generateFolderPreview(folderId);
-    } catch (err) {
-      log.error(err instanceof Error ? err : new Error(String(err)), {
-        step: "generate-preview",
-        folderId,
-      });
-      // Continue with other folders
-    }
-  }
+  await finalizeFolders(Array.from(folderMap.values()), log);
 
   log.emit();
 
@@ -306,18 +362,10 @@ async function handleBatchExtractJob(
   await updateJobProgress(job.id, 2, "Creating parent folder...");
 
   // Create parent folder, deriving parent from the slug
-  let batchExtractParentId: string | typeof ROOT_FOLDER = ROOT_FOLDER;
-  if (parentFolderSlug.includes("/")) {
-    const grandparentSlug = parentFolderSlug.split("/").slice(0, -1).join("/");
-    const grandparent = await db.query.folders.findFirst({
-      where: eq(folders.slug, grandparentSlug),
-    });
-    batchExtractParentId = grandparent?.id ?? ROOT_FOLDER;
-  }
   const parentFolderId = await getOrCreateFolder(
     parentFolderSlug,
     parentFolderName,
-    batchExtractParentId,
+    await resolveParentFromSlug(parentFolderSlug),
   );
 
   // Get the actual parent folder slug (may differ from input if folder existed)
@@ -386,56 +434,18 @@ async function handleBatchExtractJob(
           filesExtracted++;
 
           // Extract textures from BSP files (Quake 1 / Half-Life maps)
-          if (ingested.value.name.toLowerCase().endsWith(".bsp") && isBSPFile(buffer)) {
-            try {
-              const bspTextures = await extractTexturesFromBSP(buffer);
-
-              if (bspTextures.length > 0) {
-                // Create a textures subfolder for this BSP
-                const bspBaseName = ingested.value.name.replace(/\.bsp$/i, "");
-                const texFolderSlug = `${folderSlug}/${pathToSlug(bspBaseName)}-textures`;
-                const texFolderName = `${bspBaseName} textures`;
-                const texFolderId = await getOrCreateFolder(texFolderSlug, texFolderName, folderId);
-                folderMap.set(`${entryDir}/${bspBaseName}-textures`, texFolderId);
-
-                for (const tex of bspTextures) {
-                  try {
-                    const texFileName = `${tex.name}.png`;
-                    const texIngested = await ingestFile({
-                      buffer: tex.pngBuffer,
-                      fileName: texFileName,
-                      folderSlug: texFolderSlug,
-                      folderId: texFolderId,
-                      source: "bsp-extracted",
-                      sourceArchive: ingested.value.name,
-                      kind: "texture",
-                      mimeType: "image/png",
-                      width: tex.width,
-                      height: tex.height,
-                    });
-                    if (texIngested.isErr()) throw texIngested.error;
-
-                    filesExtracted++;
-                  } catch (texError) {
-                    log.error(texError instanceof Error ? texError : new Error(String(texError)), {
-                      step: "save-bsp-texture",
-                      file: tex.name,
-                      archive: archiveName,
-                    });
-                  }
-                }
-
-                log.set({
-                  bsp: { file: ingested.value.name, texturesExtracted: bspTextures.length },
-                });
-              }
-            } catch (bspError) {
-              log.error(bspError instanceof Error ? bspError : new Error(String(bspError)), {
-                step: "extract-bsp-textures",
-                file: ingested.value.name,
-                archive: archiveName,
-              });
-            }
+          if (ingested.value.name.toLowerCase().endsWith(".bsp")) {
+            const { textureCount } = await extractBSPTextures(
+              buffer,
+              ingested.value.name,
+              folderSlug,
+              folderId,
+              folderMap,
+              entryDir,
+              log,
+              archiveName,
+            );
+            filesExtracted += textureCount;
           }
         } catch (error) {
           log.error(error instanceof Error ? error : new Error(String(error)), {
@@ -448,18 +458,7 @@ async function handleBatchExtractJob(
       }
 
       // Recalculate file counts and generate folder previews
-      await recalculateFolderCounts(Array.from(folderMap.values()));
-      for (const [, folderId] of folderMap) {
-        try {
-          await generateFolderPreview(folderId);
-        } catch (err) {
-          log.error(err instanceof Error ? err : new Error(String(err)), {
-            step: "generate-preview",
-            folderId,
-            archive: archiveName,
-          });
-        }
-      }
+      await finalizeFolders(Array.from(folderMap.values()), log);
 
       totalFilesExtracted += filesExtracted;
       archiveResults.push({
@@ -488,15 +487,7 @@ async function handleBatchExtractJob(
 
   // Update parent folder count and generate preview
   await updateJobProgress(job.id, 97, "Generating parent folder preview...");
-  await recalculateFolderCounts([parentFolderId]);
-  try {
-    await generateFolderPreview(parentFolderId);
-  } catch (err) {
-    log.error(err instanceof Error ? err : new Error(String(err)), {
-      step: "generate-preview",
-      folderId: parentFolderId,
-    });
-  }
+  await finalizeFolders([parentFolderId], log);
 
   log.emit();
 
@@ -562,17 +553,11 @@ async function handleExtractBSPJob(
   await updateJobProgress(job.id, 30, `Found ${bspTextures.length} textures, creating folder...`);
 
   // Create the target folder, parented to the BSP's folder
-  let bspParentId: string | typeof ROOT_FOLDER = ROOT_FOLDER;
-  const parentSlug = targetFolderSlug.includes("/")
-    ? targetFolderSlug.split("/").slice(0, -1).join("/")
-    : null;
-  if (parentSlug) {
-    const parentFolder = await db.query.folders.findFirst({
-      where: eq(folders.slug, parentSlug),
-    });
-    bspParentId = parentFolder?.id ?? ROOT_FOLDER;
-  }
-  const folderId = await getOrCreateFolder(targetFolderSlug, targetFolderName, bspParentId);
+  const folderId = await getOrCreateFolder(
+    targetFolderSlug,
+    targetFolderName,
+    await resolveParentFromSlug(targetFolderSlug),
+  );
 
   // Save each texture
   let savedTextures = 0;
@@ -614,15 +599,7 @@ async function handleExtractBSPJob(
 
   // Update folder count and generate preview
   await updateJobProgress(job.id, 95, "Generating folder preview...");
-  await recalculateFolderCounts([folderId]);
-  try {
-    await generateFolderPreview(folderId);
-  } catch (err) {
-    log.error(err instanceof Error ? err : new Error(String(err)), {
-      step: "generate-preview",
-      folderId,
-    });
-  }
+  await finalizeFolders([folderId], log);
 
   log.emit();
 
@@ -675,18 +652,10 @@ async function handleBatchExtractBSPJob(
   await updateJobProgress(job.id, 2, "Creating parent folder...");
 
   // Create parent folder, deriving parent from the slug
-  let batchBspParentId: string | typeof ROOT_FOLDER = ROOT_FOLDER;
-  if (parentFolderSlug.includes("/")) {
-    const grandparentSlug = parentFolderSlug.split("/").slice(0, -1).join("/");
-    const grandparent = await db.query.folders.findFirst({
-      where: eq(folders.slug, grandparentSlug),
-    });
-    batchBspParentId = grandparent?.id ?? ROOT_FOLDER;
-  }
   const parentFolderId = await getOrCreateFolder(
     parentFolderSlug,
     parentFolderName,
-    batchBspParentId,
+    await resolveParentFromSlug(parentFolderSlug),
   );
 
   // Get the actual parent folder slug (may differ from input if folder existed)
@@ -764,15 +733,7 @@ async function handleBatchExtractBSPJob(
       }
 
       // Update folder count and generate preview for subfolder
-      await recalculateFolderCounts([subFolderId]);
-      try {
-        await generateFolderPreview(subFolderId);
-      } catch (err) {
-        log.error(err instanceof Error ? err : new Error(String(err)), {
-          step: "generate-preview",
-          folderId: subFolderId,
-        });
-      }
+      await finalizeFolders([subFolderId], log);
 
       totalTexturesExtracted += texturesExtracted;
       bspResults.push({
@@ -801,15 +762,7 @@ async function handleBatchExtractBSPJob(
 
   // Update parent folder count and generate preview
   await updateJobProgress(job.id, 97, "Generating parent folder preview...");
-  await recalculateFolderCounts([parentFolderId]);
-  try {
-    await generateFolderPreview(parentFolderId);
-  } catch (err) {
-    log.error(err instanceof Error ? err : new Error(String(err)), {
-      step: "generate-preview",
-      folderId: parentFolderId,
-    });
-  }
+  await finalizeFolders([parentFolderId], log);
 
   log.emit();
 
