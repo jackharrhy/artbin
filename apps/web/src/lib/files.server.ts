@@ -384,6 +384,14 @@ export async function ingestFile(
         height = imageInfo.value.height;
         hasPreview = imageInfo.value.hasPreview;
       }
+    } else if (isImageKind(kind) && !shouldProcessImages && needsPreview(savedName)) {
+      // Even when full image processing is skipped (e.g. CLI uploads for speed),
+      // still generate previews for non-web-native formats (TGA, BMP, PCX, etc.)
+      // since browsers cannot render them at all without a PNG preview.
+      const preview = await generatePreview(getFilePath(savedPath));
+      if (preview.isOk()) {
+        hasPreview = preview.value;
+      }
     }
 
     // 5. Hash the file contents

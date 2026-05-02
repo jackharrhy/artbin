@@ -152,6 +152,48 @@ describe("ingestFile", () => {
     expect(exec).not.toHaveBeenCalled();
   });
 
+  test("processImages: false still generates preview for non-web-native formats", async () => {
+    const db = setupDatabase();
+    await db.insert(folders).values({
+      id: "folder-1",
+      name: "Textures",
+      slug: "textures",
+    });
+
+    const result = await ingestFile({
+      buffer: PNG_BUFFER,
+      fileName: "wall.tga",
+      folderSlug: "textures",
+      folderId: "folder-1",
+      source: "cli-upload",
+      processImages: false,
+    });
+
+    expect(result.isOk()).toBe(true);
+    if (!result.isOk()) return;
+
+    // Preview should be generated even with processImages: false
+    // because browsers cannot render TGA files natively
+    expect(result.value.hasPreview).toBe(true);
+
+    // But dimensions should still be skipped (the perf optimization)
+    expect(result.value.width).toBeNull();
+    expect(result.value.height).toBeNull();
+
+    // exec should have been called once (for magick convert, not magick identify)
+    expect(exec).toHaveBeenCalledTimes(1);
+    const call = (exec as any).mock.calls[0][0];
+    expect(call).toContain("magick");
+    expect(call).toContain("wall.tga");
+    expect(call).toContain(".preview.png");
+
+    // DB record should have hasPreview = true
+    const record = await db.query.files.findFirst({
+      where: eq(files.id, result.value.fileId),
+    });
+    expect(record!.hasPreview).toBe(true);
+  });
+
   test("pre-computed kind, mimeType, width, height skip detection", async () => {
     const db = setupDatabase();
     await db.insert(folders).values({
