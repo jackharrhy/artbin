@@ -516,6 +516,115 @@ export async function insertFileRecord(record: CreateFileRecord): Promise<Result
   }
 }
 
+export interface IngestFileOptions {
+  buffer: Buffer;
+  fileName: string;
+  folderSlug: string;
+  folderId: string;
+  source: string;
+  status?: "approved" | "pending";
+  uploaderId?: string | null;
+  sourceArchive?: string | null;
+  suggestedFolderId?: string | null;
+  processImages?: boolean;
+  kind?: string;
+  mimeType?: string;
+  width?: number | null;
+  height?: number | null;
+}
+
+export interface IngestFileResult {
+  fileId: string;
+  path: string;
+  name: string;
+  kind: string;
+  mimeType: string;
+  sha256: string;
+  width: number | null;
+  height: number | null;
+  hasPreview: boolean;
+}
+
+/**
+ * Unified file ingestion: save to disk, detect type, process images, hash, and insert DB record.
+ * Orchestrates the 6 common steps every file upload pathway performs.
+ */
+export async function ingestFile(
+  opts: IngestFileOptions,
+): Promise<Result<IngestFileResult, Error>> {
+  try {
+    // 1. Save file to disk
+    const { path: savedPath, name: savedName } = await saveFile(
+      opts.buffer,
+      opts.folderSlug,
+      opts.fileName,
+      true,
+    );
+
+    // 2. Detect file kind (unless pre-computed)
+    const kind: FileKind = (opts.kind as FileKind) ?? detectKind(savedName);
+
+    // 3. Detect MIME type (unless pre-computed)
+    const mimeType = opts.mimeType ?? (await getMimeType(savedName, opts.buffer));
+
+    // 4. Process image (generate preview + get dimensions)
+    let width: number | null = opts.width ?? null;
+    let height: number | null = opts.height ?? null;
+    let hasPreview = false;
+
+    const dimensionsPreComputed = opts.width !== undefined && opts.height !== undefined;
+    const shouldProcessImages = opts.processImages !== false;
+
+    if (isImageKind(kind) && shouldProcessImages && !dimensionsPreComputed) {
+      const imageInfo = await processImage(savedPath);
+      if (imageInfo.isOk()) {
+        width = imageInfo.value.width;
+        height = imageInfo.value.height;
+        hasPreview = imageInfo.value.hasPreview;
+      }
+    }
+
+    // 5. Hash the file contents
+    const sha256 = computeSha256(opts.buffer);
+
+    // 6. Create the DB record
+    const fileId = nanoid();
+    const inserted = await insertFileRecord({
+      id: fileId,
+      path: savedPath,
+      name: savedName,
+      mimeType,
+      size: opts.buffer.length,
+      kind,
+      width,
+      height,
+      hasPreview,
+      folderId: opts.folderId,
+      uploaderId: opts.uploaderId ?? null,
+      source: opts.source,
+      sourceArchive: opts.sourceArchive ?? null,
+      sha256,
+      status: opts.status ?? "approved",
+      suggestedFolderId: opts.suggestedFolderId ?? null,
+    });
+    if (inserted.isErr()) return Result.err(inserted.error);
+
+    return Result.ok({
+      fileId,
+      path: savedPath,
+      name: savedName,
+      kind,
+      mimeType,
+      sha256,
+      width,
+      height,
+      hasPreview,
+    });
+  } catch (error) {
+    return Result.err(toError(error));
+  }
+}
+
 export async function deleteFileRecord(fileId: string): Promise<Result<void, Error>> {
   try {
     // Get the file first to know which folder to update
