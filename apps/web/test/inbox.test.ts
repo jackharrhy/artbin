@@ -10,6 +10,7 @@ vi.mock("~/lib/files.server", async (importOriginal) => {
     ...actual,
     ensureDir: vi.fn(async () => {}),
     slugToPath: (slug: string) => `/mock-uploads/${slug}`,
+    getFilePath: (filePath: string) => `/mock-uploads/${filePath}`,
     moveFile: vi.fn(async () => {}),
     deleteFolder: vi.fn(async () => {}),
     recalculateFolderCounts: vi.fn(async () => {}),
