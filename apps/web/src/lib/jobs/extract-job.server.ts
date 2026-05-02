@@ -8,8 +8,7 @@
 import { db } from "~/db/connection.server";
 import { folders, type Job } from "~/db";
 import { eq } from "drizzle-orm";
-import { nanoid } from "nanoid";
-import { basename, dirname, join } from "path";
+import { basename, dirname } from "path";
 import { unlink } from "fs/promises";
 import { createRequestLogger } from "evlog";
 
@@ -23,17 +22,8 @@ import {
   type ParsedArchive,
 } from "../archives.server";
 import {
-  saveFile,
-  getMimeType,
-  detectKind,
-  processImage,
-  isImageKind,
-  TEMP_DIR,
-  ensureDir,
-  slugToPath,
+  ingestFile,
   recalculateFolderCounts,
-  insertFileRecord,
-  computeSha256,
   getOrCreateFolder,
   ROOT_FOLDER,
 } from "../files.server";
@@ -181,62 +171,30 @@ async function handleExtractJob(
         entryDir === "." ? targetFolderSlug : `${targetFolderSlug}/${pathToSlug(entryDir)}`;
       const folderId = folderMap.get(entryDir) || folderMap.get("")!;
 
-      // Save file to disk
+      // Ingest file (save, detect, process, hash, insert)
       const fileName = basename(entry.name);
-      const { path: filePath, name: savedName } = await saveFile(
+      const ingested = await ingestFile({
         buffer,
-        folderSlug,
         fileName,
-        true,
-      );
-
-      // Detect kind and mime type
-      const kind = detectKind(savedName);
-      const mimeType = await getMimeType(savedName, buffer);
-
-      // Process images to get dimensions and generate previews
-      let width: number | null = null;
-      let height: number | null = null;
-      let hasPreview = false;
-
-      if (isImageKind(kind)) {
-        const imageInfo = await processImage(filePath);
-        if (imageInfo.isErr()) throw imageInfo.error;
-        width = imageInfo.value.width;
-        height = imageInfo.value.height;
-        hasPreview = imageInfo.value.hasPreview;
-      }
-
-      // Create file record
-      const inserted = await insertFileRecord({
-        id: nanoid(),
-        path: filePath,
-        name: savedName,
-        mimeType,
-        size: buffer.length,
-        kind,
-        width,
-        height,
-        hasPreview,
+        folderSlug,
         folderId,
         source: `extracted-${archive.type}`,
         sourceArchive: originalName,
-        sha256: computeSha256(buffer),
       });
-      if (inserted.isErr()) throw inserted.error;
+      if (ingested.isErr()) throw ingested.error;
 
       // Track stats
-      filesByKind[kind] = (filesByKind[kind] || 0) + 1;
+      filesByKind[ingested.value.kind] = (filesByKind[ingested.value.kind] || 0) + 1;
       processedFiles++;
 
       // Extract textures from BSP files (Quake 1 / Half-Life maps)
-      if (savedName.toLowerCase().endsWith(".bsp") && isBSPFile(buffer)) {
+      if (ingested.value.name.toLowerCase().endsWith(".bsp") && isBSPFile(buffer)) {
         try {
           const bspTextures = await extractTexturesFromBSP(buffer);
 
           if (bspTextures.length > 0) {
             // Create a textures subfolder for this BSP
-            const bspBaseName = savedName.replace(/\.bsp$/i, "");
+            const bspBaseName = ingested.value.name.replace(/\.bsp$/i, "");
             const texFolderSlug = `${folderSlug}/${pathToSlug(bspBaseName)}-textures`;
             const texFolderName = `${bspBaseName} textures`;
             const texFolderId = await getOrCreateFolder(texFolderSlug, texFolderName, folderId);
@@ -245,33 +203,19 @@ async function handleExtractJob(
             for (const tex of bspTextures) {
               try {
                 const texFileName = `${tex.name}.png`;
-                const { path: texFilePath, name: texSavedName } = await saveFile(
-                  tex.pngBuffer,
-                  texFolderSlug,
-                  texFileName,
-                  true,
-                );
-
-                // Process for preview
-                const texImageInfo = await processImage(texFilePath);
-                if (texImageInfo.isErr()) throw texImageInfo.error;
-
-                const texInserted = await insertFileRecord({
-                  id: nanoid(),
-                  path: texFilePath,
-                  name: texSavedName,
-                  mimeType: "image/png",
-                  size: tex.pngBuffer.length,
+                const texIngested = await ingestFile({
+                  buffer: tex.pngBuffer,
+                  fileName: texFileName,
+                  folderSlug: texFolderSlug,
+                  folderId: texFolderId,
+                  source: "bsp-extracted",
+                  sourceArchive: ingested.value.name,
                   kind: "texture",
+                  mimeType: "image/png",
                   width: tex.width,
                   height: tex.height,
-                  hasPreview: texImageInfo.value.hasPreview,
-                  folderId: texFolderId,
-                  source: `bsp-extracted`,
-                  sourceArchive: savedName,
-                  sha256: computeSha256(tex.pngBuffer),
                 });
-                if (texInserted.isErr()) throw texInserted.error;
+                if (texIngested.isErr()) throw texIngested.error;
 
                 filesByKind["texture"] = (filesByKind["texture"] || 0) + 1;
               } catch (texError) {
@@ -282,12 +226,12 @@ async function handleExtractJob(
               }
             }
 
-            log.set({ bsp: { file: savedName, texturesExtracted: bspTextures.length } });
+            log.set({ bsp: { file: ingested.value.name, texturesExtracted: bspTextures.length } });
           }
         } catch (bspError) {
           log.error(bspError instanceof Error ? bspError : new Error(String(bspError)), {
             step: "extract-bsp-textures",
-            file: savedName,
+            file: ingested.value.name,
           });
         }
       }
@@ -427,60 +371,28 @@ async function handleBatchExtractJob(
             entryDir === "." ? subfolderSlug : `${subfolderSlug}/${pathToSlug(entryDir)}`;
           const folderId = folderMap.get(entryDir) || folderMap.get("")!;
 
-          // Save file to disk
+          // Ingest file (save, detect, process, hash, insert)
           const fileName = basename(entry.name);
-          const { path: filePath, name: savedName } = await saveFile(
+          const ingested = await ingestFile({
             buffer,
-            folderSlug,
             fileName,
-            true,
-          );
-
-          // Detect kind and mime type
-          const kind = detectKind(savedName);
-          const mimeType = await getMimeType(savedName, buffer);
-
-          // Process images to get dimensions and generate previews
-          let width: number | null = null;
-          let height: number | null = null;
-          let hasPreview = false;
-
-          if (isImageKind(kind)) {
-            const imageInfo = await processImage(filePath);
-            if (imageInfo.isErr()) throw imageInfo.error;
-            width = imageInfo.value.width;
-            height = imageInfo.value.height;
-            hasPreview = imageInfo.value.hasPreview;
-          }
-
-          // Create file record
-          const inserted = await insertFileRecord({
-            id: nanoid(),
-            path: filePath,
-            name: savedName,
-            mimeType,
-            size: buffer.length,
-            kind,
-            width,
-            height,
-            hasPreview,
+            folderSlug,
             folderId,
             source: `extracted-${archive.type}`,
             sourceArchive: archiveName,
-            sha256: computeSha256(buffer),
           });
-          if (inserted.isErr()) throw inserted.error;
+          if (ingested.isErr()) throw ingested.error;
 
           filesExtracted++;
 
           // Extract textures from BSP files (Quake 1 / Half-Life maps)
-          if (savedName.toLowerCase().endsWith(".bsp") && isBSPFile(buffer)) {
+          if (ingested.value.name.toLowerCase().endsWith(".bsp") && isBSPFile(buffer)) {
             try {
               const bspTextures = await extractTexturesFromBSP(buffer);
 
               if (bspTextures.length > 0) {
                 // Create a textures subfolder for this BSP
-                const bspBaseName = savedName.replace(/\.bsp$/i, "");
+                const bspBaseName = ingested.value.name.replace(/\.bsp$/i, "");
                 const texFolderSlug = `${folderSlug}/${pathToSlug(bspBaseName)}-textures`;
                 const texFolderName = `${bspBaseName} textures`;
                 const texFolderId = await getOrCreateFolder(texFolderSlug, texFolderName, folderId);
@@ -489,33 +401,19 @@ async function handleBatchExtractJob(
                 for (const tex of bspTextures) {
                   try {
                     const texFileName = `${tex.name}.png`;
-                    const { path: texFilePath, name: texSavedName } = await saveFile(
-                      tex.pngBuffer,
-                      texFolderSlug,
-                      texFileName,
-                      true,
-                    );
-
-                    // Process for preview
-                    const texImageInfo = await processImage(texFilePath);
-                    if (texImageInfo.isErr()) throw texImageInfo.error;
-
-                    const texInserted = await insertFileRecord({
-                      id: nanoid(),
-                      path: texFilePath,
-                      name: texSavedName,
-                      mimeType: "image/png",
-                      size: tex.pngBuffer.length,
+                    const texIngested = await ingestFile({
+                      buffer: tex.pngBuffer,
+                      fileName: texFileName,
+                      folderSlug: texFolderSlug,
+                      folderId: texFolderId,
+                      source: "bsp-extracted",
+                      sourceArchive: ingested.value.name,
                       kind: "texture",
+                      mimeType: "image/png",
                       width: tex.width,
                       height: tex.height,
-                      hasPreview: texImageInfo.value.hasPreview,
-                      folderId: texFolderId,
-                      source: `bsp-extracted`,
-                      sourceArchive: savedName,
-                      sha256: computeSha256(tex.pngBuffer),
                     });
-                    if (texInserted.isErr()) throw texInserted.error;
+                    if (texIngested.isErr()) throw texIngested.error;
 
                     filesExtracted++;
                   } catch (texError) {
@@ -527,12 +425,14 @@ async function handleBatchExtractJob(
                   }
                 }
 
-                log.set({ bsp: { file: savedName, texturesExtracted: bspTextures.length } });
+                log.set({
+                  bsp: { file: ingested.value.name, texturesExtracted: bspTextures.length },
+                });
               }
             } catch (bspError) {
               log.error(bspError instanceof Error ? bspError : new Error(String(bspError)), {
                 step: "extract-bsp-textures",
-                file: savedName,
+                file: ingested.value.name,
                 archive: archiveName,
               });
             }
@@ -679,33 +579,19 @@ async function handleExtractBSPJob(
   for (const tex of bspTextures) {
     try {
       const texFileName = `${tex.name}.png`;
-      const { path: texFilePath, name: texSavedName } = await saveFile(
-        tex.pngBuffer,
-        targetFolderSlug,
-        texFileName,
-        true,
-      );
-
-      // Process for preview
-      const texImageInfo = await processImage(texFilePath);
-      if (texImageInfo.isErr()) throw texImageInfo.error;
-
-      const inserted = await insertFileRecord({
-        id: nanoid(),
-        path: texFilePath,
-        name: texSavedName,
-        mimeType: "image/png",
-        size: tex.pngBuffer.length,
-        kind: "texture",
-        width: tex.width,
-        height: tex.height,
-        hasPreview: texImageInfo.value.hasPreview,
+      const texIngested = await ingestFile({
+        buffer: tex.pngBuffer,
+        fileName: texFileName,
+        folderSlug: targetFolderSlug,
         folderId,
         source: "bsp-extracted",
         sourceArchive: bspName,
-        sha256: computeSha256(tex.pngBuffer),
+        kind: "texture",
+        mimeType: "image/png",
+        width: tex.width,
+        height: tex.height,
       });
-      if (inserted.isErr()) throw inserted.error;
+      if (texIngested.isErr()) throw texIngested.error;
 
       savedTextures++;
 
@@ -853,33 +739,19 @@ async function handleBatchExtractBSPJob(
       for (const tex of bspTextures) {
         try {
           const texFileName = `${tex.name}.png`;
-          const { path: texFilePath, name: texSavedName } = await saveFile(
-            tex.pngBuffer,
-            subfolderSlug,
-            texFileName,
-            true,
-          );
-
-          // Process for preview
-          const texImageInfo = await processImage(texFilePath);
-          if (texImageInfo.isErr()) throw texImageInfo.error;
-
-          const texInserted = await insertFileRecord({
-            id: nanoid(),
-            path: texFilePath,
-            name: texSavedName,
-            mimeType: "image/png",
-            size: tex.pngBuffer.length,
-            kind: "texture",
-            width: tex.width,
-            height: tex.height,
-            hasPreview: texImageInfo.value.hasPreview,
+          const texIngested = await ingestFile({
+            buffer: tex.pngBuffer,
+            fileName: texFileName,
+            folderSlug: subfolderSlug,
             folderId: subFolderId,
             source: "bsp-extracted",
             sourceArchive: bspName,
-            sha256: computeSha256(tex.pngBuffer),
+            kind: "texture",
+            mimeType: "image/png",
+            width: tex.width,
+            height: tex.height,
           });
-          if (texInserted.isErr()) throw texInserted.error;
+          if (texIngested.isErr()) throw texIngested.error;
 
           texturesExtracted++;
         } catch (texError) {

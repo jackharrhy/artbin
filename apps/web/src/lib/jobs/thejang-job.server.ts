@@ -12,18 +12,7 @@ import { nanoid } from "nanoid";
 import { createRequestLogger } from "evlog";
 
 import { registerJobHandler, updateJobProgress } from "../jobs.server";
-import {
-  saveFile,
-  getMimeType,
-  detectKind,
-  processImage,
-  isImageKind,
-  ensureDir,
-  slugToPath,
-  recalculateFolderCounts,
-  insertFileRecord,
-  computeSha256,
-} from "../files.server";
+import { ingestFile, ensureDir, slugToPath, recalculateFolderCounts } from "../files.server";
 import { generateFolderPreview } from "../folder-preview.server";
 
 interface Category {
@@ -264,49 +253,16 @@ async function handleTextureStationImport(
         // Download the texture
         const buffer = await downloadTexture(filename);
 
-        // Save file to disk
-        const { path: savedPath, name: savedName } = await saveFile(
+        // Ingest file (save, detect, process, hash, insert)
+        const ingested = await ingestFile({
           buffer,
+          fileName: filename,
           folderSlug,
-          filename,
-          true,
-        );
-
-        // Detect kind and mime type
-        const kind = detectKind(savedName);
-        const mimeType = await getMimeType(savedName, buffer);
-
-        // Process images
-        let width: number | null = null;
-        let height: number | null = null;
-        let hasPreview = false;
-
-        if (isImageKind(kind)) {
-          const imageInfo = await processImage(savedPath);
-          if (imageInfo.isErr()) throw imageInfo.error;
-          width = imageInfo.value.width;
-          height = imageInfo.value.height;
-          hasPreview = imageInfo.value.hasPreview;
-        }
-
-        // Create file record
-        const inserted = await insertFileRecord({
-          id: nanoid(),
-          path: savedPath,
-          name: savedName,
-          mimeType,
-          size: buffer.length,
-          sha256: computeSha256(buffer),
-          kind,
-          width,
-          height,
-          hasPreview,
           folderId,
-          uploaderId: userId || null,
           source: "texture-station",
-          sourceArchive: null,
+          uploaderId: userId || null,
         });
-        if (inserted.isErr()) throw inserted.error;
+        if (ingested.isErr()) throw ingested.error;
 
         importedFiles++;
       } catch (error) {

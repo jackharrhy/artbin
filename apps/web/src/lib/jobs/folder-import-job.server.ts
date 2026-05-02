@@ -6,22 +6,15 @@
  */
 
 import { type Job } from "~/db";
-import { nanoid } from "nanoid";
-import { basename, dirname, join, extname, relative } from "path";
+import { basename, dirname, join, extname } from "path";
 import { readdir, stat, readFile } from "fs/promises";
 import { existsSync } from "fs";
 import { createRequestLogger } from "evlog";
 
 import { registerJobHandler, updateJobProgress } from "../jobs.server";
 import {
-  saveFile,
-  getMimeType,
-  detectKind,
-  processImage,
-  isImageKind,
+  ingestFile,
   recalculateFolderCounts,
-  insertFileRecord,
-  computeSha256,
   getOrCreateFolder,
   ROOT_FOLDER,
 } from "../files.server";
@@ -271,52 +264,20 @@ async function handleFolderImportJob(
         fileDir === "." ? targetFolderSlug : `${targetFolderSlug}/${pathToSlug(fileDir)}`;
       const folderId = folderMap.get(fileDir) || folderMap.get("")!;
 
-      // Save file to disk
+      // Ingest file (save, detect, process, hash, insert)
       const fileName = basename(fileInfo.relativePath);
-      const { path: filePath, name: savedName } = await saveFile(
+      const ingested = await ingestFile({
         buffer,
-        folderSlug,
         fileName,
-        true,
-      );
-
-      // Detect kind and mime type
-      const kind = detectKind(savedName);
-      const mimeType = await getMimeType(savedName, buffer);
-
-      // Process images to get dimensions and generate previews
-      let width: number | null = null;
-      let height: number | null = null;
-      let hasPreview = false;
-
-      if (isImageKind(kind)) {
-        const imageInfo = await processImage(filePath);
-        if (imageInfo.isErr()) throw imageInfo.error;
-        width = imageInfo.value.width;
-        height = imageInfo.value.height;
-        hasPreview = imageInfo.value.hasPreview;
-      }
-
-      // Create file record
-      const inserted = await insertFileRecord({
-        id: nanoid(),
-        path: filePath,
-        name: savedName,
-        mimeType,
-        size: buffer.length,
-        kind,
-        sha256: computeSha256(buffer),
-        width,
-        height,
-        hasPreview,
+        folderSlug,
         folderId,
         source: "folder-import",
         sourceArchive: sourcePath,
       });
-      if (inserted.isErr()) throw inserted.error;
+      if (ingested.isErr()) throw ingested.error;
 
       // Track stats
-      filesByKind[kind] = (filesByKind[kind] || 0) + 1;
+      filesByKind[ingested.value.kind] = (filesByKind[ingested.value.kind] || 0) + 1;
       processedFiles++;
 
       // Update progress
