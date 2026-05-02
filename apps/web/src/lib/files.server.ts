@@ -14,6 +14,7 @@ import {
 } from "@artbin/core/detection/kind";
 import { getMimeType } from "@artbin/core/detection/mime";
 import { sanitizeFilename } from "@artbin/core/detection/filenames";
+import { nanoid } from "nanoid";
 
 const execAsync = promisify(exec);
 
@@ -557,4 +558,43 @@ export async function recalculateFolderCounts(folderIds: string[]): Promise<void
 
     await db.update(folders).set({ fileCount: c }).where(eq(folders.id, folderId));
   }
+}
+
+/**
+ * Sentinel value for `getOrCreateFolder` parentId parameter.
+ * Use this instead of `null` to explicitly mark a folder as root-level.
+ * This prevents accidental root-level folder creation when a parentId
+ * is simply missing or forgotten.
+ */
+export const ROOT_FOLDER = Symbol.for("ROOT_FOLDER");
+
+/**
+ * Get an existing folder by slug, or create one if it doesn't exist.
+ * `parentId` is required -- pass `ROOT_FOLDER` for root-level folders,
+ * or a parent folder ID string for nested folders.
+ */
+export async function getOrCreateFolder(
+  slug: string,
+  name: string,
+  parentId: typeof ROOT_FOLDER | string,
+): Promise<string> {
+  const existing = await db.query.folders.findFirst({
+    where: eq(folders.slug, slug),
+  });
+
+  if (existing) {
+    return existing.id;
+  }
+
+  const id = nanoid();
+  await db.insert(folders).values({
+    id,
+    name,
+    slug,
+    parentId: parentId === ROOT_FOLDER ? null : parentId,
+  });
+
+  await ensureDir(slugToPath(slug));
+
+  return id;
 }

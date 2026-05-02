@@ -5,9 +5,7 @@
  * preserving the directory structure.
  */
 
-import { db } from "~/db/connection.server";
-import { folders, type Job } from "~/db";
-import { eq } from "drizzle-orm";
+import { type Job } from "~/db";
 import { nanoid } from "nanoid";
 import { basename, dirname, join, extname, relative } from "path";
 import { readdir, stat, readFile } from "fs/promises";
@@ -21,11 +19,11 @@ import {
   detectKind,
   processImage,
   isImageKind,
-  ensureDir,
-  slugToPath,
   recalculateFolderCounts,
   insertFileRecord,
   computeSha256,
+  getOrCreateFolder,
+  ROOT_FOLDER,
 } from "../files.server";
 import { generateFolderPreview } from "../folder-preview.server";
 
@@ -115,38 +113,6 @@ function pathToSlug(path: string): string {
     .replace(/[^a-z0-9/]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .replace(/-+/g, "-");
-}
-
-/**
- * Get or create a folder by slug
- */
-async function getOrCreateFolder(
-  slug: string,
-  name: string,
-  parentId: string | null,
-): Promise<string> {
-  // Check if folder exists
-  const existing = await db.query.folders.findFirst({
-    where: eq(folders.slug, slug),
-  });
-
-  if (existing) {
-    return existing.id;
-  }
-
-  // Create folder
-  const id = nanoid();
-  await db.insert(folders).values({
-    id,
-    name,
-    slug,
-    parentId,
-  });
-
-  // Create directory on disk
-  await ensureDir(slugToPath(slug));
-
-  return id;
 }
 
 /**
@@ -270,7 +236,7 @@ async function handleFolderImportJob(
   const folderMap = new Map<string, string>(); // relativePath -> folderId
 
   // Create base folder
-  const baseFolderId = await getOrCreateFolder(targetFolderSlug, targetFolderName, null);
+  const baseFolderId = await getOrCreateFolder(targetFolderSlug, targetFolderName, ROOT_FOLDER);
   folderMap.set("", baseFolderId);
 
   // Create subfolders

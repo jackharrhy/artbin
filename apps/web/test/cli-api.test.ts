@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, describe, expect, test, vi } from "vitest";
-import { files, folders, sessions, users } from "~/db/schema";
+import { files, folders, jobs, sessions, users } from "~/db/schema";
 import { setDbForTesting } from "~/db/connection.server";
 import { loader as whoamiLoader } from "~/routes/api.cli.whoami";
 import { action as foldersAction } from "~/routes/api.cli.folders";
@@ -15,6 +15,14 @@ vi.mock("evlog/react-router", () => {
     loggerContext: Symbol("loggerContext"),
   };
 });
+
+// Mock BSP detection to control when extract-bsp jobs are queued
+vi.mock("@artbin/core/parsers/bsp", () => ({
+  isBSPFile: (buf: Buffer) => {
+    // Check for Quake BSP magic (version 29 LE)
+    return buf.length >= 4 && buf.readUInt32LE(0) === 29;
+  },
+}));
 
 // Mock filesystem operations used by the folders endpoint
 vi.mock("~/lib/files.server", async (importOriginal) => {
@@ -927,5 +935,60 @@ describe("/api/cli/upload", () => {
       where: eq(folders.slug, "_inbox"),
     });
     expect(inboxFolder).toBeTruthy();
+  });
+
+  test("BSP upload queues extract-bsp job with texture folder co-located next to BSP", async () => {
+    const db = setupDatabase();
+    await seedAdminSession(db);
+
+    // Create nested folder hierarchy as the CLI would
+    await db.insert(folders).values([
+      { id: "root", name: "game", slug: "game", fileCount: 0 },
+      { id: "id1", name: "id1", slug: "game/id1", parentId: "root", fileCount: 0 },
+      { id: "maps", name: "maps", slug: "game/id1/maps", parentId: "id1", fileCount: 0 },
+    ]);
+
+    // Create a minimal valid Quake BSP buffer (magic number 29)
+    const bspBuffer = Buffer.alloc(64);
+    bspBuffer.writeUInt32LE(29, 0); // BSP version 29
+
+    const formData = new FormData();
+    formData.set(
+      "metadata",
+      JSON.stringify({
+        parentFolder: "game",
+        files: [
+          {
+            path: "id1/maps/dm_test.bsp",
+            kind: "map",
+            mimeType: "application/octet-stream",
+            sha256: "bsphash",
+          },
+        ],
+      }),
+    );
+    formData.set("file_0", new Blob([bspBuffer]), "dm_test.bsp");
+
+    const request = adminRequest("http://localhost/api/cli/upload", {
+      method: "POST",
+      body: formData,
+    });
+
+    const response = await callRoute(uploadAction, request);
+    const body = await response.json();
+
+    expect(body.uploaded).toHaveLength(1);
+    expect(body.errors).toHaveLength(0);
+
+    // Verify the extract-bsp job was queued
+    const allJobs = await db.query.jobs.findMany();
+    expect(allJobs).toHaveLength(1);
+    expect(allJobs[0].type).toBe("extract-bsp");
+
+    // Parse the job input and verify the target folder slug
+    // is co-located with the BSP, NOT at the root level
+    const jobInput = JSON.parse(allJobs[0].input);
+    expect(jobInput.targetFolderSlug).toBe("game/id1/maps/dm-test-textures");
+    expect(jobInput.targetFolderName).toBe("dm_test Textures");
   });
 });

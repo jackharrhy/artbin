@@ -149,11 +149,12 @@ async function handleAdminUpload(formData: FormData, metadata: UploadMetadata, u
       // If BSP file, queue an extract-bsp job
       if (kind === "map" && savedName.toLowerCase().endsWith(".bsp") && isBSPFile(buffer)) {
         const bspBaseName = savedName.replace(/\.bsp$/i, "");
+        const bspSlug = cleanFolderSlug(bspBaseName);
         await createJob({
           type: "extract-bsp",
           input: {
             bspPath: getFilePath(savedPath),
-            targetFolderSlug: `${folderSlug}/${bspBaseName}-textures`,
+            targetFolderSlug: `${folderSlug}/${bspSlug}-textures`,
             targetFolderName: `${bspBaseName} Textures`,
             userId: userId,
           },

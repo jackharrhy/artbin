@@ -34,6 +34,8 @@ import {
   recalculateFolderCounts,
   insertFileRecord,
   computeSha256,
+  getOrCreateFolder,
+  ROOT_FOLDER,
 } from "../files.server";
 import { generateFolderPreview } from "../folder-preview.server";
 import { isBSPFile, extractTexturesFromBSP } from "../bsp.server";
@@ -88,32 +90,6 @@ function pathToSlug(path: string): string {
     .replace(/-+/g, "-");
 }
 
-async function getOrCreateFolder(
-  slug: string,
-  name: string,
-  parentId: string | null,
-): Promise<string> {
-  const existing = await db.query.folders.findFirst({
-    where: eq(folders.slug, slug),
-  });
-
-  if (existing) {
-    return existing.id;
-  }
-
-  const id = nanoid();
-  await db.insert(folders).values({
-    id,
-    name,
-    slug,
-    parentId,
-  });
-
-  await ensureDir(slugToPath(slug));
-
-  return id;
-}
-
 async function getFolderSlug(folderId: string): Promise<string | null> {
   const folder = await db.query.folders.findFirst({
     where: eq(folders.id, folderId),
@@ -125,12 +101,12 @@ async function createFolderStructure(
   baseSlug: string,
   baseName: string,
   dirPaths: string[],
-  parentFolderId?: string | null,
+  parentFolderId?: typeof ROOT_FOLDER | string,
 ): Promise<Map<string, string>> {
   const folderMap = new Map<string, string>(); // path -> folderId
 
   // Create base folder
-  const baseId = await getOrCreateFolder(baseSlug, baseName, parentFolderId || null);
+  const baseId = await getOrCreateFolder(baseSlug, baseName, parentFolderId || ROOT_FOLDER);
   folderMap.set("", baseId);
 
   // Sort paths to ensure parents are created before children
@@ -186,7 +162,7 @@ async function handleExtractJob(
     targetFolderSlug,
     targetFolderName,
     dirPaths,
-    parentFolderId,
+    parentFolderId || ROOT_FOLDER,
   );
 
   // Extract files
@@ -385,8 +361,20 @@ async function handleBatchExtractJob(
 
   await updateJobProgress(job.id, 2, "Creating parent folder...");
 
-  // Create parent folder
-  const parentFolderId = await getOrCreateFolder(parentFolderSlug, parentFolderName, null);
+  // Create parent folder, deriving parent from the slug
+  let batchExtractParentId: string | typeof ROOT_FOLDER = ROOT_FOLDER;
+  if (parentFolderSlug.includes("/")) {
+    const grandparentSlug = parentFolderSlug.split("/").slice(0, -1).join("/");
+    const grandparent = await db.query.folders.findFirst({
+      where: eq(folders.slug, grandparentSlug),
+    });
+    batchExtractParentId = grandparent?.id ?? ROOT_FOLDER;
+  }
+  const parentFolderId = await getOrCreateFolder(
+    parentFolderSlug,
+    parentFolderName,
+    batchExtractParentId,
+  );
 
   // Get the actual parent folder slug (may differ from input if folder existed)
   const actualParentSlug = (await getFolderSlug(parentFolderId)) || parentFolderSlug;
@@ -673,8 +661,18 @@ async function handleExtractBSPJob(
 
   await updateJobProgress(job.id, 30, `Found ${bspTextures.length} textures, creating folder...`);
 
-  // Create the target folder
-  const folderId = await getOrCreateFolder(targetFolderSlug, targetFolderName, null);
+  // Create the target folder, parented to the BSP's folder
+  let bspParentId: string | typeof ROOT_FOLDER = ROOT_FOLDER;
+  const parentSlug = targetFolderSlug.includes("/")
+    ? targetFolderSlug.split("/").slice(0, -1).join("/")
+    : null;
+  if (parentSlug) {
+    const parentFolder = await db.query.folders.findFirst({
+      where: eq(folders.slug, parentSlug),
+    });
+    bspParentId = parentFolder?.id ?? ROOT_FOLDER;
+  }
+  const folderId = await getOrCreateFolder(targetFolderSlug, targetFolderName, bspParentId);
 
   // Save each texture
   let savedTextures = 0;
@@ -790,8 +788,20 @@ async function handleBatchExtractBSPJob(
 
   await updateJobProgress(job.id, 2, "Creating parent folder...");
 
-  // Create parent folder
-  const parentFolderId = await getOrCreateFolder(parentFolderSlug, parentFolderName, null);
+  // Create parent folder, deriving parent from the slug
+  let batchBspParentId: string | typeof ROOT_FOLDER = ROOT_FOLDER;
+  if (parentFolderSlug.includes("/")) {
+    const grandparentSlug = parentFolderSlug.split("/").slice(0, -1).join("/");
+    const grandparent = await db.query.folders.findFirst({
+      where: eq(folders.slug, grandparentSlug),
+    });
+    batchBspParentId = grandparent?.id ?? ROOT_FOLDER;
+  }
+  const parentFolderId = await getOrCreateFolder(
+    parentFolderSlug,
+    parentFolderName,
+    batchBspParentId,
+  );
 
   // Get the actual parent folder slug (may differ from input if folder existed)
   const actualParentSlug = (await getFolderSlug(parentFolderId)) || parentFolderSlug;
