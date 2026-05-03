@@ -2,6 +2,7 @@ import { db } from "~/db/connection.server";
 import { jobs, type Job, type JobStatus } from "~/db";
 import { eq, and, or, lt } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import { unlink } from "fs/promises";
 import { Result } from "better-result";
 import { createRequestLogger } from "evlog";
 
@@ -132,7 +133,6 @@ export async function deleteJob(id: string): Promise<boolean> {
   try {
     const input = JSON.parse(job.input) as Record<string, unknown>;
     if (typeof input.tempFile === "string" && input.tempFile.includes("/tmp/")) {
-      const { unlink } = await import("fs/promises");
       try {
         await unlink(input.tempFile);
       } catch {

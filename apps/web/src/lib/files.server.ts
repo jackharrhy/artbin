@@ -15,6 +15,7 @@ import {
 import { getMimeType } from "@artbin/core/detection/mime";
 import { sanitizeFilename } from "@artbin/core/detection/filenames";
 import { nanoid } from "nanoid";
+import { generateFolderPreview } from "./folder-preview.server";
 
 const execAsync = promisify(exec);
 
@@ -486,15 +487,12 @@ export async function recalculateFolderCounts(folderIds: string[]): Promise<void
  * Preview generation failures are non-fatal -- they are passed to `onError`
  * if provided, otherwise silently ignored.
  *
- * Uses a lazy import for folder-preview to avoid a circular dependency
- * (folder-preview.server imports path helpers from this file).
  */
 export async function finalizeFolders(
   folderIds: string[],
   onError?: (error: Error, folderId: string) => void,
 ): Promise<void> {
   await recalculateFolderCounts(folderIds);
-  const { generateFolderPreview } = await import("./folder-preview.server");
   for (const folderId of folderIds) {
     try {
       await generateFolderPreview(folderId);

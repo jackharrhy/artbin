@@ -1,15 +1,16 @@
 import { Form, useLoaderData, useActionData } from "react-router";
 import type { Route } from "./+types/admin.scan-settings";
 import { userContext } from "~/lib/auth-context.server";
-import type { ScanSettings } from "~/lib/settings.server";
+import {
+  initializeScanSettings,
+  updateScanSettings,
+  resetScanSettings,
+  type ScanSettings,
+} from "~/lib/settings.server";
 
 export async function loader({ context }: Route.LoaderArgs) {
   const user = context.get(userContext);
 
-  // Import server module inside loader
-  const { initializeScanSettings } = await import("~/lib/settings.server");
-
-  // Initialize settings if they don't exist, then get them
   const settings = await initializeScanSettings();
 
   return {
@@ -20,9 +21,6 @@ export async function loader({ context }: Route.LoaderArgs) {
 
 export async function action({ request, context }: Route.ActionArgs) {
   const user = context.get(userContext);
-
-  // Import server module inside action
-  const { updateScanSettings, resetScanSettings } = await import("~/lib/settings.server");
 
   const formData = await request.formData();
   const intent = formData.get("intent") as string;

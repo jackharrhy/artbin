@@ -5,7 +5,7 @@ import { userContext } from "~/lib/auth-context.server";
 import { db } from "~/db/connection.server";
 import { files, folders } from "~/db";
 import { eq, and, lt, like, inArray, isNull, isNotNull, sql } from "drizzle-orm";
-import { readdir } from "fs/promises";
+import { readdir, unlink } from "fs/promises";
 import { existsSync } from "fs";
 import { join, relative } from "path";
 import { UPLOADS_DIR, deleteFile, deleteFolder } from "~/lib/files.server";
@@ -188,7 +188,6 @@ export async function action({ request, context }: Route.ActionArgs) {
     let deleted = 0;
     for (const p of paths) {
       try {
-        const { unlink } = await import("fs/promises");
         await unlink(join(UPLOADS_DIR, p));
         deleted++;
       } catch {
