@@ -12,13 +12,7 @@ import { existsSync } from "fs";
 import { createRequestLogger } from "evlog";
 
 import { registerJobHandler, updateJobProgress } from "../jobs.server";
-import {
-  ingestFile,
-  recalculateFolderCounts,
-  getOrCreateFolder,
-  ROOT_FOLDER,
-} from "../files.server";
-import { generateFolderPreview } from "../folder-preview.server";
+import { ingestFile, finalizeFolders, getOrCreateFolder, ROOT_FOLDER } from "../files.server";
 
 /**
  * File extensions we know how to import directly.
@@ -299,23 +293,11 @@ async function handleFolderImportJob(
     }
   }
 
-  // Recalculate file counts for all created folders
-  await updateJobProgress(job.id, 96, "Updating folder counts...");
-  await recalculateFolderCounts(Array.from(folderMap.values()));
-
-  // Generate folder previews for all created folders
-  await updateJobProgress(job.id, 97, "Generating folder previews...");
-  for (const [, folderId] of folderMap) {
-    try {
-      await generateFolderPreview(folderId);
-    } catch (err) {
-      log.error(err instanceof Error ? err : new Error(String(err)), {
-        step: "generate-preview",
-        folderId,
-      });
-      // Continue with other folders
-    }
-  }
+  // Finalize: recalculate file counts and generate folder previews
+  await updateJobProgress(job.id, 96, "Finalizing folders...");
+  await finalizeFolders(Array.from(folderMap.values()), (err, fId) =>
+    log.error(err, { step: "generate-preview", folderId: fId }),
+  );
 
   log.emit();
 

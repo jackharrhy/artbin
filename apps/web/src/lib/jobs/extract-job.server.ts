@@ -21,13 +21,7 @@ import {
   type ArchiveEntry,
   type ParsedArchive,
 } from "../archives.server";
-import {
-  ingestFile,
-  recalculateFolderCounts,
-  getOrCreateFolder,
-  ROOT_FOLDER,
-} from "../files.server";
-import { generateFolderPreview } from "../folder-preview.server";
+import { ingestFile, finalizeFolders, getOrCreateFolder, ROOT_FOLDER } from "../files.server";
 import { isBSPFile, extractTexturesFromBSP } from "../bsp.server";
 
 export interface ExtractJobInput {
@@ -155,21 +149,8 @@ async function extractBSPTextures(
   return { textureCount };
 }
 
-/**
- * Recalculate folder counts and generate previews for a list of folder IDs.
- */
-async function finalizeFolders(folderIds: string[], log: AuditableLogger): Promise<void> {
-  await recalculateFolderCounts(folderIds);
-  for (const folderId of folderIds) {
-    try {
-      await generateFolderPreview(folderId);
-    } catch (err) {
-      log.error(err instanceof Error ? err : new Error(String(err)), {
-        step: "generate-preview",
-        folderId,
-      });
-    }
-  }
+function previewErrorHandler(log: AuditableLogger) {
+  return (err: Error, folderId: string) => log.error(err, { step: "generate-preview", folderId });
 }
 
 // ---------------------------------------------------------------------------
@@ -336,7 +317,7 @@ async function handleExtractJob(
   // Recalculate file counts and generate folder previews
   await updateJobProgress(job.id, 96, "Updating folder counts...");
   await updateJobProgress(job.id, 97, "Generating folder previews...");
-  await finalizeFolders(Array.from(folderMap.values()), log);
+  await finalizeFolders(Array.from(folderMap.values()), previewErrorHandler(log));
 
   log.emit();
 
@@ -458,7 +439,7 @@ async function handleBatchExtractJob(
       }
 
       // Recalculate file counts and generate folder previews
-      await finalizeFolders(Array.from(folderMap.values()), log);
+      await finalizeFolders(Array.from(folderMap.values()), previewErrorHandler(log));
 
       totalFilesExtracted += filesExtracted;
       archiveResults.push({
@@ -487,7 +468,7 @@ async function handleBatchExtractJob(
 
   // Update parent folder count and generate preview
   await updateJobProgress(job.id, 97, "Generating parent folder preview...");
-  await finalizeFolders([parentFolderId], log);
+  await finalizeFolders([parentFolderId], previewErrorHandler(log));
 
   log.emit();
 
@@ -599,7 +580,7 @@ async function handleExtractBSPJob(
 
   // Update folder count and generate preview
   await updateJobProgress(job.id, 95, "Generating folder preview...");
-  await finalizeFolders([folderId], log);
+  await finalizeFolders([folderId], previewErrorHandler(log));
 
   log.emit();
 
@@ -733,7 +714,7 @@ async function handleBatchExtractBSPJob(
       }
 
       // Update folder count and generate preview for subfolder
-      await finalizeFolders([subFolderId], log);
+      await finalizeFolders([subFolderId], previewErrorHandler(log));
 
       totalTexturesExtracted += texturesExtracted;
       bspResults.push({
@@ -762,7 +743,7 @@ async function handleBatchExtractBSPJob(
 
   // Update parent folder count and generate preview
   await updateJobProgress(job.id, 97, "Generating parent folder preview...");
-  await finalizeFolders([parentFolderId], log);
+  await finalizeFolders([parentFolderId], previewErrorHandler(log));
 
   log.emit();
 

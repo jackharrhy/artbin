@@ -480,6 +480,31 @@ export async function recalculateFolderCounts(folderIds: string[]): Promise<void
 }
 
 /**
+ * Finalize folders after a batch upload: recalculate file counts and generate
+ * preview images. Call this after any batch of files has been ingested.
+ *
+ * Preview generation failures are non-fatal -- they are passed to `onError`
+ * if provided, otherwise silently ignored.
+ *
+ * Uses a lazy import for folder-preview to avoid a circular dependency
+ * (folder-preview.server imports path helpers from this file).
+ */
+export async function finalizeFolders(
+  folderIds: string[],
+  onError?: (error: Error, folderId: string) => void,
+): Promise<void> {
+  await recalculateFolderCounts(folderIds);
+  const { generateFolderPreview } = await import("./folder-preview.server");
+  for (const folderId of folderIds) {
+    try {
+      await generateFolderPreview(folderId);
+    } catch (err) {
+      onError?.(err instanceof Error ? err : new Error(String(err)), folderId);
+    }
+  }
+}
+
+/**
  * Sentinel value for `getOrCreateFolder` parentId parameter.
  * Use this instead of `null` to explicitly mark a folder as root-level.
  * This prevents accidental root-level folder creation when a parentId

@@ -12,13 +12,7 @@ import { eq } from "drizzle-orm";
 import { createRequestLogger } from "evlog";
 
 import { updateJobProgress } from "../jobs.server";
-import {
-  ingestFile,
-  getOrCreateFolder,
-  ROOT_FOLDER,
-  recalculateFolderCounts,
-} from "../files.server";
-import { generateFolderPreview } from "../folder-preview.server";
+import { ingestFile, getOrCreateFolder, ROOT_FOLDER, finalizeFolders } from "../files.server";
 
 export interface ScraperCategory {
   /** Display name for the category folder */
@@ -163,20 +157,10 @@ export async function runScraper(
   }
 
   // Finalize: recalculate folder counts and generate previews
-  await updateJobProgress(job.id, 95, "Updating folder counts...");
-  await recalculateFolderCounts(createdFolderIds);
-
-  await updateJobProgress(job.id, 96, "Generating folder previews...");
-  for (const fId of createdFolderIds) {
-    try {
-      await generateFolderPreview(fId);
-    } catch (err) {
-      log.error(err instanceof Error ? err : new Error(String(err)), {
-        step: "generate-preview",
-        folderId: fId,
-      });
-    }
-  }
+  await updateJobProgress(job.id, 95, "Finalizing folders...");
+  await finalizeFolders(createdFolderIds, (err, fId) =>
+    log.error(err, { step: "generate-preview", folderId: fId }),
+  );
 
   log.emit();
 

@@ -7,7 +7,7 @@ import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { join, basename } from "path";
 import { writeFile } from "fs/promises";
-import { ingestFile, TEMP_DIR, ensureDir } from "~/lib/files.server";
+import { ingestFile, TEMP_DIR, ensureDir, finalizeFolders } from "~/lib/files.server";
 import { createJob } from "~/lib/jobs.server";
 import { parseArchive, getFileEntries, getDirectoryPaths } from "~/lib/archives.server";
 import { createUploadSession } from "~/lib/inbox.server";
@@ -146,6 +146,9 @@ async function handleAdminUpload(
       uploaderId: userId,
     });
     if (ingested.isErr()) throw ingested.error;
+
+    // Update folder preview after each upload
+    await finalizeFolders([targetFolderId]);
 
     return Response.json({
       fileSuccess: {

@@ -7,7 +7,7 @@ import { eq } from "drizzle-orm";
 import { basename, dirname } from "path";
 import { cleanFolderSlug, cleanFolderPath } from "@artbin/core/detection/filenames";
 import { isBSPFile } from "@artbin/core/parsers/bsp";
-import { ingestFile, getFilePath } from "~/lib/files.server";
+import { ingestFile, getFilePath, finalizeFolders } from "~/lib/files.server";
 import { createJob } from "~/lib/jobs.server";
 import { createUploadSession } from "~/lib/inbox.server";
 
@@ -61,6 +61,7 @@ async function handleAdminUpload(formData: FormData, metadata: UploadMetadata, u
   const log = useLogger();
   const uploaded: string[] = [];
   const errors: { path: string; error: string }[] = [];
+  const touchedFolderIds = new Set<string>();
 
   for (let i = 0; i < metadata.files.length; i++) {
     const fileMeta = metadata.files[i];
@@ -112,6 +113,8 @@ async function handleAdminUpload(formData: FormData, metadata: UploadMetadata, u
         continue;
       }
 
+      touchedFolderIds.add(folder.id);
+
       // If BSP file, queue an extract-bsp job
       if (
         ingested.value.kind === "map" &&
@@ -142,6 +145,11 @@ async function handleAdminUpload(formData: FormData, metadata: UploadMetadata, u
       });
     }
   }
+
+  // Finalize: recalculate folder counts and generate preview images
+  await finalizeFolders([...touchedFolderIds], (err, fId) =>
+    log.error(err, { step: "folder-preview", folderId: fId }),
+  );
 
   log.set({
     cliUpload: {
