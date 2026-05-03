@@ -481,19 +481,44 @@ export async function recalculateFolderCounts(folderIds: string[]): Promise<void
 }
 
 /**
+ * Collect all ancestor folder IDs by walking up the parentId chain.
+ */
+async function getAncestorFolderIds(folderIds: string[]): Promise<string[]> {
+  const all = new Set(folderIds);
+  const queue = [...folderIds];
+
+  while (queue.length > 0) {
+    const id = queue.pop()!;
+    const folder = await db.query.folders.findFirst({
+      where: eq(folders.id, id),
+      columns: { parentId: true },
+    });
+    if (folder?.parentId && !all.has(folder.parentId)) {
+      all.add(folder.parentId);
+      queue.push(folder.parentId);
+    }
+  }
+
+  return [...all];
+}
+
+/**
  * Finalize folders after a batch upload: recalculate file counts and generate
- * preview images. Call this after any batch of files has been ingested.
+ * preview images. Automatically walks up the folder tree so ancestor folders
+ * get updated previews too (cascading previews).
  *
  * Preview generation failures are non-fatal -- they are passed to `onError`
  * if provided, otherwise silently ignored.
- *
  */
 export async function finalizeFolders(
   folderIds: string[],
   onError?: (error: Error, folderId: string) => void,
 ): Promise<void> {
-  await recalculateFolderCounts(folderIds);
-  for (const folderId of folderIds) {
+  // Include ancestors so parent folders get previews from descendant textures
+  const allIds = await getAncestorFolderIds(folderIds);
+
+  await recalculateFolderCounts(folderIds); // Only recount the directly-affected folders
+  for (const folderId of allIds) {
     try {
       await generateFolderPreview(folderId);
     } catch (err) {
