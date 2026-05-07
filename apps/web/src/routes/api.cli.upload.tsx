@@ -146,10 +146,14 @@ async function handleAdminUpload(formData: FormData, metadata: UploadMetadata, u
     }
   }
 
-  // Finalize: recalculate folder counts and generate preview images
-  await finalizeFolders([...touchedFolderIds], (err, fId) =>
-    log.error(err, { step: "folder-preview", folderId: fId }),
-  );
+  // Finalize folder counts and previews in the background -- don't block the response.
+  // With large uploads (2000+ files in 50-file batches), generating previews for every
+  // ancestor folder per batch would exceed reverse proxy timeouts.
+  if (touchedFolderIds.size > 0) {
+    finalizeFolders([...touchedFolderIds], (err, fId) =>
+      log.error(err, { step: "folder-preview", folderId: fId }),
+    ).catch(() => {});
+  }
 
   log.set({
     cliUpload: {

@@ -147,8 +147,8 @@ async function handleAdminUpload(
     });
     if (ingested.isErr()) throw ingested.error;
 
-    // Update folder preview after each upload
-    await finalizeFolders([targetFolderId]);
+    // Update folder preview in the background -- don't block the response
+    finalizeFolders([targetFolderId]).catch(() => {});
 
     return Response.json({
       fileSuccess: {
