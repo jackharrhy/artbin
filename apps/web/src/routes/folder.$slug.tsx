@@ -181,6 +181,15 @@ export async function action({ request, params, context }: Route.ActionArgs) {
     return redirect(`/folder/${result.value.folder?.slug}`);
   }
 
+  if (actionType === "update-description") {
+    const description = (formData.get("description") as string) || "";
+    await db
+      .update(folders)
+      .set({ description: description.trim() || null })
+      .where(eq(folders.id, folder.id));
+    return { success: true };
+  }
+
   if (actionType === "delete") {
     // Recursively delete folder, children, and files
     async function deleteFolderRecursive(folderId: string, folderSlug: string) {
@@ -272,6 +281,9 @@ export default function FolderView() {
   const [showMoveModal, setShowMoveModal] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(folder.name);
+  const [isEditingDescription, setIsEditingDescription] = useState(false);
+  const [descriptionValue, setDescriptionValue] = useState(folder.description || "");
+  const descriptionFetcher = useFetcher();
   const revalidator = useRevalidator();
 
   const navigation = useNavigation();
@@ -432,7 +444,61 @@ export default function FolderView() {
           </div>
         </div>
 
-        {folder.description && <p className="mb-4 text-text-muted">{folder.description}</p>}
+        {user.isAdmin && isEditingDescription ? (
+          <descriptionFetcher.Form
+            method="post"
+            className="mb-4"
+            onSubmit={() => setIsEditingDescription(false)}
+          >
+            <input type="hidden" name="_action" value="update-description" />
+            <textarea
+              name="description"
+              value={descriptionValue}
+              onChange={(e) => setDescriptionValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  setIsEditingDescription(false);
+                  setDescriptionValue(folder.description || "");
+                }
+              }}
+              className="w-full bg-bg border border-border px-2 py-1 text-text-muted text-sm"
+              rows={3}
+              placeholder="Folder description..."
+              autoFocus
+            />
+            <div className="flex gap-2 mt-1">
+              <button type="submit" className="btn btn-primary text-sm">
+                Save
+              </button>
+              <button
+                type="button"
+                className="btn text-sm"
+                onClick={() => {
+                  setIsEditingDescription(false);
+                  setDescriptionValue(folder.description || "");
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </descriptionFetcher.Form>
+        ) : folder.description ? (
+          <p
+            className={`mb-4 text-text-muted ${user.isAdmin ? "cursor-pointer hover:text-text" : ""}`}
+            onClick={user.isAdmin ? () => setIsEditingDescription(true) : undefined}
+            title={user.isAdmin ? "Click to edit" : undefined}
+          >
+            {folder.description}
+          </p>
+        ) : user.isAdmin ? (
+          <button
+            type="button"
+            className="mb-4 text-text-muted text-sm hover:text-text"
+            onClick={() => setIsEditingDescription(true)}
+          >
+            + Add description
+          </button>
+        ) : null}
 
         <BrowseTabs
           baseUrl={baseUrl}
