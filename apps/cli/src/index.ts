@@ -25,6 +25,11 @@ async function main() {
       await importCmd(args);
       break;
     }
+    case "add": {
+      const { add } = await import("./commands/add.ts");
+      await add(args);
+      break;
+    }
     default:
       console.log(`artbin - game asset manager CLI
 
@@ -33,6 +38,7 @@ Usage:
   artbin logout               Clear stored credentials
   artbin scan <path>          Scan a directory for game assets
   artbin import <path>        Upload game assets to the server
+  artbin add <path>           Upload a folder of files (no filtering)
 
 Options:
   --help    Show this help message
