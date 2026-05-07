@@ -11,7 +11,7 @@ import type { Route } from "./+types/folder.$slug";
 import { userContext } from "~/lib/auth-context.server";
 import { db } from "~/db/connection.server";
 import { folders, files, tags } from "~/db";
-import { eq, desc, count, and, sql } from "drizzle-orm";
+import { eq, desc, count, and, sql, inArray } from "drizzle-orm";
 import { BrowseTabs, type ViewMode } from "~/components/BrowseTabs";
 import { SearchBar } from "~/components/SearchBar";
 import { FileGrid } from "~/components/FileGrid";
@@ -41,6 +41,22 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
   }
 
   const url = new URL(request.url);
+
+  // "I'm feeling lucky" -- redirect to a random file in this folder tree
+  if (url.searchParams.has("random")) {
+    const descendantIds = await getDescendantFolderIds(folder.id);
+    const [randomFile] = await db
+      .select({ path: files.path })
+      .from(files)
+      .where(and(inArray(files.folderId, descendantIds), eq(files.status, "approved")))
+      .orderBy(sql`RANDOM()`)
+      .limit(1);
+    if (randomFile) {
+      return redirect(`/file/${randomFile.path}`);
+    }
+    // No files -- just show the folder normally
+  }
+
   const view = (url.searchParams.get("view") || "folders") as ViewMode;
   const query = url.searchParams.get("q") || "";
   const tagSlug = url.searchParams.get("tag") || null;
@@ -500,17 +516,27 @@ export default function FolderView() {
           </button>
         ) : null}
 
-        <BrowseTabs
-          baseUrl={baseUrl}
-          currentView={view}
-          counts={{
-            folders: fileCounts.folders,
-            textures: fileCounts.texture,
-            models: fileCounts.model,
-            sounds: fileCounts.audio,
-            all: fileCounts.all,
-          }}
-        />
+        <div className="flex items-center justify-between">
+          <BrowseTabs
+            baseUrl={baseUrl}
+            currentView={view}
+            counts={{
+              folders: fileCounts.folders,
+              textures: fileCounts.texture,
+              models: fileCounts.model,
+              sounds: fileCounts.audio,
+              all: fileCounts.all,
+            }}
+          />
+          {fileCounts.all > 0 && (
+            <a
+              href={`${baseUrl}?random=1`}
+              className="text-sm text-text-muted hover:text-text no-underline whitespace-nowrap"
+            >
+              I'm feeling lucky
+            </a>
+          )}
+        </div>
 
         {/* Search bar for file views */}
         {view !== "folders" && (

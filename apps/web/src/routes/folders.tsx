@@ -1,4 +1,4 @@
-import { useLoaderData, useFetcher, useRevalidator } from "react-router";
+import { useLoaderData, useFetcher, useRevalidator, redirect } from "react-router";
 import { useState, useCallback } from "react";
 import { UploadModal } from "~/components/UploadModal";
 import type { Route } from "./+types/folders";
@@ -16,6 +16,20 @@ export async function loader({ request, context }: Route.LoaderArgs) {
   const user = context.get(userContext);
 
   const url = new URL(request.url);
+
+  // "I'm feeling lucky" -- redirect to a random file across all folders
+  if (url.searchParams.has("random")) {
+    const [randomFile] = await db
+      .select({ path: files.path })
+      .from(files)
+      .where(eq(files.status, "approved"))
+      .orderBy(sql`RANDOM()`)
+      .limit(1);
+    if (randomFile) {
+      return redirect(`/file/${randomFile.path}`);
+    }
+  }
+
   const view = (url.searchParams.get("view") || "folders") as ViewMode;
   const query = url.searchParams.get("q") || "";
   const tagSlug = url.searchParams.get("tag") || null;
@@ -172,17 +186,27 @@ export default function Folders() {
           </button>
         </div>
 
-        <BrowseTabs
-          baseUrl="/folders"
-          currentView={view}
-          counts={{
-            folders: fileCounts.folders,
-            textures: fileCounts.texture,
-            models: fileCounts.model,
-            sounds: fileCounts.audio,
-            all: fileCounts.all,
-          }}
-        />
+        <div className="flex items-center justify-between">
+          <BrowseTabs
+            baseUrl="/folders"
+            currentView={view}
+            counts={{
+              folders: fileCounts.folders,
+              textures: fileCounts.texture,
+              models: fileCounts.model,
+              sounds: fileCounts.audio,
+              all: fileCounts.all,
+            }}
+          />
+          {fileCounts.all > 0 && (
+            <a
+              href="/folders?random=1"
+              className="text-sm text-text-muted hover:text-text no-underline whitespace-nowrap"
+            >
+              I'm feeling lucky
+            </a>
+          )}
+        </div>
 
         {/* Search bar for file views */}
         {view !== "folders" && (
