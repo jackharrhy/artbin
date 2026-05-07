@@ -2,7 +2,12 @@ import { afterEach, describe, expect, test } from "vitest";
 import { eq } from "drizzle-orm";
 import { files, folders, users } from "~/db/schema";
 import { setDbForTesting } from "~/db/connection.server";
-import { createFolder, createFolderAndMoveChildren, moveFolder } from "~/lib/folders.server";
+import {
+  createFolder,
+  createFolderAndMoveChildren,
+  moveFolder,
+  renameFolder,
+} from "~/lib/folders.server";
 import { applyMigrations, createTestDatabase, type TestDatabase } from "./db";
 
 let currentDb: TestDatabase | undefined;
@@ -317,6 +322,191 @@ describe("createFolderAndMoveChildren", () => {
 
     expect(result.isErr()).toBe(true);
     if (!result.isErr()) throw new Error("Expected grouping to fail");
+    expect(result.error.message).toBe("Folder not found");
+  });
+});
+
+const renameDeps = {
+  uploadsDir: "/uploads-test",
+  exists: () => false as boolean,
+  rename: async () => {},
+  generatePreview: async () => null,
+};
+
+describe("renameFolder", () => {
+  test("renames folder, updates slug, cascades to descendants and file paths", async () => {
+    const db = setupDatabase();
+    const renamed: Array<[string, string]> = [];
+
+    await db.insert(folders).values([
+      { id: "parent", name: "Game Assets", slug: "game-assets" },
+      { id: "child", name: "Maps", slug: "game-assets/maps", parentId: "parent" },
+      { id: "grandchild", name: "DM", slug: "game-assets/maps/dm", parentId: "child" },
+    ]);
+    await db.insert(files).values([
+      {
+        id: "f1",
+        path: "game-assets/logo.png",
+        name: "logo.png",
+        mimeType: "image/png",
+        size: 10,
+        kind: "texture",
+        folderId: "parent",
+      },
+      {
+        id: "f2",
+        path: "game-assets/maps/map1.bsp",
+        name: "map1.bsp",
+        mimeType: "application/octet-stream",
+        size: 100,
+        kind: "map",
+        folderId: "child",
+      },
+      {
+        id: "f3",
+        path: "game-assets/maps/dm/dm1.bsp",
+        name: "dm1.bsp",
+        mimeType: "application/octet-stream",
+        size: 200,
+        kind: "map",
+        folderId: "grandchild",
+      },
+    ]);
+
+    const result = await renameFolder("parent", "Quake Stuff", {
+      ...renameDeps,
+      exists: (path) => path === "/uploads-test/game-assets",
+      rename: async (from, to) => {
+        renamed.push([from, to]);
+      },
+    });
+
+    expect(result.isOk()).toBe(true);
+    const val = result.unwrap();
+    expect(val.renamedFolders).toBe(3);
+    expect(val.renamedFiles).toBe(3);
+    expect(val.folder?.name).toBe("Quake Stuff");
+    expect(val.folder?.slug).toBe("quake-stuff");
+
+    // Verify cascaded slug updates
+    const child = await db.query.folders.findFirst({ where: eq(folders.id, "child") });
+    const grandchild = await db.query.folders.findFirst({ where: eq(folders.id, "grandchild") });
+    expect(child?.slug).toBe("quake-stuff/maps");
+    expect(grandchild?.slug).toBe("quake-stuff/maps/dm");
+
+    // Verify cascaded file path updates
+    const f1 = await db.query.files.findFirst({ where: eq(files.id, "f1") });
+    const f2 = await db.query.files.findFirst({ where: eq(files.id, "f2") });
+    const f3 = await db.query.files.findFirst({ where: eq(files.id, "f3") });
+    expect(f1?.path).toBe("quake-stuff/logo.png");
+    expect(f2?.path).toBe("quake-stuff/maps/map1.bsp");
+    expect(f3?.path).toBe("quake-stuff/maps/dm/dm1.bsp");
+
+    // Verify directory was renamed on disk
+    expect(renamed).toEqual([["/uploads-test/game-assets", "/uploads-test/quake-stuff"]]);
+  });
+
+  test("handles weird folder names with special characters", async () => {
+    const db = setupDatabase();
+
+    await db.insert(folders).values({
+      id: "folder-1",
+      name: "My Folder",
+      slug: "my-folder",
+    });
+
+    const result = await renameFolder(
+      "folder-1",
+      "  Jack's Awesome!!! Textures (2024)  ",
+      renameDeps,
+    );
+
+    expect(result.isOk()).toBe(true);
+    const val = result.unwrap();
+    expect(val.folder?.name).toBe("Jack's Awesome!!! Textures (2024)");
+    expect(val.folder?.slug).toBe("jack-s-awesome-textures-2024");
+  });
+
+  test("renames a nested folder without affecting parent slug", async () => {
+    const db = setupDatabase();
+
+    await db.insert(folders).values([
+      { id: "parent", name: "Game", slug: "game" },
+      { id: "child", name: "Old Maps", slug: "game/old-maps", parentId: "parent" },
+    ]);
+
+    const result = await renameFolder("child", "New Maps", renameDeps);
+
+    expect(result.isOk()).toBe(true);
+    expect(result.unwrap().folder?.slug).toBe("game/new-maps");
+
+    // Parent should be untouched
+    const parent = await db.query.folders.findFirst({ where: eq(folders.id, "parent") });
+    expect(parent?.slug).toBe("game");
+  });
+
+  test("rejects rename to slug that already exists", async () => {
+    const db = setupDatabase();
+
+    await db.insert(folders).values([
+      { id: "folder-a", name: "Folder A", slug: "folder-a" },
+      { id: "folder-b", name: "Folder B", slug: "folder-b" },
+    ]);
+
+    const result = await renameFolder("folder-a", "Folder B", renameDeps);
+
+    expect(result.isErr()).toBe(true);
+    if (!result.isErr()) return;
+    expect(result.error.message).toBe('A folder already exists at "folder-b"');
+  });
+
+  test("rejects empty or whitespace-only name", async () => {
+    const db = setupDatabase();
+
+    await db.insert(folders).values({ id: "folder-1", name: "Folder", slug: "folder" });
+
+    const empty = await renameFolder("folder-1", "", renameDeps);
+    expect(empty.isErr()).toBe(true);
+    if (!empty.isErr()) return;
+    expect(empty.error.message).toBe("Name is required");
+
+    const whitespace = await renameFolder("folder-1", "   ", renameDeps);
+    expect(whitespace.isErr()).toBe(true);
+    if (!whitespace.isErr()) return;
+    expect(whitespace.error.message).toBe("Name is required");
+  });
+
+  test("rejects name that produces empty slug (all special chars)", async () => {
+    const db = setupDatabase();
+
+    await db.insert(folders).values({ id: "folder-1", name: "Folder", slug: "folder" });
+
+    const result = await renameFolder("folder-1", "!!!???", renameDeps);
+    expect(result.isErr()).toBe(true);
+    if (!result.isErr()) return;
+    expect(result.error.message).toBe("Name must contain at least one alphanumeric character");
+  });
+
+  test("allows name-only change when slug would be the same", async () => {
+    const db = setupDatabase();
+
+    await db.insert(folders).values({ id: "folder-1", name: "folder", slug: "folder" });
+
+    // "FOLDER" cleans to "folder" -- same slug, different display name
+    const result = await renameFolder("folder-1", "FOLDER", renameDeps);
+
+    expect(result.isOk()).toBe(true);
+    expect(result.unwrap().folder?.name).toBe("FOLDER");
+    expect(result.unwrap().folder?.slug).toBe("folder");
+    expect(result.unwrap().renamedFolders).toBe(0); // no slug changes needed
+  });
+
+  test("returns error for non-existent folder", async () => {
+    setupDatabase();
+
+    const result = await renameFolder("missing", "New Name", renameDeps);
+    expect(result.isErr()).toBe(true);
+    if (!result.isErr()) return;
     expect(result.error.message).toBe("Folder not found");
   });
 });

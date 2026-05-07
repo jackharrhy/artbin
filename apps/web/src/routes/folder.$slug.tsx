@@ -19,6 +19,7 @@ import { FileList } from "~/components/FileList";
 import { UploadModal } from "~/components/UploadModal";
 import { MoveFolderModal } from "~/components/MoveFolderModal";
 import { deleteFile, deleteFolder } from "~/lib/files.server";
+import { renameFolder } from "~/lib/folders.server";
 import {
   searchFiles,
   getDescendantFolderIds,
@@ -170,6 +171,16 @@ export async function action({ request, params, context }: Route.ActionArgs) {
     return { error: "Folder not found" };
   }
 
+  if (actionType === "rename") {
+    const newName = (formData.get("name") as string) || "";
+    const result = await renameFolder(folder.id, newName);
+    if (result.isErr()) {
+      return { error: result.error.message };
+    }
+    // Redirect to the new slug
+    return redirect(`/folder/${result.value.folder?.slug}`);
+  }
+
   if (actionType === "delete") {
     // Recursively delete folder, children, and files
     async function deleteFolderRecursive(folderId: string, folderSlug: string) {
@@ -259,11 +270,15 @@ export default function FolderView() {
   // State for modals
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showMoveModal, setShowMoveModal] = useState(false);
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState(folder.name);
   const revalidator = useRevalidator();
 
   const navigation = useNavigation();
   const isDeleting =
     navigation.state === "submitting" && navigation.formData?.get("_action") === "delete";
+  const isRenamingSubmit =
+    navigation.state === "submitting" && navigation.formData?.get("_action") === "rename";
 
   // State for infinite scroll
   const [searchFiles, setSearchFiles] = useState(data.searchResults?.files || []);
@@ -332,7 +347,40 @@ export default function FolderView() {
         </div>
 
         <div className="flex justify-between items-center mb-4">
-          <h1 className="text-xl font-normal">{folder.name}</h1>
+          {isRenaming ? (
+            <Form method="post" className="flex items-center gap-2">
+              <input type="hidden" name="_action" value="rename" />
+              <input
+                type="text"
+                name="name"
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    setIsRenaming(false);
+                    setRenameValue(folder.name);
+                  }
+                }}
+                className="text-xl font-normal bg-bg border border-border px-2 py-1"
+                autoFocus
+              />
+              <button type="submit" className="btn btn-primary" disabled={isRenamingSubmit}>
+                {isRenamingSubmit ? "Saving..." : "Save"}
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => {
+                  setIsRenaming(false);
+                  setRenameValue(folder.name);
+                }}
+              >
+                Cancel
+              </button>
+            </Form>
+          ) : (
+            <h1 className="text-xl font-normal">{folder.name}</h1>
+          )}
 
           <div className="flex gap-2">
             <button
@@ -343,8 +391,18 @@ export default function FolderView() {
               Add
             </button>
 
-            {user.isAdmin && (
+            {user.isAdmin && !isRenaming && (
               <>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => {
+                    setRenameValue(folder.name);
+                    setIsRenaming(true);
+                  }}
+                >
+                  Rename
+                </button>
                 <button type="button" className="btn" onClick={() => setShowMoveModal(true)}>
                   Move
                 </button>

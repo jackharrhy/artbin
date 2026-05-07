@@ -272,6 +272,142 @@ export async function moveFolder(
   }
 }
 
+export interface RenameFolderDeps {
+  db?: AppDb;
+  uploadsDir?: string;
+  exists?: (path: string) => boolean;
+  rename?: (from: string, to: string) => Promise<void>;
+  generatePreview?: (folderId: string) => Promise<string | null>;
+}
+
+export interface RenameFolderOutput {
+  folder?: Folder;
+  renamedFolders: number;
+  renamedFiles: number;
+}
+
+/**
+ * Rename a folder: updates display name, slug, and cascades slug changes
+ * to all descendant folders and file paths. Also renames the physical
+ * directory on disk.
+ */
+export async function renameFolder(
+  folderId: string,
+  newName: string,
+  deps: RenameFolderDeps = {},
+): Promise<Result<RenameFolderOutput, Error>> {
+  const database = deps.db ?? appDb;
+  const uploadsDir = deps.uploadsDir ?? UPLOADS_DIR;
+  const exists = deps.exists ?? existsSync;
+  const moveDir = deps.rename ?? rename;
+  const generatePreview = deps.generatePreview ?? generateFolderPreview;
+
+  const trimmedName = newName.trim();
+  if (!trimmedName) {
+    return Result.err(new Error("Name is required"));
+  }
+
+  const folder = await database.query.folders.findFirst({
+    where: eq(folders.id, folderId),
+  });
+
+  if (!folder) {
+    return Result.err(new Error("Folder not found"));
+  }
+
+  // Build new slug by replacing the last segment
+  const newBaseSlug = cleanFolderSlug(trimmedName);
+  if (!newBaseSlug) {
+    return Result.err(new Error("Name must contain at least one alphanumeric character"));
+  }
+
+  const parentPrefix = folder.slug.includes("/")
+    ? folder.slug.split("/").slice(0, -1).join("/") + "/"
+    : "";
+  const newSlug = parentPrefix + newBaseSlug;
+
+  // If slug hasn't changed, just update the display name
+  if (newSlug === folder.slug) {
+    if (trimmedName !== folder.name) {
+      await database.update(folders).set({ name: trimmedName }).where(eq(folders.id, folderId));
+    }
+    const updated = await database.query.folders.findFirst({
+      where: eq(folders.id, folderId),
+    });
+    return Result.ok({ folder: updated, renamedFolders: 0, renamedFiles: 0 });
+  }
+
+  // Check for slug collision
+  const existing = await database.query.folders.findFirst({
+    where: eq(folders.slug, newSlug),
+  });
+  if (existing) {
+    return Result.err(new Error(`A folder already exists at "${newSlug}"`));
+  }
+
+  const oldSlug = folder.slug;
+  const oldPath = join(uploadsDir, oldSlug);
+  const newPath = join(uploadsDir, newSlug);
+
+  if (exists(newPath)) {
+    return Result.err(new Error(`Directory already exists at "${newSlug}"`));
+  }
+
+  try {
+    let renamedFolders = 0;
+    let renamedFiles = 0;
+
+    // Update the folder's name and slug
+    await database
+      .update(folders)
+      .set({ name: trimmedName, slug: newSlug })
+      .where(eq(folders.id, folderId));
+    renamedFolders++;
+
+    // Update all descendant slugs
+    const descendants = await getDescendantFolders(database, folderId);
+    for (const descendant of descendants) {
+      const descendantNewSlug = descendant.slug.replace(oldSlug, newSlug);
+      await database
+        .update(folders)
+        .set({ slug: descendantNewSlug })
+        .where(eq(folders.id, descendant.id));
+      renamedFolders++;
+    }
+
+    // Update all file paths in affected folders
+    const affectedFolderIds = [folderId, ...descendants.map((d) => d.id)];
+    for (const affectedFolderId of affectedFolderIds) {
+      const folderFiles = await database.query.files.findMany({
+        where: eq(files.folderId, affectedFolderId),
+      });
+      for (const file of folderFiles) {
+        await database
+          .update(files)
+          .set({ path: file.path.replace(oldSlug, newSlug) })
+          .where(eq(files.id, file.id));
+        renamedFiles++;
+      }
+    }
+
+    // Rename the physical directory on disk
+    if (exists(oldPath)) {
+      await moveDir(oldPath, newPath);
+    }
+
+    // Regenerate folder preview (path changed)
+    await generatePreview(folderId);
+
+    const updatedFolder = await database.query.folders.findFirst({
+      where: eq(folders.id, folderId),
+    });
+
+    return Result.ok({ folder: updatedFolder, renamedFolders, renamedFiles });
+  } catch (error) {
+    return Result.err(toError(error));
+  }
+}
+
 export async function createFolderAndMoveChildren(
   name: string,
   parentId: string | null,
