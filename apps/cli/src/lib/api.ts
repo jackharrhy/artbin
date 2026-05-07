@@ -114,4 +114,17 @@ export class ApiClient {
       errors: { path: string; error: string }[];
     };
   }
+
+  async finalize(parentFolder: string): Promise<{ finalized: number }> {
+    const res = await fetch(`${this.serverUrl}/api/cli/finalize`, {
+      method: "POST",
+      headers: { ...this.headers(), "Content-Type": "application/json" },
+      body: JSON.stringify({ parentFolder }),
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`Finalize failed (${res.status}): ${body}`);
+    }
+    return (await res.json()) as { finalized: number };
+  }
 }

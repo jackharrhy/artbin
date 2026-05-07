@@ -286,6 +286,14 @@ export async function runImport(options: ImportOptions): Promise<ImportResult> {
     ),
   );
 
+  // Finalize: recalculate folder counts and generate previews on the server
+  progress("finalizing", uploaded, filesToUpload.length, "Generating folder previews...");
+  try {
+    await api.finalize(rootSlug);
+  } catch {
+    // Non-fatal -- previews can be regenerated later
+  }
+
   progress("done", uploaded, filesToUpload.length, "Upload complete");
 
   return { uploaded, failed, skipped, total };

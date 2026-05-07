@@ -7,7 +7,7 @@ import { eq } from "drizzle-orm";
 import { basename, dirname } from "path";
 import { cleanFolderSlug, cleanFolderPath } from "@artbin/core/detection/filenames";
 import { isBSPFile } from "@artbin/core/parsers/bsp";
-import { ingestFile, getFilePath, finalizeFolders } from "~/lib/files.server";
+import { ingestFile, getFilePath } from "~/lib/files.server";
 import { createJob } from "~/lib/jobs.server";
 import { createUploadSession } from "~/lib/inbox.server";
 
@@ -61,7 +61,6 @@ async function handleAdminUpload(formData: FormData, metadata: UploadMetadata, u
   const log = useLogger();
   const uploaded: string[] = [];
   const errors: { path: string; error: string }[] = [];
-  const touchedFolderIds = new Set<string>();
 
   for (let i = 0; i < metadata.files.length; i++) {
     const fileMeta = metadata.files[i];
@@ -113,8 +112,6 @@ async function handleAdminUpload(formData: FormData, metadata: UploadMetadata, u
         continue;
       }
 
-      touchedFolderIds.add(folder.id);
-
       // If BSP file, queue an extract-bsp job
       if (
         ingested.value.kind === "map" &&
@@ -146,14 +143,8 @@ async function handleAdminUpload(formData: FormData, metadata: UploadMetadata, u
     }
   }
 
-  // Finalize folder counts and previews in the background -- don't block the response.
-  // With large uploads (2000+ files in 50-file batches), generating previews for every
-  // ancestor folder per batch would exceed reverse proxy timeouts.
-  if (touchedFolderIds.size > 0) {
-    finalizeFolders([...touchedFolderIds], (err, fId) =>
-      log.error(err, { step: "folder-preview", folderId: fId }),
-    ).catch(() => {});
-  }
+  // NOTE: folder preview generation is NOT done here. The CLI calls
+  // POST /api/cli/finalize once after all batches are complete.
 
   log.set({
     cliUpload: {
