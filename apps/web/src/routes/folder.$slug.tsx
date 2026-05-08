@@ -114,7 +114,7 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
       .from(files)
       .where(and(eq(files.folderId, folder.id), eq(files.status, "approved")))
       .orderBy(desc(files.createdAt))
-      .limit(500);
+      .limit(100);
 
     return {
       user,
@@ -354,7 +354,8 @@ export default function FolderView() {
 
   // Separate files by kind for folder view display
   const textures = folderFiles.filter((f) => f.kind === "texture");
-  const otherFiles = folderFiles.filter((f) => f.kind !== "texture");
+  const models = folderFiles.filter((f) => f.kind === "model");
+  const otherFiles = folderFiles.filter((f) => f.kind !== "texture" && f.kind !== "model");
 
   const isTextureView = view === "textures";
   const isModelView = view === "models";
@@ -601,7 +602,19 @@ export default function FolderView() {
             {textures.length > 0 && (
               <section className="mb-8">
                 <div className="flex justify-between items-center mb-4">
-                  <span className="text-xs text-text-muted">{textures.length} textures</span>
+                  <span className="text-xs text-text-muted">
+                    {textures.length}
+                    {fileCounts.texture > textures.length ? ` of ${fileCounts.texture}` : ""}{" "}
+                    textures
+                  </span>
+                  {fileCounts.texture > textures.length && (
+                    <a
+                      href={`${baseUrl}?view=textures`}
+                      className="text-xs text-text-muted hover:text-text no-underline"
+                    >
+                      View all
+                    </a>
+                  )}
                 </div>
                 <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-2">
                   {textures.map((file) => (
@@ -625,11 +638,64 @@ export default function FolderView() {
               </section>
             )}
 
+            {/* Models */}
+            {models.length > 0 && (
+              <section className="mb-8">
+                <div className="flex justify-between items-center mb-4">
+                  <span className="text-xs text-text-muted">
+                    {models.length}
+                    {fileCounts.model > models.length ? ` of ${fileCounts.model}` : ""} models
+                  </span>
+                  {fileCounts.model > models.length && (
+                    <a
+                      href={`${baseUrl}?view=models`}
+                      className="text-xs text-text-muted hover:text-text no-underline"
+                    >
+                      View all
+                    </a>
+                  )}
+                </div>
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-2">
+                  {models.map((file) => (
+                    <a
+                      key={file.id}
+                      href={`/file/${file.path}`}
+                      className="group relative aspect-square overflow-hidden border border-border-light bg-[#f9f9f9] transition-colors hover:border-border"
+                    >
+                      {getFileDisplayUrl(file) ? (
+                        <img
+                          src={getFileDisplayUrl(file)!}
+                          alt={file.name}
+                          loading="lazy"
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="h-full w-full flex items-center justify-center text-4xl text-border-light">
+                          <span>📦</span>
+                        </div>
+                      )}
+                      <div className="absolute bottom-0 left-0 right-0 truncate bg-white/95 px-2 py-1 text-[0.7rem] text-text-muted opacity-0 transition-opacity group-hover:opacity-100">
+                        {file.name}
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              </section>
+            )}
+
             {/* Other Files */}
             {otherFiles.length > 0 && (
               <section className="mb-8">
                 <div className="flex justify-between items-center mb-4">
                   <span className="text-xs text-text-muted">{otherFiles.length} other files</span>
+                  {fileCounts.all > folderFiles.length && (
+                    <a
+                      href={`${baseUrl}?view=all`}
+                      className="text-xs text-text-muted hover:text-text no-underline"
+                    >
+                      View all
+                    </a>
+                  )}
                 </div>
                 <div>
                   {otherFiles.map((file) => (
