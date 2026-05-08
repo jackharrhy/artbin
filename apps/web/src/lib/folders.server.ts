@@ -1,7 +1,7 @@
 import { join } from "path";
 import { nanoid } from "nanoid";
 import { Result } from "better-result";
-import { eq } from "drizzle-orm";
+import { eq, like, sql } from "drizzle-orm";
 import { existsSync } from "fs";
 import { rename } from "fs/promises";
 import { cleanFolderSlug } from "@artbin/core/detection/filenames";
@@ -130,6 +130,35 @@ async function getDescendantFolders(database: AppDb, folderId: string): Promise<
   return descendants;
 }
 
+/**
+ * Bulk-update all descendant folder slugs and file paths when a folder's slug changes.
+ * Uses SQL REPLACE() in single queries instead of per-row loops to avoid blocking
+ * the event loop on large trees.
+ */
+async function cascadeSlugChange(
+  database: AppDb,
+  oldSlug: string,
+  newSlug: string,
+): Promise<{ updatedFolders: number; updatedFiles: number }> {
+  // Update all descendant folder slugs in one query
+  // Matches folders whose slug starts with "oldSlug/" (direct descendants)
+  const folderResult = await database
+    .update(folders)
+    .set({ slug: sql`REPLACE(${folders.slug}, ${oldSlug}, ${newSlug})` })
+    .where(like(folders.slug, `${oldSlug}/%`));
+
+  // Update all file paths that start with the old slug
+  const fileResult = await database
+    .update(files)
+    .set({ path: sql`REPLACE(${files.path}, ${oldSlug}, ${newSlug})` })
+    .where(like(files.path, `${oldSlug}/%`));
+
+  return {
+    updatedFolders: folderResult.changes ?? 0,
+    updatedFiles: fileResult.changes ?? 0,
+  };
+}
+
 async function wouldCreateCycle(
   database: AppDb,
   folderId: string,
@@ -196,7 +225,6 @@ export async function moveFolder(
     }
   }
 
-  const descendants = await getDescendantFolders(database, folderId);
   const oldSlug = folder.slug;
   const oldPath = join(uploadsDir, oldSlug);
   const newPath = join(uploadsDir, newSlug);
@@ -210,41 +238,14 @@ export async function moveFolder(
   }
 
   try {
-    let movedFolders = 0;
-    let movedFiles = 0;
-
+    // Update the folder itself
     await database
       .update(folders)
-      .set({
-        parentId: newParentId,
-        slug: newSlug,
-      })
+      .set({ parentId: newParentId, slug: newSlug })
       .where(eq(folders.id, folderId));
-    movedFolders++;
 
-    for (const descendant of descendants) {
-      const descendantNewSlug = descendant.slug.replace(oldSlug, newSlug);
-      await database
-        .update(folders)
-        .set({ slug: descendantNewSlug })
-        .where(eq(folders.id, descendant.id));
-      movedFolders++;
-    }
-
-    const affectedFolderIds = [folderId, ...descendants.map((descendant) => descendant.id)];
-    for (const affectedFolderId of affectedFolderIds) {
-      const folderFiles = await database.query.files.findMany({
-        where: eq(files.folderId, affectedFolderId),
-      });
-
-      for (const file of folderFiles) {
-        await database
-          .update(files)
-          .set({ path: file.path.replace(oldSlug, newSlug) })
-          .where(eq(files.id, file.id));
-        movedFiles++;
-      }
-    }
+    // Bulk-update all descendant slugs and file paths
+    const { updatedFolders, updatedFiles } = await cascadeSlugChange(database, oldSlug, newSlug);
 
     if (exists(oldPath)) {
       await moveDir(oldPath, newPath);
@@ -264,8 +265,8 @@ export async function moveFolder(
 
     return Result.ok({
       folder: updatedFolder,
-      movedFolders,
-      movedFiles,
+      movedFolders: 1 + updatedFolders,
+      movedFiles: updatedFiles,
     } satisfies MoveFolderOutput);
   } catch (error) {
     return Result.err(toError(error));
@@ -354,41 +355,14 @@ export async function renameFolder(
   }
 
   try {
-    let renamedFolders = 0;
-    let renamedFiles = 0;
-
     // Update the folder's name and slug
     await database
       .update(folders)
       .set({ name: trimmedName, slug: newSlug })
       .where(eq(folders.id, folderId));
-    renamedFolders++;
 
-    // Update all descendant slugs
-    const descendants = await getDescendantFolders(database, folderId);
-    for (const descendant of descendants) {
-      const descendantNewSlug = descendant.slug.replace(oldSlug, newSlug);
-      await database
-        .update(folders)
-        .set({ slug: descendantNewSlug })
-        .where(eq(folders.id, descendant.id));
-      renamedFolders++;
-    }
-
-    // Update all file paths in affected folders
-    const affectedFolderIds = [folderId, ...descendants.map((d) => d.id)];
-    for (const affectedFolderId of affectedFolderIds) {
-      const folderFiles = await database.query.files.findMany({
-        where: eq(files.folderId, affectedFolderId),
-      });
-      for (const file of folderFiles) {
-        await database
-          .update(files)
-          .set({ path: file.path.replace(oldSlug, newSlug) })
-          .where(eq(files.id, file.id));
-        renamedFiles++;
-      }
-    }
+    // Bulk-update all descendant slugs and file paths
+    const { updatedFolders, updatedFiles } = await cascadeSlugChange(database, oldSlug, newSlug);
 
     // Rename the physical directory on disk
     if (exists(oldPath)) {
@@ -402,7 +376,11 @@ export async function renameFolder(
       where: eq(folders.id, folderId),
     });
 
-    return Result.ok({ folder: updatedFolder, renamedFolders, renamedFiles });
+    return Result.ok({
+      folder: updatedFolder,
+      renamedFolders: 1 + updatedFolders,
+      renamedFiles: updatedFiles,
+    });
   } catch (error) {
     return Result.err(toError(error));
   }
