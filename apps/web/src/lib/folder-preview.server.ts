@@ -12,6 +12,7 @@ import { join } from "path";
 import { existsSync } from "fs";
 import { unlink } from "fs/promises";
 import { UPLOADS_DIR, getFilePath, slugToPath, ensureDir } from "./files.server";
+import { getDescendantFolderIds } from "./file-queries.server";
 import { createRequestLogger } from "evlog";
 
 // Preview configuration
@@ -60,21 +61,6 @@ async function getPreviewTextures(folderId: string): Promise<string[]> {
     .filter((p) => existsSync(p));
 }
 
-async function getAllDescendantFolderIds(folderId: string): Promise<string[]> {
-  const result: string[] = [folderId];
-
-  const childFolders = await db.query.folders.findMany({
-    where: eq(folders.parentId, folderId),
-  });
-
-  for (const child of childFolders) {
-    const descendants = await getAllDescendantFolderIds(child.id);
-    result.push(...descendants);
-  }
-
-  return result;
-}
-
 function shuffleArray<T>(array: T[]): T[] {
   const shuffled = [...array];
   for (let i = shuffled.length - 1; i > 0; i--) {
@@ -89,7 +75,7 @@ function shuffleArray<T>(array: T[]): T[] {
  */
 async function getPreviewTexturesRecursive(folderId: string): Promise<string[]> {
   // Get all descendant folder IDs
-  const allFolderIds = await getAllDescendantFolderIds(folderId);
+  const allFolderIds = await getDescendantFolderIds(folderId);
 
   // Get only image files (textures) from all these folders
   // Filter by kind to avoid trying to process audio, maps, etc.
@@ -99,7 +85,8 @@ async function getPreviewTexturesRecursive(folderId: string): Promise<string[]> 
       hasPreview: files.hasPreview,
     })
     .from(files)
-    .where(inArray(files.folderId, allFolderIds));
+    .where(inArray(files.folderId, allFolderIds))
+    .limit(GRID_SIZE * GRID_SIZE * 3);
 
   // Filter to only image-like files
   const imageTextures = textures.filter((t) => {

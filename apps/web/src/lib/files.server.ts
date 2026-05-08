@@ -16,6 +16,7 @@ import { getMimeType } from "@artbin/core/detection/mime";
 import { sanitizeFilename } from "@artbin/core/detection/filenames";
 import { nanoid } from "nanoid";
 import { generateFolderPreview } from "./folder-preview.server";
+import { getAncestorFolderIds } from "./file-queries.server";
 
 const execAsync = promisify(exec);
 
@@ -470,36 +471,13 @@ export async function incrementFolderFileCount(folderId: string, count: number =
 }
 
 export async function recalculateFolderCounts(folderIds: string[]): Promise<void> {
-  for (const folderId of folderIds) {
-    const [{ c }] = await db
-      .select({ c: sql<number>`count(*)` })
-      .from(files)
-      .where(eq(files.folderId, folderId));
-
-    await db.update(folders).set({ fileCount: c }).where(eq(folders.id, folderId));
-  }
-}
-
-/**
- * Collect all ancestor folder IDs by walking up the parentId chain.
- */
-async function getAncestorFolderIds(folderIds: string[]): Promise<string[]> {
-  const all = new Set(folderIds);
-  const queue = [...folderIds];
-
-  while (queue.length > 0) {
-    const id = queue.pop()!;
-    const folder = await db.query.folders.findFirst({
-      where: eq(folders.id, id),
-      columns: { parentId: true },
-    });
-    if (folder?.parentId && !all.has(folder.parentId)) {
-      all.add(folder.parentId);
-      queue.push(folder.parentId);
-    }
-  }
-
-  return [...all];
+  if (folderIds.length === 0) return;
+  await db
+    .update(folders)
+    .set({
+      fileCount: sql`(SELECT count(*) FROM ${files} WHERE ${files.folderId} = ${folders.id})`,
+    })
+    .where(inArray(folders.id, folderIds));
 }
 
 /**

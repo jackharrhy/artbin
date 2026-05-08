@@ -13,6 +13,7 @@ import {
   getFilePath,
 } from "./files.server";
 import { generateFolderPreview } from "./folder-preview.server";
+import { getDescendantFolderIds } from "./file-queries.server";
 import { useLogger } from "evlog/react-router";
 
 export const INBOX_SLUG = "_inbox";
@@ -65,24 +66,8 @@ export async function createUploadSession(
  * Collect all folder IDs in a session's tree (the session folder itself
  * plus any subfolders created from relativePath structure).
  */
-async function getSessionFolderIds(sessionFolderId: string): Promise<string[]> {
-  const ids: string[] = [sessionFolderId];
-  const queue = [sessionFolderId];
-
-  while (queue.length > 0) {
-    const parentId = queue.shift()!;
-    const children = await db.query.folders.findMany({
-      where: eq(folders.parentId, parentId),
-      columns: { id: true },
-    });
-    for (const child of children) {
-      ids.push(child.id);
-      queue.push(child.id);
-    }
-  }
-
-  return ids;
-}
+// getSessionFolderIds replaced by shared getDescendantFolderIds from file-queries.server.ts
+const getSessionFolderIds = getDescendantFolderIds;
 
 /**
  * Find a unique destination path by appending -2, -3, etc. if a file
@@ -117,13 +102,13 @@ export async function approveSession(
   const sessionFolderIds = await getSessionFolderIds(sessionFolderId);
 
   // Build a map of folder ID -> slug for computing relative paths
+  const sessionSubfolders = await db.query.folders.findMany({
+    where: inArray(folders.id, sessionFolderIds),
+    columns: { id: true, slug: true },
+  });
   const folderSlugMap = new Map<string, string>();
-  for (const fid of sessionFolderIds) {
-    const f = await db.query.folders.findFirst({
-      where: eq(folders.id, fid),
-      columns: { id: true, slug: true },
-    });
-    if (f) folderSlugMap.set(f.id, f.slug);
+  for (const f of sessionSubfolders) {
+    folderSlugMap.set(f.id, f.slug);
   }
 
   const sessionSlug = folderSlugMap.get(sessionFolderId) ?? "";
@@ -263,11 +248,12 @@ export async function rejectSession(sessionFolderId: string): Promise<{ rejected
   // delete of the session folder. Disk files stay for later cleanup.
   const inboxId = await ensureInboxFolder();
 
-  for (const file of pendingFiles) {
+  const fileIds = pendingFiles.map((f) => f.id);
+  if (fileIds.length > 0) {
     await db
       .update(files)
       .set({ status: "rejected", folderId: inboxId })
-      .where(eq(files.id, file.id));
+      .where(inArray(files.id, fileIds));
   }
 
   // Delete subfolders first, then session folder

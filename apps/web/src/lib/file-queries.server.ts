@@ -146,22 +146,42 @@ export async function searchFiles(options: SearchFilesOptions): Promise<SearchFi
   };
 }
 
+/**
+ * Get a folder and all its descendants using a recursive CTE.
+ * Single query regardless of tree depth.
+ */
 export async function getDescendantFolderIds(folderId: string): Promise<string[]> {
-  const result: string[] = [folderId];
+  const result = await db.all<{ id: string }>(
+    sql`WITH RECURSIVE tree AS (
+      SELECT id FROM folders WHERE id = ${folderId}
+      UNION ALL
+      SELECT f.id FROM folders f JOIN tree ON f.parent_id = tree.id
+    ) SELECT id FROM tree`,
+  );
+  return result.map((r) => r.id);
+}
 
-  async function collectChildren(parentId: string) {
-    const children = await db.query.folders.findMany({
-      where: eq(folders.parentId, parentId),
-    });
+/**
+ * Get all ancestor folder IDs by walking up the parent chain using a recursive CTE.
+ * Includes the input folder IDs themselves.
+ */
+export async function getAncestorFolderIds(folderIds: string[]): Promise<string[]> {
+  if (folderIds.length === 0) return [];
 
-    for (const child of children) {
-      result.push(child.id);
-      await collectChildren(child.id);
-    }
-  }
+  // SQLite doesn't support array params in CTEs, so we need to seed with a
+  // UNION of the starting IDs. For reasonable batch sizes this is fine.
+  const seedUnion = folderIds
+    .map((id) => sql`SELECT ${id} AS id`)
+    .reduce((a, b) => sql`${a} UNION ALL ${b}`);
 
-  await collectChildren(folderId);
-  return result;
+  const result = await db.all<{ id: string }>(
+    sql`WITH RECURSIVE ancestors AS (
+      ${seedUnion}
+      UNION
+      SELECT f.parent_id AS id FROM folders f JOIN ancestors a ON f.id = a.id WHERE f.parent_id IS NOT NULL
+    ) SELECT DISTINCT id FROM ancestors`,
+  );
+  return result.map((r) => r.id);
 }
 
 export async function getFileCountsByKind(folderIds?: string[]): Promise<Record<string, number>> {

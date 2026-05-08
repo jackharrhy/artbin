@@ -3,7 +3,7 @@ import { useLogger } from "evlog/react-router";
 import { requireCliAuth } from "~/lib/cli-auth.server";
 import { db } from "~/db/connection.server";
 import { files } from "~/db";
-import { eq } from "drizzle-orm";
+import { inArray } from "drizzle-orm";
 
 interface ManifestInput {
   parentFolder: string;
@@ -17,22 +17,28 @@ export async function action({ request }: Route.ActionArgs) {
   const body = (await request.json()) as ManifestInput;
   log.set({ manifest: { parentFolder: body.parentFolder, fileCount: body.files.length } });
 
-  const newFiles: string[] = [];
-  const existingFiles: string[] = [];
+  const parentFolder = body.parentFolder;
 
-  for (const file of body.files) {
-    const fullPath = `${body.parentFolder}/${file.path}`;
+  // Build all full paths
+  const allPaths = body.files.map((f) => `${parentFolder}/${f.path}`);
 
-    const found = await db.query.files.findFirst({
-      where: eq(files.path, fullPath),
-    });
+  // Single query to find all existing files
+  const foundFiles =
+    allPaths.length > 0
+      ? await db.query.files.findMany({
+          where: inArray(files.path, allPaths),
+          columns: { path: true },
+        })
+      : [];
+  const existingPathSet = new Set(foundFiles.map((f) => f.path));
 
-    if (found) {
-      existingFiles.push(file.path);
-    } else {
-      newFiles.push(file.path);
-    }
-  }
+  // Split into new vs existing
+  const newFiles = body.files
+    .filter((f) => !existingPathSet.has(`${parentFolder}/${f.path}`))
+    .map((f) => f.path);
+  const existingFiles = body.files
+    .filter((f) => existingPathSet.has(`${parentFolder}/${f.path}`))
+    .map((f) => f.path);
 
   log.set({ manifest: { newCount: newFiles.length, existingCount: existingFiles.length } });
   return Response.json({ newFiles, existingFiles });

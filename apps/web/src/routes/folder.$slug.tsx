@@ -62,17 +62,18 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
   const tagSlug = url.searchParams.get("tag") || null;
   const cursor = url.searchParams.get("cursor") || undefined;
 
-  // Build ancestor chain for breadcrumbs
-  const ancestors: { id: string; name: string; slug: string }[] = [];
-  let currentParentId = folder.parentId;
-  while (currentParentId) {
-    const parent = await db.query.folders.findFirst({
-      where: eq(folders.id, currentParentId),
-    });
-    if (!parent) break;
-    ancestors.unshift(parent);
-    currentParentId = parent.parentId;
-  }
+  // Build ancestor chain for breadcrumbs from slug segments (single query)
+  const slugParts = folder.slug.split("/");
+  const ancestorSlugs = slugParts.slice(0, -1).map((_, i) => slugParts.slice(0, i + 1).join("/"));
+  const ancestors =
+    ancestorSlugs.length > 0
+      ? await db.query.folders.findMany({
+          where: inArray(folders.slug, ancestorSlugs),
+          columns: { id: true, name: true, slug: true },
+        })
+      : [];
+  // Sort by slug depth to maintain breadcrumb order
+  ancestors.sort((a, b) => a.slug.split("/").length - b.slug.split("/").length);
 
   // Get all descendant folder IDs for scoped queries
   const descendantFolderIds = await getDescendantFolderIds(folder.id);

@@ -54,17 +54,16 @@ export async function loader({ request, context }: Route.LoaderArgs) {
     // For root folders, we sum the fileCount of the folder and all its descendants
     const folderCounts: Record<string, number> = {};
 
-    // Get total file counts per root folder (including all descendants)
-    // This is a single query that sums all files under each root folder's tree
-    for (const folder of rootFolders) {
-      // Get all descendant folder IDs using a recursive approach, but cached
-      const descendantCounts = await db
-        .select({ total: sql<number>`SUM(file_count)` })
-        .from(folders)
-        .where(sql`slug LIKE ${folder.slug + "%"}`);
-
-      folderCounts[folder.id] = descendantCounts[0]?.total || 0;
-    }
+    // Get total file counts per root folder (including all descendants) concurrently
+    await Promise.all(
+      rootFolders.map(async (folder) => {
+        const [{ total }] = await db
+          .select({ total: sql<number>`SUM(file_count)` })
+          .from(folders)
+          .where(sql`slug LIKE ${folder.slug + "%"}`);
+        folderCounts[folder.id] = total || 0;
+      }),
+    );
 
     // Count root folders
     const folderCount = rootFolders.length;
