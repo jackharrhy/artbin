@@ -17,6 +17,8 @@
     "@react-router/node": "7.14.2",
     "@react-router/serve": "7.14.2",
     "@tscircuit/alphabet": "^0.0.25",
+    "@types/archiver": "^7.0.0",
+    "archiver": "^7.0.1",
     "better-result": "^2.8.2",
     "better-sqlite3": "^12.9.0",
     "drizzle-orm": "^0.45.2",

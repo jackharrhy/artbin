@@ -35,4 +35,5 @@ export default [
   route("api/cli/manifest", "routes/api.cli.manifest.tsx"),
   route("api/cli/upload", "routes/api.cli.upload.tsx"),
   route("api/cli/finalize", "routes/api.cli.finalize.tsx"),
+  route("api/folder/download/*", "routes/api.folder.download.tsx"),
 ] satisfies RouteConfig;

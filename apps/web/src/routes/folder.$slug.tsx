@@ -420,6 +420,9 @@ export default function FolderView() {
           )}
 
           <div className="flex gap-2">
+            <a href={`/api/folder/download/${folder.slug}`} className="btn" download>
+              Download ZIP
+            </a>
             <button
               type="button"
               className="btn btn-primary"
