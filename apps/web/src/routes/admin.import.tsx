@@ -151,6 +151,16 @@ export async function action({ request, context }: Route.ActionArgs) {
     return { success: true, jobId: job.id, action: "folder-import", folderName: name };
   }
 
+  // Regenerate all previews
+  if (intent === "regenerate-previews") {
+    const job = await createJob({
+      type: "regenerate-previews",
+      input: { userId: user.id, includeModels: true },
+      userId: user.id,
+    });
+    return { success: true, jobId: job.id, action: "regenerate-previews" };
+  }
+
   return { error: "Unknown action" };
 }
 
@@ -353,6 +363,38 @@ export default function AdminImport() {
                 Browse Archives
               </a>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Maintenance */}
+      <section className="mb-8">
+        <h2 className="text-sm font-medium uppercase tracking-wide text-text-muted mb-3">
+          Maintenance
+        </h2>
+
+        <div className="card mb-4">
+          <div className="flex justify-between items-start gap-4">
+            <div>
+              <h3 className="font-medium mb-1">Regenerate Previews</h3>
+              <p className="text-sm text-text-muted m-0">
+                Generate missing model previews (GLB/GLTF) and regenerate all folder preview images
+              </p>
+            </div>
+            <Form method="post">
+              <input type="hidden" name="intent" value="regenerate-previews" />
+              <button
+                type="submit"
+                className="btn btn-primary"
+                onClick={(e) => {
+                  if (!confirm("Regenerate all previews? This may take a while.")) {
+                    e.preventDefault();
+                  }
+                }}
+              >
+                Regenerate
+              </button>
+            </Form>
           </div>
         </div>
       </section>
