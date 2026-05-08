@@ -252,12 +252,17 @@ function getFileDisplayUrl(file: {
   hasPreview: boolean | null;
   kind: string | null;
 }): string | null {
-  if (file.kind !== "texture") return null;
-
-  if (file.hasPreview) {
+  if (file.kind === "texture") {
+    if (file.hasPreview) {
+      return `/uploads/${file.path}.preview.png`;
+    }
+    return `/uploads/${file.path}`;
+  }
+  // Models with generated previews
+  if (file.kind === "model" && file.hasPreview) {
     return `/uploads/${file.path}.preview.png`;
   }
-  return `/uploads/${file.path}`;
+  return null;
 }
 
 function getFileIcon(kind: string | null): string {
@@ -352,6 +357,8 @@ export default function FolderView() {
   const otherFiles = folderFiles.filter((f) => f.kind !== "texture");
 
   const isTextureView = view === "textures";
+  const isModelView = view === "models";
+  const isGridView = isTextureView || isModelView;
   const isSoundsView = view === "sounds";
   const baseUrl = `/folder/${folder.slug}`;
 
@@ -650,8 +657,8 @@ export default function FolderView() {
           </>
         )}
 
-        {/* Texture grid view */}
-        {isTextureView && (
+        {/* Grid view for textures and models */}
+        {isGridView && (
           <FileGrid
             files={searchFiles}
             hasMore={!!nextCursor}
@@ -660,8 +667,8 @@ export default function FolderView() {
           />
         )}
 
-        {/* List view for models, sounds, all */}
-        {view !== "folders" && !isTextureView && (
+        {/* List view for sounds, all */}
+        {view !== "folders" && !isGridView && (
           <FileList
             files={searchFiles}
             hasMore={!!nextCursor}

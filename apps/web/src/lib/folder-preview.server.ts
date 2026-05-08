@@ -44,12 +44,13 @@ async function getPreviewTextures(folderId: string): Promise<string[]> {
     .orderBy(desc(files.hasPreview), desc(files.createdAt))
     .limit(GRID_SIZE * GRID_SIZE * 2); // Get more to filter
 
-  // Filter to only image-like files and get paths to displayable images
+  // Filter to files with displayable images (textures or models with previews)
   return textures
     .filter((t) => {
       if (!t.path) return false;
+      if (t.hasPreview) return true; // Any file with a preview (models, TGA, etc.)
       const ext = t.path.toLowerCase().split(".").pop();
-      return ["png", "jpg", "jpeg", "gif", "webp", "bmp", "tga", "pcx"].includes(ext || "");
+      return ["png", "jpg", "jpeg", "gif", "webp"].includes(ext || "");
     })
     .slice(0, GRID_SIZE * GRID_SIZE)
     .map((t) => {
@@ -88,12 +89,12 @@ async function getPreviewTexturesRecursive(folderId: string): Promise<string[]> 
     .where(inArray(files.folderId, allFolderIds))
     .limit(GRID_SIZE * GRID_SIZE * 3);
 
-  // Filter to only image-like files
+  // Filter to files with displayable images (textures or models with previews)
   const imageTextures = textures.filter((t) => {
     if (!t.path) return false;
+    if (t.hasPreview) return true; // Any file with a preview (models, TGA, etc.)
     const ext = t.path.toLowerCase().split(".").pop();
-    // Only include known image formats
-    return ["png", "jpg", "jpeg", "gif", "webp", "bmp", "tga", "pcx"].includes(ext || "");
+    return ["png", "jpg", "jpeg", "gif", "webp"].includes(ext || "");
   });
 
   if (imageTextures.length === 0) {

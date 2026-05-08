@@ -169,6 +169,8 @@ export default function Folders() {
   }, [loading, nextCursor, view, query, tagSlug, fetcher]);
 
   const isTextureView = view === "textures";
+  const isModelView = view === "models";
+  const isGridView = isTextureView || isModelView;
   const isSoundsView = view === "sounds";
 
   return (
@@ -267,13 +269,13 @@ export default function Folders() {
           </>
         )}
 
-        {/* Texture grid view */}
-        {isTextureView && (
+        {/* Grid view for textures and models */}
+        {isGridView && (
           <FileGrid files={files} hasMore={!!nextCursor} onLoadMore={loadMore} loading={loading} />
         )}
 
-        {/* List view for models, sounds, all */}
-        {view !== "folders" && !isTextureView && (
+        {/* List view for sounds, all */}
+        {view !== "folders" && !isGridView && (
           <FileList
             files={files}
             hasMore={!!nextCursor}

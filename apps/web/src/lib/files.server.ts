@@ -223,6 +223,38 @@ export async function processImage(filePath: string): Promise<
   });
 }
 
+const MODEL_PREVIEW_EXTENSIONS = new Set(["glb", "gltf"]);
+
+/**
+ * Check if a file is a 3D model that supports preview generation.
+ * Currently only GLB/GLTF since poppygl needs glTF format.
+ */
+export function canGenerateModelPreview(filename: string): boolean {
+  const ext = extname(filename).toLowerCase().slice(1);
+  return MODEL_PREVIEW_EXTENSIONS.has(ext);
+}
+
+/**
+ * Generate a preview PNG for a 3D model file using poppygl (software rasterizer).
+ * Returns true if a preview was generated, false otherwise.
+ */
+export async function generateModelPreview(
+  buffer: Buffer,
+  outputPath: string,
+): Promise<Result<boolean, Error>> {
+  try {
+    const { renderGLTFToPNGBufferFromGLBBuffer } = await import("poppygl");
+    const png = await renderGLTFToPNGBufferFromGLBBuffer(buffer, {
+      width: 256,
+      height: 256,
+    });
+    await writeFile(outputPath, png);
+    return Result.ok(true);
+  } catch (error) {
+    return Result.err(toError(error));
+  }
+}
+
 export async function saveTempFile(buffer: Buffer, filename: string): Promise<string> {
   await ensureDir(TEMP_DIR);
   const sanitized = sanitizeFilename(filename);
@@ -391,6 +423,15 @@ export async function ingestFile(
       // still generate previews for non-web-native formats (TGA, BMP, PCX, etc.)
       // since browsers cannot render them at all without a PNG preview.
       const preview = await generatePreview(getFilePath(savedPath));
+      if (preview.isOk()) {
+        hasPreview = preview.value;
+      }
+    }
+
+    // 4b. Generate model preview for GLB/GLTF files
+    if (kind === "model" && canGenerateModelPreview(savedName)) {
+      const previewPath = getFilePath(savedPath) + ".preview.png";
+      const preview = await generateModelPreview(opts.buffer, previewPath);
       if (preview.isOk()) {
         hasPreview = preview.value;
       }
