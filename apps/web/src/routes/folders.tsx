@@ -1,34 +1,22 @@
-import { useLoaderData, useFetcher, useRevalidator, redirect } from "react-router";
+import { useLoaderData, useFetcher, useRevalidator } from "react-router";
 import { useState, useCallback } from "react";
 import { UploadModal } from "~/components/UploadModal";
 import type { Route } from "./+types/folders";
 import { userContext } from "~/lib/auth-context.server";
 import { db } from "~/db/connection.server";
-import { folders, files, tags } from "~/db";
-import { eq, isNull, count, desc, sql, and } from "drizzle-orm";
+import { folders, tags } from "~/db";
+import { isNull, count, desc, sql, and } from "drizzle-orm";
 import { BrowseTabs, type ViewMode } from "~/components/BrowseTabs";
 import { SearchBar } from "~/components/SearchBar";
 import { FileGrid } from "~/components/FileGrid";
 import { FileList } from "~/components/FileList";
+import { LuckyButton } from "~/components/LuckyButton";
 import { searchFiles, getFileCountsByKind } from "~/lib/file-queries.server";
 
 export async function loader({ request, context }: Route.LoaderArgs) {
   const user = context.get(userContext);
 
   const url = new URL(request.url);
-
-  // "I'm feeling lucky" -- redirect to a random file across all folders
-  if (url.searchParams.has("random")) {
-    const [randomFile] = await db
-      .select({ path: files.path })
-      .from(files)
-      .where(eq(files.status, "approved"))
-      .orderBy(sql`RANDOM()`)
-      .limit(1);
-    if (randomFile) {
-      return redirect(`/file/${randomFile.path}`);
-    }
-  }
 
   const view = (url.searchParams.get("view") || "folders") as ViewMode;
   const query = url.searchParams.get("q") || "";
@@ -199,14 +187,7 @@ export default function Folders() {
               all: fileCounts.all,
             }}
           />
-          {fileCounts.all > 0 && (
-            <a
-              href="/folders?random=1"
-              className="text-sm text-text-muted hover:text-text no-underline whitespace-nowrap"
-            >
-              I'm feeling lucky
-            </a>
-          )}
+          {fileCounts.all > 0 && <LuckyButton sourceLabel="all assets" />}
         </div>
 
         {/* Search bar for file views */}

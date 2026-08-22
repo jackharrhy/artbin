@@ -7,6 +7,30 @@ const SESSION_MAX_AGE = 60 * 60 * 24 * 30; // 30 days
 const isProduction = process.env.NODE_ENV === "production";
 const secureSuffix = isProduction ? "; Secure" : "";
 
+const DEVELOPMENT_USER = {
+  id: "local-development-user",
+  username: "local",
+  fourmId: "local-development",
+  isAdmin: true,
+} as const;
+
+export function isDevelopmentAuthEnabled(): boolean {
+  return process.env.NODE_ENV === "development" && process.env.ARTBIN_REQUIRE_AUTH !== "1";
+}
+
+async function getDevelopmentUser() {
+  const [user] = await db
+    .insert(users)
+    .values(DEVELOPMENT_USER)
+    .onConflictDoUpdate({
+      target: users.id,
+      set: { isAdmin: true },
+    })
+    .returning();
+
+  return user;
+}
+
 export async function logout(sessionId: string): Promise<void> {
   await db.delete(sessions).where(eq(sessions.id, sessionId));
 }
@@ -36,6 +60,15 @@ export async function getUserFromSession(sessionId: string | undefined) {
   });
 
   return user;
+}
+
+export async function getUserFromRequest(request: Request) {
+  if (isDevelopmentAuthEnabled()) {
+    return getDevelopmentUser();
+  }
+
+  const sessionId = parseSessionCookie(request.headers.get("Cookie"));
+  return getUserFromSession(sessionId);
 }
 
 export function getSessionCookie(sessionId: string): string {

@@ -1,11 +1,16 @@
 import { redirect, useLoaderData, Form } from "react-router";
 import type { Route } from "./+types/settings";
 import { userContext } from "~/lib/auth-context.server";
-import { parseSessionCookie, getClearSessionCookie, logout } from "~/lib/auth.server";
+import {
+  parseSessionCookie,
+  getClearSessionCookie,
+  isDevelopmentAuthEnabled,
+  logout,
+} from "~/lib/auth.server";
 
 export function loader({ context }: Route.LoaderArgs) {
   const user = context.get(userContext);
-  return { user };
+  return { user, usesDevelopmentAuth: isDevelopmentAuthEnabled() };
 }
 
 export async function action({ request, context }: Route.ActionArgs) {
@@ -34,7 +39,7 @@ export function meta() {
 }
 
 export default function Settings() {
-  const { user } = useLoaderData<typeof loader>();
+  const { user, usesDevelopmentAuth } = useLoaderData<typeof loader>();
 
   return (
     <main className="max-w-[600px] mx-auto p-4 bg-bg min-h-[calc(100vh-48px)]">
@@ -52,12 +57,18 @@ export default function Settings() {
             </span>
             <div>@{user.username}</div>
           </div>
-          <Form method="post" className="mt-4">
-            <input type="hidden" name="intent" value="logout" />
-            <button type="submit" className="btn btn-danger btn-sm">
-              Logout
-            </button>
-          </Form>
+          {usesDevelopmentAuth ? (
+            <p className="mt-4 text-sm text-text-muted">
+              Local development mode is active. Authentication is disabled.
+            </p>
+          ) : (
+            <Form method="post" className="mt-4">
+              <input type="hidden" name="intent" value="logout" />
+              <button type="submit" className="btn btn-danger btn-sm">
+                Logout
+              </button>
+            </Form>
+          )}
         </div>
       </section>
 

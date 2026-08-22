@@ -8,15 +8,25 @@ import {
   logout,
   getSessionCookie,
   getClearSessionCookie,
+  getUserFromRequest,
+  isDevelopmentAuthEnabled,
   parseSessionCookie,
 } from "~/lib/auth.server";
 import { applyMigrations, createTestDatabase, type TestDatabase } from "./db";
 
 let currentDb: TestDatabase | undefined;
+const originalNodeEnv = process.env.NODE_ENV;
+const originalRequireAuth = process.env.ARTBIN_REQUIRE_AUTH;
 
 afterEach(() => {
   currentDb?.close();
   currentDb = undefined;
+  process.env.NODE_ENV = originalNodeEnv;
+  if (originalRequireAuth === undefined) {
+    delete process.env.ARTBIN_REQUIRE_AUTH;
+  } else {
+    process.env.ARTBIN_REQUIRE_AUTH = originalRequireAuth;
+  }
 });
 
 function setupDatabase() {
@@ -156,6 +166,37 @@ describe("getUserFromSession", () => {
     await db.delete(users).where(eq(users.id, "user-1"));
 
     const user = await getUserFromSession("session-1");
+    expect(user).toBeNull();
+  });
+});
+
+describe("development authentication", () => {
+  test("uses a database-backed local admin in development", async () => {
+    const db = setupDatabase();
+    process.env.NODE_ENV = "development";
+    delete process.env.ARTBIN_REQUIRE_AUTH;
+
+    const user = await getUserFromRequest(new Request("http://localhost/folders"));
+
+    expect(isDevelopmentAuthEnabled()).toBe(true);
+    expect(user).toMatchObject({
+      id: "local-development-user",
+      username: "local",
+      isAdmin: true,
+    });
+    await expect(
+      db.query.users.findFirst({ where: eq(users.id, "local-development-user") }),
+    ).resolves.toMatchObject({ isAdmin: true });
+  });
+
+  test("can require normal authentication while developing", async () => {
+    setupDatabase();
+    process.env.NODE_ENV = "development";
+    process.env.ARTBIN_REQUIRE_AUTH = "1";
+
+    const user = await getUserFromRequest(new Request("http://localhost/folders"));
+
+    expect(isDevelopmentAuthEnabled()).toBe(false);
     expect(user).toBeNull();
   });
 });

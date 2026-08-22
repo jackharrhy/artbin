@@ -34,6 +34,10 @@ just dev
 
 app runs at `http://localhost:5173`.
 
+The development server automatically uses a database-backed local admin account, so 4orm is not
+required for local work. Set `ARTBIN_REQUIRE_AUTH=1` when starting the server if you need to test the
+production OAuth flow.
+
 ## commands
 
 all commands work from the repo root via `just` or `pnpm run`:

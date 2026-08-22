@@ -1,10 +1,9 @@
 import { redirect, useSearchParams } from "react-router";
 import type { Route } from "./+types/login";
-import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
+import { getUserFromRequest } from "~/lib/auth.server";
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const sessionId = parseSessionCookie(request.headers.get("Cookie"));
-  const user = await getUserFromSession(sessionId);
+  const user = await getUserFromRequest(request);
   if (user) {
     return redirect("/folders");
   }

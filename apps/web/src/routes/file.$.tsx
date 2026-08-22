@@ -1,11 +1,12 @@
-import { useState } from "react";
-import { useLoaderData } from "react-router";
+import { useEffect, useState } from "react";
+import { useLoaderData, useLocation } from "react-router";
 import type { Route } from "./+types/file.$";
 import { userContext } from "~/lib/auth-context.server";
 import { db } from "~/db/connection.server";
 import { files, folders, fileTags, tags } from "~/db";
 import { eq } from "drizzle-orm";
 import { ModelViewer } from "~/components/ModelViewer";
+import { getLuckyContext, LuckyButton } from "~/components/LuckyButton";
 import { readFile } from "fs/promises";
 import { getFilePath } from "~/lib/files.server";
 
@@ -347,6 +348,11 @@ export default function FileView() {
     availableTextures,
     modelAnimations,
   } = useLoaderData<typeof loader>();
+  const location = useLocation();
+  const [luckyContext, setLuckyContext] = useState<ReturnType<typeof getLuckyContext>>(null);
+  useEffect(() => {
+    setLuckyContext(getLuckyContext(location.state));
+  }, [location.state]);
   const [selectedTexture, setSelectedTexture] = useState<string | undefined>(
     modelTexture || undefined,
   );
@@ -362,6 +368,26 @@ export default function FileView() {
 
   return (
     <main className="max-w-[1400px] mx-auto p-4 bg-bg min-h-[calc(100vh-48px)]">
+      {luckyContext && (
+        <div className="mb-4 flex items-center justify-between gap-4 border border-border-light bg-bg-hover px-3 py-2 text-sm max-sm:items-start max-sm:flex-col">
+          <span className="text-text-muted">
+            Feeling lucky in{" "}
+            <a href={luckyContext.sourceHref} className="text-text hover:underline">
+              {luckyContext.sourceLabel}
+            </a>
+          </span>
+          <LuckyButton
+            folderId={luckyContext.folderId}
+            sourceLabel={luckyContext.sourceLabel}
+            context={luckyContext}
+            excludePath={file.path}
+            replace
+            label="Lucky again"
+            className="btn btn-primary btn-sm"
+          />
+        </div>
+      )}
+
       {/* Breadcrumb */}
       <div className="text-xs text-text-muted mb-4">
         <a href="/folders" className="text-text-muted hover:text-text no-underline">

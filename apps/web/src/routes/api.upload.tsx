@@ -1,6 +1,6 @@
 import type { Route } from "./+types/api.upload";
 import { useLogger } from "evlog/react-router";
-import { parseSessionCookie, getUserFromSession } from "~/lib/auth.server";
+import { getUserFromRequest } from "~/lib/auth.server";
 import { db } from "~/db/connection.server";
 import { folders } from "~/db";
 import { eq } from "drizzle-orm";
@@ -21,8 +21,7 @@ function isArchive(filename: string): boolean {
 
 export async function action({ request }: Route.ActionArgs) {
   const log = useLogger();
-  const sessionId = parseSessionCookie(request.headers.get("Cookie"));
-  const user = await getUserFromSession(sessionId);
+  const user = await getUserFromRequest(request);
 
   if (!user) {
     return Response.json({ error: "Not authenticated" }, { status: 401 });
