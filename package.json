@@ -19,7 +19,7 @@
     "cli:dev": "pnpm run --filter ./apps/cli dev"
   },
   "devDependencies": {
-    "oxlint": "^1.61.0",
-    "oxfmt": "^0.46.0"
+    "oxlint": "^1.79.0",
+    "oxfmt": "^0.64.0"
   }
 }

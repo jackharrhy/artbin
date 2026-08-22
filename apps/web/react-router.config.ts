@@ -6,7 +6,4 @@ export default {
   ssr: true,
   // App directory is src/ instead of app/
   appDirectory: "src",
-  future: {
-    v8_middleware: true,
-  },
 } satisfies Config;

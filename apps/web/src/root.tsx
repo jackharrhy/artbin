@@ -20,6 +20,10 @@ initLogger({
 
 export const middleware: Route.MiddlewareFunction[] = [evlog()];
 
+export function meta() {
+  return [{ title: "artbin - texture & asset repository" }];
+}
+
 export const links: Route.LinksFunction = () => [
   {
     rel: "icon",
@@ -34,7 +38,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>artbin - texture & asset repository</title>
         <Meta />
         <Links />
       </head>

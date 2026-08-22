@@ -130,6 +130,41 @@ export function UploadModal({
     }
   }
 
+  const analyzeArchive = useCallback(async (file: File) => {
+    setError(null);
+    setUploading(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("_action", "analyze");
+
+      const response = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      const result = await response.json();
+
+      if (result.error) {
+        setError(result.error);
+        setUploading(false);
+        return;
+      }
+
+      if (result.archiveAnalysis) {
+        setArchiveAnalysis(result.archiveAnalysis);
+        setArchiveFolderName(result.archiveAnalysis.suggestedName);
+        setArchiveFolderSlug(result.archiveAnalysis.suggestedSlug);
+        setView("archive-analysis");
+      }
+    } catch (err) {
+      setError(`Failed to analyze archive: ${err}`);
+    }
+
+    setUploading(false);
+  }, []);
+
   const handleFileSelect = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const selectedFiles = e.target.files;
@@ -173,43 +208,8 @@ export function UploadModal({
       setFiles(newFiles);
       setError(null);
     },
-    [isAtRoot, isAdmin],
+    [analyzeArchive, isAtRoot, isAdmin],
   );
-
-  const analyzeArchive = async (file: File) => {
-    setError(null);
-    setUploading(true);
-
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("_action", "analyze");
-
-      const response = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      const result = await response.json();
-
-      if (result.error) {
-        setError(result.error);
-        setUploading(false);
-        return;
-      }
-
-      if (result.archiveAnalysis) {
-        setArchiveAnalysis(result.archiveAnalysis);
-        setArchiveFolderName(result.archiveAnalysis.suggestedName);
-        setArchiveFolderSlug(result.archiveAnalysis.suggestedSlug);
-        setView("archive-analysis");
-      }
-    } catch (err) {
-      setError(`Failed to analyze archive: ${err}`);
-    }
-
-    setUploading(false);
-  };
 
   const handleExtractArchive = async () => {
     if (!archiveAnalysis) return;

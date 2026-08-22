@@ -95,7 +95,9 @@ export class ApiClient {
 
     for (let i = 0; i < files.length; i++) {
       const f = files[i];
-      const blob = new Blob([f.buffer]);
+      const bytes = new Uint8Array(f.buffer.byteLength);
+      bytes.set(f.buffer);
+      const blob = new Blob([bytes]);
       const filename = f.path.split("/").pop() || `file_${i}`;
       formData.set(`file_${i}`, blob, filename);
     }

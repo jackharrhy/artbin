@@ -19,7 +19,8 @@
     "react/no-array-index-key": "off",
     "typescript/no-extraneous-class": "off",
     "no-new": "off",
-    "oxc/no-map-spread": "off"
+    "oxc/no-map-spread": "off",
+    "no-underscore-dangle": "off"
   },
   "env": {
     "builtin": true,

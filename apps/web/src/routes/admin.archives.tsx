@@ -297,7 +297,13 @@ function BatchImportForm({
   };
 
   return (
-    <Form method="post" onSubmit={() => close()}>
+    <Form
+      method="post"
+      onSubmit={() => {
+        onClear();
+        close();
+      }}
+    >
       <input type="hidden" name="intent" value="batch-import" />
       <input type="hidden" name="archivePaths" value={JSON.stringify([...selectedPaths])} />
 
@@ -363,13 +369,6 @@ export default function AdminArchives() {
       return () => clearInterval(interval);
     }
   }, [isScanning, revalidator]);
-
-  // Clear selection on successful batch import
-  useEffect(() => {
-    if (actionData?.success && actionData?.action === "batch-import") {
-      setSelectedPaths(new Set());
-    }
-  }, [actionData]);
 
   // Build tree from archives
   const tree = useMemo(() => buildTree(archives), [archives]);

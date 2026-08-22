@@ -167,6 +167,28 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
   };
 }
 
+async function deleteFolderRecursive(folderId: string, folderSlug: string) {
+  const folderFiles = await db.query.files.findMany({
+    where: eq(files.folderId, folderId),
+  });
+
+  for (const file of folderFiles) {
+    await deleteFile(file.path);
+  }
+  await db.delete(files).where(eq(files.folderId, folderId));
+
+  const childFolders = await db.query.folders.findMany({
+    where: eq(folders.parentId, folderId),
+  });
+
+  for (const child of childFolders) {
+    await deleteFolderRecursive(child.id, child.slug);
+  }
+
+  await db.delete(folders).where(eq(folders.id, folderId));
+  await deleteFolder(folderSlug);
+}
+
 export async function action({ request, params, context }: Route.ActionArgs) {
   const user = context.get(userContext);
 
@@ -208,33 +230,6 @@ export async function action({ request, params, context }: Route.ActionArgs) {
   }
 
   if (actionType === "delete") {
-    // Recursively delete folder, children, and files
-    async function deleteFolderRecursive(folderId: string, folderSlug: string) {
-      // Get all files in this folder
-      const folderFiles = await db.query.files.findMany({
-        where: eq(files.folderId, folderId),
-      });
-
-      // Delete file records and files from disk
-      for (const file of folderFiles) {
-        await deleteFile(file.path);
-      }
-      await db.delete(files).where(eq(files.folderId, folderId));
-
-      // Recursively delete child folders
-      const childFolders = await db.query.folders.findMany({
-        where: eq(folders.parentId, folderId),
-      });
-
-      for (const child of childFolders) {
-        await deleteFolderRecursive(child.id, child.slug);
-      }
-
-      // Delete the folder record and directory
-      await db.delete(folders).where(eq(folders.id, folderId));
-      await deleteFolder(folderSlug);
-    }
-
     await deleteFolderRecursive(folder.id, folder.slug);
 
     return redirect("/folders");
@@ -243,8 +238,8 @@ export async function action({ request, params, context }: Route.ActionArgs) {
   return { error: "Unknown action" };
 }
 
-export function meta({ data }: Route.MetaArgs) {
-  return [{ title: `${data?.folder?.name || "Folder"} - artbin` }];
+export function meta({ loaderData }: Route.MetaArgs) {
+  return [{ title: `${loaderData?.folder?.name || "Folder"} - artbin` }];
 }
 
 function getFileDisplayUrl(file: {

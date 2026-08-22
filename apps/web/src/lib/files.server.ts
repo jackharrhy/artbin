@@ -243,8 +243,8 @@ export async function generateModelPreview(
   outputPath: string,
 ): Promise<Result<boolean, Error>> {
   try {
-    const { renderGLTFToPNGBufferFromGLBBuffer } = await import("poppygl");
-    const png = await renderGLTFToPNGBufferFromGLBBuffer(buffer, {
+    const { renderGLTFToPNGFromGLB } = await import("poppygl");
+    const png = await renderGLTFToPNGFromGLB(buffer, {
       width: 256,
       height: 256,
     });

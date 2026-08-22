@@ -1,5 +1,5 @@
 import type { Route } from "./+types/api.folder.download";
-import archiver from "archiver";
+import { ZipArchive } from "archiver";
 import { PassThrough } from "stream";
 import { existsSync } from "fs";
 import { db } from "~/db/connection.server";
@@ -31,7 +31,7 @@ export async function loader({ params }: Route.LoaderArgs) {
   }
 
   // Create a zip archive that streams from disk
-  const archive = archiver("zip", { store: true }); // store = no compression (faster, files are already compressed images)
+  const archive = new ZipArchive({ store: true }); // store = no compression (faster, files are already compressed images)
   const passthrough = new PassThrough();
 
   archive.pipe(passthrough);

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useLoaderData, useLocation } from "react-router";
 import type { Route } from "./+types/file.$";
 import { userContext } from "~/lib/auth-context.server";
@@ -292,8 +292,8 @@ export async function loader({ params, context }: Route.LoaderArgs) {
   };
 }
 
-export function meta({ data }: Route.MetaArgs) {
-  return [{ title: `${data?.file?.name || "File"} - artbin` }];
+export function meta({ loaderData }: Route.MetaArgs) {
+  return [{ title: `${loaderData?.file?.name || "File"} - artbin` }];
 }
 
 function getDisplayUrl(file: { path: string; hasPreview: boolean | null }): string {
@@ -349,10 +349,7 @@ export default function FileView() {
     modelAnimations,
   } = useLoaderData<typeof loader>();
   const location = useLocation();
-  const [luckyContext, setLuckyContext] = useState<ReturnType<typeof getLuckyContext>>(null);
-  useEffect(() => {
-    setLuckyContext(getLuckyContext(location.state));
-  }, [location.state]);
+  const luckyContext = getLuckyContext(location.state);
   const [selectedTexture, setSelectedTexture] = useState<string | undefined>(
     modelTexture || undefined,
   );
