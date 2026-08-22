@@ -1,6 +1,6 @@
 import sharp from "sharp";
 
-const QUAKE_PALETTE = new Uint8Array([
+export const QUAKE_PALETTE = new Uint8Array([
   0, 0, 0, 15, 15, 15, 31, 31, 31, 47, 47, 47, 63, 63, 63, 75, 75, 75, 91, 91, 91, 107, 107, 107,
   123, 123, 123, 139, 139, 139, 155, 155, 155, 171, 171, 171, 187, 187, 187, 203, 203, 203, 219,
   219, 219, 235, 235, 235, 15, 11, 7, 23, 15, 11, 31, 23, 11, 39, 27, 15, 47, 35, 19, 55, 43, 23,
@@ -208,7 +208,7 @@ export function parseMipTextures(buffer: Buffer, header: BSPHeader): MipTexture[
  * - For Half-Life masked textures ({name): Last palette index (255) is transparent
  * - For Half-Life masked textures: Also detect pure blue (0,0,255) as transparent
  */
-function indexedToRGBA(
+export function indexedToRGBA(
   pixels: Uint8Array,
   width: number,
   height: number,

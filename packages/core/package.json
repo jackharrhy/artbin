@@ -9,6 +9,7 @@
     "./detection/filenames": "./src/detection/filenames.ts",
     "./parsers/archives": "./src/parsers/archives.ts",
     "./parsers/bsp": "./src/parsers/bsp.ts",
+    "./parsers/wad": "./src/parsers/wad.ts",
     "./scanning/settings": "./src/scanning/settings.ts",
     "./scanning/filters": "./src/scanning/filters.ts"
   },

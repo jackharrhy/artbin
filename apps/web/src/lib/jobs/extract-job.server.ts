@@ -23,6 +23,7 @@ import {
 } from "../archives.server";
 import { ingestFile, finalizeFolders, getOrCreateFolder, ROOT_FOLDER } from "../files.server";
 import { isBSPFile, extractTexturesFromBSP } from "../bsp.server";
+import { extractGoldSourceTextures } from "../goldsource-assets.server";
 
 export interface ExtractJobInput {
   tempFile: string; // Path to uploaded archive in temp dir
@@ -87,9 +88,9 @@ async function resolveParentFromSlug(slug: string): Promise<string | typeof ROOT
  * Extract textures embedded in a BSP file and ingest them into a textures
  * subfolder. Returns the number of textures successfully saved.
  */
-async function extractBSPTextures(
+async function extractAssetTextures(
   buffer: Buffer,
-  bspFileName: string,
+  assetFileName: string,
   parentFolderSlug: string,
   parentFolderId: string,
   folderMap: Map<string, string>,
@@ -97,56 +98,36 @@ async function extractBSPTextures(
   log: AuditableLogger,
   archiveName?: string,
 ): Promise<{ textureCount: number }> {
-  let textureCount = 0;
-  if (!isBSPFile(buffer)) return { textureCount };
-
   try {
-    const bspTextures = await extractTexturesFromBSP(buffer);
-    if (bspTextures.length === 0) return { textureCount };
-
-    // Create a textures subfolder for this BSP
-    const bspBaseName = bspFileName.replace(/\.bsp$/i, "");
-    const texFolderSlug = `${parentFolderSlug}/${pathToSlug(bspBaseName)}-textures`;
-    const texFolderName = `${bspBaseName} textures`;
-    const texFolderId = await getOrCreateFolder(texFolderSlug, texFolderName, parentFolderId);
-    folderMap.set(`${entryDir}/${bspBaseName}-textures`, texFolderId);
-
-    for (const tex of bspTextures) {
-      try {
-        const texFileName = `${tex.name}.png`;
-        const texIngested = await ingestFile({
-          buffer: tex.pngBuffer,
-          fileName: texFileName,
-          folderSlug: texFolderSlug,
-          folderId: texFolderId,
-          source: "bsp-extracted",
-          sourceArchive: bspFileName,
-          kind: "texture",
-          mimeType: "image/png",
-          width: tex.width,
-          height: tex.height,
-        });
-        if (texIngested.isErr()) throw texIngested.error;
-        textureCount++;
-      } catch (texError) {
-        log.error(texError instanceof Error ? texError : new Error(String(texError)), {
-          step: "save-bsp-texture",
-          file: tex.name,
-          ...(archiveName ? { archive: archiveName } : {}),
-        });
-      }
+    const result = await extractGoldSourceTextures({
+      buffer,
+      fileName: assetFileName,
+      parentFolderSlug,
+      parentFolderId,
+    });
+    const assetBaseName = assetFileName.replace(/\.(?:bsp|wad)$/i, "");
+    if (result.folderId) {
+      folderMap.set(`${entryDir}/${assetBaseName}-textures`, result.folderId);
     }
-
-    log.set({ bsp: { file: bspFileName, texturesExtracted: bspTextures.length } });
-  } catch (bspError) {
-    log.error(bspError instanceof Error ? bspError : new Error(String(bspError)), {
-      step: "extract-bsp-textures",
-      file: bspFileName,
+    for (const error of result.errors) {
+      log.error(new Error(error), {
+        step: "save-asset-texture",
+        file: assetFileName,
+        ...(archiveName ? { archive: archiveName } : {}),
+      });
+    }
+    log.set({
+      goldSourceAsset: { file: assetFileName, texturesExtracted: result.textureCount },
+    });
+    return { textureCount: result.textureCount };
+  } catch (assetError) {
+    log.error(assetError instanceof Error ? assetError : new Error(String(assetError)), {
+      step: "extract-asset-textures",
+      file: assetFileName,
       ...(archiveName ? { archive: archiveName } : {}),
     });
+    return { textureCount: 0 };
   }
-
-  return { textureCount };
 }
 
 function previewErrorHandler(log: AuditableLogger) {
@@ -272,9 +253,9 @@ async function handleExtractJob(
       filesByKind[ingested.value.kind] = (filesByKind[ingested.value.kind] || 0) + 1;
       processedFiles++;
 
-      // Extract textures from BSP files (Quake 1 / Half-Life maps)
-      if (ingested.value.name.toLowerCase().endsWith(".bsp")) {
-        const { textureCount } = await extractBSPTextures(
+      // Extract textures from Quake/Half-Life BSP and WAD assets.
+      if (/\.(?:bsp|wad)$/i.test(ingested.value.name)) {
+        const { textureCount } = await extractAssetTextures(
           buffer,
           ingested.value.name,
           folderSlug,
@@ -414,9 +395,9 @@ async function handleBatchExtractJob(
 
           filesExtracted++;
 
-          // Extract textures from BSP files (Quake 1 / Half-Life maps)
-          if (ingested.value.name.toLowerCase().endsWith(".bsp")) {
-            const { textureCount } = await extractBSPTextures(
+          // Extract textures from Quake/Half-Life BSP and WAD assets.
+          if (/\.(?:bsp|wad)$/i.test(ingested.value.name)) {
+            const { textureCount } = await extractAssetTextures(
               buffer,
               ingested.value.name,
               folderSlug,

@@ -8,6 +8,7 @@ import { createJob } from "~/lib/jobs.server";
 import { existsSync } from "fs";
 import { stat } from "fs/promises";
 import { basename } from "path";
+import { queueRemoteImports } from "~/lib/remote-import-queue.server";
 
 // Import sources configuration
 const IMPORT_SOURCES = [
@@ -52,9 +53,18 @@ export async function loader({ context }: Route.LoaderArgs) {
     .from(files)
     .groupBy(files.kind);
 
+  const destinationFolders = await db.query.folders.findMany({
+    orderBy: (folders, { asc }) => [asc(folders.slug)],
+  });
+
   return {
     user,
     sources: IMPORT_SOURCES,
+    destinationFolders: destinationFolders.map((folder) => ({
+      id: folder.id,
+      name: folder.name,
+      slug: folder.slug,
+    })),
     stats: {
       fileCount,
       folderCount,
@@ -77,6 +87,27 @@ export async function action({ request, context }: Route.ActionArgs) {
 
   const formData = await request.formData();
   const intent = formData.get("intent") as string;
+
+  if (intent === "remote-site-import") {
+    const sourceUrls = String(formData.get("sourceUrls") ?? "");
+    const targetFolderId = String(formData.get("targetFolderId") ?? "").trim() || null;
+
+    try {
+      const queued = await queueRemoteImports({
+        sourceUrls,
+        targetFolderId,
+        userId: user.id,
+      });
+      return {
+        success: true,
+        action: "remote-site-import",
+        count: queued.count,
+        jobIds: queued.jobIds,
+      };
+    } catch (error) {
+      return { error: error instanceof Error ? error.message : "Invalid import URL" };
+    }
+  }
 
   // TextureTown import
   if (intent === "texturetown") {
@@ -190,7 +221,7 @@ function kindLabel(kind: string): string {
 }
 
 export default function AdminImport() {
-  const { user, sources, stats } = useLoaderData<typeof loader>();
+  const { sources, stats, destinationFolders } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
 
   return (
@@ -241,6 +272,19 @@ export default function AdminImport() {
         </div>
       )}
 
+      {actionData?.success && actionData.action === "remote-site-import" && (
+        <div className="alert alert-success">
+          <p>
+            <strong>
+              Queued {actionData.count} site {actionData.count === 1 ? "import" : "imports"}.
+            </strong>
+          </p>
+          <p>
+            <a href="/admin">View job progress</a>
+          </p>
+        </div>
+      )}
+
       {/* Stats */}
       <div className="card mb-6">
         <h2 className="font-medium mb-2">Current Stats</h2>
@@ -272,6 +316,75 @@ export default function AdminImport() {
           </div>
         )}
       </div>
+
+      {/* Remote sites and archives */}
+      <section className="mb-8">
+        <h2 className="text-sm font-medium uppercase tracking-wide text-text-muted mb-3">
+          Import from site
+        </h2>
+
+        <div className="card mb-4">
+          <h3 className="font-medium mb-2">Import a hosted collection</h3>
+          <p className="text-sm text-text-muted mb-4">
+            Paste GameBanana or SCMapDB page URLs, or direct HTTPS links to ZIP, 7z, and RAR
+            archives. Each source becomes a collection beneath the destination you choose; BSP and
+            WAD textures are extracted into browsable PNG folders.
+          </p>
+
+          <Form method="post">
+            <input type="hidden" name="intent" value="remote-site-import" />
+
+            <div className="mb-3">
+              <label htmlFor="sourceUrls" className="block text-sm mb-1">
+                Source URLs
+              </label>
+              <textarea
+                id="sourceUrls"
+                name="sourceUrls"
+                rows={5}
+                required
+                placeholder={
+                  "https://gamebanana.com/mods/140244\nhttps://scmapdb.wikidot.com/map:decay\nhttps://example.com/collection.zip"
+                }
+                className="input w-full font-mono"
+              />
+              <p className="text-xs text-text-faint mt-1">One URL per line, up to 20 at a time.</p>
+            </div>
+
+            <div className="mb-4">
+              <label htmlFor="targetFolderId" className="block text-sm mb-1">
+                Destination folder
+              </label>
+              <select id="targetFolderId" name="targetFolderId" className="input w-full">
+                <option value="">Top level</option>
+                {destinationFolders.map((folder) => (
+                  <option key={folder.id} value={folder.id}>
+                    {"  ".repeat(folder.slug.split("/").length - 1)}
+                    {folder.name} ({folder.slug})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex justify-between items-center gap-4">
+              <span className="text-xs text-text-faint">
+                Executables, scripts for the host OS, HTML, and unknown file types are skipped.
+              </span>
+              <button
+                type="submit"
+                className="btn btn-primary"
+                onClick={(event) => {
+                  if (!confirm("Queue these site imports? Downloads can be large.")) {
+                    event.preventDefault();
+                  }
+                }}
+              >
+                Import
+              </button>
+            </div>
+          </Form>
+        </div>
+      </section>
 
       {/* Local Folder Import */}
       <section className="mb-8">

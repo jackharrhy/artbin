@@ -62,6 +62,13 @@ export function UploadModal({
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({ done: 0, total: 0 });
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
+  const [sourceUrls, setSourceUrls] = useState("");
+  const [siteImporting, setSiteImporting] = useState(false);
+  const [siteImportResult, setSiteImportResult] = useState<{
+    error?: string;
+    success?: boolean;
+    count?: number;
+  } | null>(null);
 
   // Folder creation state
   const [folderName, setFolderName] = useState("");
@@ -93,6 +100,9 @@ export function UploadModal({
     setCustomSlug(false);
     setArchiveAnalysis(null);
     setPendingMessage(null);
+    setSourceUrls("");
+    setSiteImporting(false);
+    setSiteImportResult(null);
   }
   if (isOpen && !prevIsOpen) {
     setPrevIsOpen(true);
@@ -138,8 +148,8 @@ export function UploadModal({
         });
       }
 
-      // Check if this is an archive at root level (admin only)
-      if (isAdmin && isAtRoot && newFiles.length === 1 && isArchive(newFiles[0].file.name)) {
+      // Admin archives become a child collection in the current folder context.
+      if (isAdmin && newFiles.length === 1 && isArchive(newFiles[0].file.name)) {
         // Analyze the archive
         analyzeArchive(newFiles[0].file);
         return;
@@ -346,6 +356,33 @@ export function UploadModal({
     setUploading(false);
   };
 
+  const handleSiteImport = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!sourceUrls.trim()) return;
+
+    setSiteImporting(true);
+    setSiteImportResult(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("sourceUrls", sourceUrls);
+      if (currentFolder) formData.append("targetFolderId", currentFolder.id);
+
+      const response = await fetch("/api/import", { method: "POST", body: formData });
+      const result = await response.json();
+      if (!response.ok || result.error) {
+        setSiteImportResult({ error: result.error || "Import could not be queued" });
+      } else {
+        setSourceUrls("");
+        setSiteImportResult({ success: true, count: result.count });
+      }
+    } catch (err) {
+      setSiteImportResult({ error: `Import could not be queued: ${err}` });
+    }
+
+    setSiteImporting(false);
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -384,6 +421,13 @@ export function UploadModal({
           {/* Main view */}
           {!pendingMessage && view === "main" && (
             <>
+              {currentFolder && (
+                <div className="mb-4 border border-border-light bg-bg-hover p-3 text-sm">
+                  <div className="font-medium">Destination: {currentFolder.name}</div>
+                  <div className="text-xs text-text-muted">/{currentFolder.slug}</div>
+                </div>
+              )}
+
               {/* File selection area */}
               <div className="upload-zone">
                 <input
@@ -498,6 +542,60 @@ export function UploadModal({
                   </button>
                 )}
               </div>
+
+              {isAdmin && (
+                <form
+                  className="mt-5 border-t border-border-light pt-5"
+                  onSubmit={handleSiteImport}
+                >
+                  <h3 className="font-medium mb-1">Import from site</h3>
+                  <p className="text-sm text-text-muted mb-3">
+                    Paste GameBanana or SCMapDB pages, or direct HTTPS links to ZIP, 7z, or RAR
+                    archives.
+                  </p>
+
+                  {siteImportResult?.error && (
+                    <div className="alert alert-error mb-3">{siteImportResult.error}</div>
+                  )}
+                  {siteImportResult?.success && (
+                    <div className="alert alert-success mb-3">
+                      Queued {siteImportResult.count} site{" "}
+                      {siteImportResult.count === 1 ? "import" : "imports"}.{" "}
+                      <a href="/admin">View progress</a>
+                    </div>
+                  )}
+
+                  <label htmlFor="upload-source-urls" className="block text-sm mb-1">
+                    Source URLs
+                  </label>
+                  <textarea
+                    id="upload-source-urls"
+                    name="sourceUrls"
+                    rows={4}
+                    required
+                    value={sourceUrls}
+                    onChange={(event) => setSourceUrls(event.target.value)}
+                    placeholder={
+                      "https://gamebanana.com/mods/140244\nhttps://scmapdb.wikidot.com/map:decay\nhttps://example.com/collection.zip"
+                    }
+                    className="input w-full font-mono"
+                  />
+                  <p className="mt-1 text-xs text-text-faint">
+                    One URL per line, up to 20. Each source becomes a collection
+                    {currentFolder ? ` beneath ${currentFolder.name}` : " at the top level"}.
+                  </p>
+
+                  <div className="modal-actions justify-end">
+                    <button
+                      type="submit"
+                      className="btn btn-primary"
+                      disabled={siteImporting || sourceUrls.trim().length === 0}
+                    >
+                      {siteImporting ? "Queueing..." : "Import"}
+                    </button>
+                  </div>
+                </form>
+              )}
             </>
           )}
 

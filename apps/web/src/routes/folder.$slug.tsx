@@ -10,7 +10,7 @@ import { useState, useCallback } from "react";
 import type { Route } from "./+types/folder.$slug";
 import { userContext } from "~/lib/auth-context.server";
 import { db } from "~/db/connection.server";
-import { folders, files, tags } from "~/db";
+import { folders, files, tags, remoteImports } from "~/db";
 import { eq, desc, count, and, sql, inArray } from "drizzle-orm";
 import { BrowseTabs, type ViewMode } from "~/components/BrowseTabs";
 import { SearchBar } from "~/components/SearchBar";
@@ -40,6 +40,18 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
   if (!folder || folder.slug.startsWith("_")) {
     throw new Response("Folder not found", { status: 404 });
   }
+
+  const remoteImport = await db.query.remoteImports.findFirst({
+    where: eq(remoteImports.folderId, folder.id),
+    orderBy: (remoteImports, { desc }) => [desc(remoteImports.updatedAt)],
+    columns: {
+      provider: true,
+      externalId: true,
+      sourceUrl: true,
+      author: true,
+      game: true,
+    },
+  });
 
   const url = new URL(request.url);
 
@@ -105,6 +117,7 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
     return {
       user,
       folder,
+      remoteImport,
       ancestors,
       childFolders,
       allFolders,
@@ -140,6 +153,7 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
   return {
     user,
     folder,
+    remoteImport,
     ancestors,
     childFolders,
     allFolders,
@@ -273,6 +287,7 @@ export default function FolderView() {
   const {
     user,
     folder,
+    remoteImport,
     ancestors,
     childFolders,
     allFolders,
@@ -414,7 +429,7 @@ export default function FolderView() {
               className="btn btn-primary"
               onClick={() => setShowUploadModal(true)}
             >
-              Add
+              Upload
             </button>
 
             {user.isAdmin && !isRenaming && (
@@ -457,6 +472,21 @@ export default function FolderView() {
             )}
           </div>
         </div>
+
+        {remoteImport && (
+          <div className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-text-muted">
+            <span>Imported from</span>
+            <a href={remoteImport.sourceUrl} target="_blank" rel="noopener noreferrer">
+              {remoteImport.provider === "gamebanana"
+                ? "GameBanana"
+                : remoteImport.provider === "scmapdb"
+                  ? "SCMapDB"
+                  : "direct archive"}
+            </a>
+            {remoteImport.author && <span>by {remoteImport.author}</span>}
+            {remoteImport.game && <span>for {remoteImport.game}</span>}
+          </div>
+        )}
 
         {user.isAdmin && isEditingDescription ? (
           <descriptionFetcher.Form

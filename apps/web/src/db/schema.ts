@@ -1,4 +1,11 @@
-import { sqliteTable, text, integer, primaryKey, index } from "drizzle-orm/sqlite-core";
+import {
+  sqliteTable,
+  text,
+  integer,
+  primaryKey,
+  index,
+  uniqueIndex,
+} from "drizzle-orm/sqlite-core";
 
 export const fileKinds = [
   "texture",
@@ -161,6 +168,35 @@ export const jobs = sqliteTable(
   }),
 );
 
+export const remoteImports = sqliteTable(
+  "remote_imports",
+  {
+    id: text("id").primaryKey(),
+    provider: text("provider", { enum: ["gamebanana", "scmapdb", "direct"] as const }).notNull(),
+    externalId: text("external_id").notNull(),
+    destinationKey: text("destination_key").notNull(),
+    sourceUrl: text("source_url").notNull(),
+    title: text("title").notNull(),
+    author: text("author"),
+    game: text("game"),
+    metadata: text("metadata").notNull(),
+    folderId: text("folder_id")
+      .notNull()
+      .references(() => folders.id, { onDelete: "cascade" }),
+    jobId: text("job_id").references(() => jobs.id, { onDelete: "set null" }),
+    createdAt: integer("created_at", { mode: "timestamp" }).$defaultFn((): Date => new Date()),
+    updatedAt: integer("updated_at", { mode: "timestamp" }).$defaultFn((): Date => new Date()),
+  },
+  (table) => ({
+    sourceDestinationIdx: uniqueIndex("idx_remote_imports_source_destination").on(
+      table.provider,
+      table.externalId,
+      table.destinationKey,
+    ),
+    folderIdIdx: index("idx_remote_imports_folder_id").on(table.folderId),
+  }),
+);
+
 export const settings = sqliteTable("settings", {
   key: text("key").primaryKey(),
   value: text("value").notNull(), // JSON-encoded value
@@ -174,4 +210,5 @@ export type File = typeof files.$inferSelect;
 export type Tag = typeof tags.$inferSelect;
 export type FileTag = typeof fileTags.$inferSelect;
 export type Job = typeof jobs.$inferSelect;
+export type RemoteImport = typeof remoteImports.$inferSelect;
 export type Setting = typeof settings.$inferSelect;

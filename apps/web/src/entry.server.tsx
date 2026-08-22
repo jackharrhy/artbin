@@ -16,6 +16,7 @@ import "~/lib/jobs/scan-archives-job.server";
 import "~/lib/jobs/folder-import-job.server";
 import "~/lib/jobs/backfill-hashes-job.server";
 import "~/lib/jobs/regenerate-previews-job.server";
+import "~/lib/jobs/remote-import-job.server";
 
 // Start the job runner (only once)
 if (!isJobRunnerActive()) {

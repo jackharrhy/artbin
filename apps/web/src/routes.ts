@@ -28,6 +28,7 @@ export default [
 
   // API routes
   route("api/upload", "routes/api.upload.tsx"),
+  route("api/import", "routes/api.import.tsx"),
   route("api/lucky", "routes/api.lucky.tsx"),
   route("api/folder", "routes/api.folder.tsx"),
   route("api/folder/move", "routes/api.folder.move.tsx"),
