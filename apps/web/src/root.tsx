@@ -21,7 +21,7 @@ initLogger({
 export const middleware: Route.MiddlewareFunction[] = [evlog()];
 
 export function meta() {
-  return [{ title: "artbin - texture & asset repository" }];
+  return [{ title: "artbin: texture and asset repository" }];
 }
 
 export const links: Route.LinksFunction = () => [
@@ -55,15 +55,15 @@ export default function App() {
 }
 
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
-  let message = "Oops!";
-  let details = "An unexpected error occurred.";
+  let message = "Something went wrong";
+  let details = "The page ran into an unexpected error.";
   let stack: string | undefined;
 
   if (isRouteErrorResponse(error)) {
-    message = error.status === 404 ? "404 - Page Not Found!" : "Error!";
+    message = error.status === 404 ? "Page not found" : "Error";
     details =
       error.status === 404
-        ? "The requested page could not be found. Maybe it got lost in cyberspace?"
+        ? "We couldn't find the page you requested."
         : error.statusText || details;
   } else if (import.meta.env.DEV && error && error instanceof Error) {
     details = error.message;
@@ -77,7 +77,7 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
         <hr className="hr-rainbow my-4" />
         <p className="text-xl mb-4">{details}</p>
         <a href="/" className="btn btn-primary">
-          Return Home
+          Return home
         </a>
         {stack && (
           <pre className="mt-8 p-4 bg-black text-lime text-left text-sm overflow-x-auto border-gaudy-lime">

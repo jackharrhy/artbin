@@ -80,7 +80,7 @@ export default function Settings() {
           </h2>
           <div className="card">
             <a href="/admin" className="btn btn-primary btn-sm">
-              Admin Panel
+              Admin panel
             </a>
           </div>
         </section>

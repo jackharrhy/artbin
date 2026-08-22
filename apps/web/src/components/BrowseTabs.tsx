@@ -17,7 +17,7 @@ const TABS: { id: ViewMode; label: string }[] = [
   { id: "textures", label: "Textures" },
   { id: "models", label: "Models" },
   { id: "sounds", label: "Sounds" },
-  { id: "all", label: "All Files" },
+  { id: "all", label: "All files" },
 ];
 
 export function BrowseTabs({ baseUrl, currentView, counts }: BrowseTabsProps) {

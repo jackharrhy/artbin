@@ -18,7 +18,7 @@ export function SearchBar({
   currentQuery,
   currentTag,
   tags = EMPTY_TAGS,
-  placeholder = "Search files...",
+  placeholder = "Search files",
 }: SearchBarProps) {
   const [query, setQuery] = useState(currentQuery);
   const [prevCurrentQuery, setPrevCurrentQuery] = useState(currentQuery);

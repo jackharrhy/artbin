@@ -124,12 +124,13 @@ export default function AdminJobs() {
     <>
       {activeJobs.length > 0 && (
         <div className="mb-2 text-sm text-text-muted">
-          Auto-refreshing... {activeJobs.length} active job(s)
+          {activeJobs.length} active {activeJobs.length === 1 ? "job" : "jobs"}. This list refreshes
+          automatically.
         </div>
       )}
 
       {jobs.length === 0 ? (
-        <div className="text-center p-12 text-text-muted">No jobs found</div>
+        <div className="text-center p-12 text-text-muted">No jobs found.</div>
       ) : (
         <div className="card overflow-auto">
           <table className="w-full border-collapse">
@@ -154,6 +155,8 @@ export default function AdminJobs() {
                 const canCancel = job.status === "pending";
                 const canReset = job.status === "running" && job.isStuck;
                 const canDelete = job.status !== "running" || job.isStuck;
+                const completedFileCount =
+                  (output as any)?.totalFiles ?? (output as any)?.categoriesImported?.length;
 
                 return (
                   <tr
@@ -187,10 +190,7 @@ export default function AdminJobs() {
                       )}
                       {job.status === "completed" && output && (
                         <span className="text-xs">
-                          {(output as any).totalFiles ??
-                            (output as any).categoriesImported?.length ??
-                            "-"}{" "}
-                          files
+                          {completedFileCount ?? "-"} {completedFileCount === 1 ? "file" : "files"}
                         </span>
                       )}
                       {job.status === "failed" && (
@@ -207,7 +207,7 @@ export default function AdminJobs() {
                       {job.status === "running" && (
                         <span className={job.isStuck ? "text-[#dc3545]" : ""}>
                           {formatDuration(job.startedAt)}
-                          {job.isStuck && " (stuck!)"}
+                          {job.isStuck && " (stuck)"}
                         </span>
                       )}
                       {job.status === "completed" && job.startedAt && job.completedAt && (

@@ -88,7 +88,7 @@ export async function loader({ request, context }: Route.LoaderArgs) {
 }
 
 export function meta() {
-  return [{ title: "My Uploads - artbin" }];
+  return [{ title: "My uploads - artbin" }];
 }
 
 function formatSize(bytes: number): string {
@@ -261,7 +261,7 @@ export default function MyUploads() {
 
   return (
     <main className="max-w-[1400px] mx-auto p-4 bg-bg min-h-[calc(100vh-48px)]">
-      <h1 className="text-xl font-normal mb-4 pb-2 border-b border-border-light">My Uploads</h1>
+      <h1 className="text-xl font-normal mb-4 pb-2 border-b border-border-light">My uploads</h1>
 
       {total === 0 ? (
         <p className="text-text-muted">You haven't uploaded any files yet.</p>
@@ -297,7 +297,7 @@ export default function MyUploads() {
                 <div key={folderId} className="mb-4">
                   {folder && (
                     <p className="text-xs text-text-muted mb-2">
-                      in{" "}
+                      Folder:{" "}
                       <a
                         href={`/folder/${folder.slug}`}
                         className="text-text-muted hover:text-text"

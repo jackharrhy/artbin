@@ -198,7 +198,7 @@ export default function Folders() {
             currentQuery={query}
             currentTag={tagSlug}
             tags={tags}
-            placeholder={`Search ${view}...`}
+            placeholder={`Search ${view}`}
           />
         )}
 
@@ -207,12 +207,11 @@ export default function Folders() {
           <>
             {folders.length === 0 ? (
               <div className="text-center p-12 text-text-muted">
-                <p>No folders yet</p>
+                <p>No folders yet.</p>
                 <p className="mt-4">
                   <button type="button" className="btn" onClick={() => setShowUploadModal(true)}>
-                    Import an archive
-                  </button>{" "}
-                  to create a folder
+                    Import an archive to create a folder
+                  </button>
                 </p>
               </div>
             ) : (
@@ -240,7 +239,8 @@ export default function Folders() {
                     <div className="px-3 py-2 border-t border-border-light">
                       <div className="font-medium mb-1">{folder.name}</div>
                       <div className="text-xs text-text-muted">
-                        {folderCounts[folder.id] || 0} files
+                        {folderCounts[folder.id] || 0}{" "}
+                        {(folderCounts[folder.id] || 0) === 1 ? "file" : "files"}
                       </div>
                     </div>
                   </a>

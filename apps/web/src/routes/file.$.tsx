@@ -466,8 +466,8 @@ export default function FileView() {
             <div className="h-[400px] bg-bg-hover flex items-center justify-center">
               <div className="text-center text-text-faint">
                 <div className="text-5xl">📦</div>
-                <div>3D Model</div>
-                <div className="text-sm mt-2">Format not supported for preview</div>
+                <div>3D model</div>
+                <div className="text-sm mt-2">This format cannot be previewed.</div>
                 <a href={downloadUrl} className="btn mt-4 inline-block">
                   Download
                 </a>
@@ -494,7 +494,7 @@ export default function FileView() {
               <div className="text-5xl mb-4">🔊</div>
               <div className="mb-2">{getExtname(file.name).slice(1).toUpperCase()} Audio</div>
               <div className="text-sm text-text-muted mb-4">
-                This format cannot be played in the browser
+                This format cannot be played in the browser.
               </div>
               <a href={downloadUrl} className="btn btn-primary" download>
                 Download
@@ -514,9 +514,9 @@ export default function FileView() {
           {isTextFile && textTruncated && (
             <div className="p-12 text-center bg-bg-hover">
               <div className="text-5xl mb-4">📄</div>
-              <div className="mb-2">Text File</div>
+              <div className="mb-2">Text file</div>
               <div className="text-sm text-text-muted mb-4">
-                File too large to preview ({formatSize(file.size)})
+                This file is too large to preview ({formatSize(file.size)}).
               </div>
               <a href={downloadUrl} className="btn btn-primary" download>
                 Download
@@ -527,7 +527,7 @@ export default function FileView() {
           {isTextFile && !textContent && !textTruncated && (
             <div className="p-12 text-center bg-bg-hover">
               <div className="text-5xl mb-4">📄</div>
-              <div className="mb-4">Text File</div>
+              <div className="mb-4">Text file</div>
               <a href={downloadUrl} className="btn btn-primary" download>
                 Download
               </a>
@@ -568,7 +568,7 @@ export default function FileView() {
                   {file.width} × {file.height}
                 </dd>
 
-                <dt className="text-xs text-text-muted uppercase tracking-wide">Aspect Ratio</dt>
+                <dt className="text-xs text-text-muted uppercase tracking-wide">Aspect ratio</dt>
                 <dd className="mb-3">{getAspectRatio(file.width, file.height)}</dd>
               </>
             )}
@@ -608,7 +608,7 @@ export default function FileView() {
 
           <div className="mt-6">
             <a href={downloadUrl} className="btn btn-primary" download>
-              Download Original
+              Download original
             </a>
           </div>
         </div>

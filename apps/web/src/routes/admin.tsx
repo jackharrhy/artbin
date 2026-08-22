@@ -15,7 +15,7 @@ const tabs = [
   { to: "/admin/inbox", label: "Inbox" },
   { to: "/admin/import", label: "Import" },
   { to: "/admin/archives", label: "Archives" },
-  { to: "/admin/scan-settings", label: "Scan Settings" },
+  { to: "/admin/scan-settings", label: "Scan settings" },
   { to: "/admin/orphans", label: "Orphans" },
   { to: "/admin/users", label: "Users" },
 ];

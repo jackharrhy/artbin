@@ -214,7 +214,7 @@ export function MoveFolderModal({
                     className="input w-full"
                     value={newFolderName}
                     onChange={(e) => setNewFolderName(e.target.value)}
-                    placeholder="e.g., Quake 2"
+                    placeholder="For example, Quake 2"
                     autoFocus={createNew}
                   />
                 </div>
@@ -268,7 +268,7 @@ export function MoveFolderModal({
               Cancel
             </button>
             <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
-              {isSubmitting ? "Moving..." : "Move Folder"}
+              {isSubmitting ? "Moving..." : "Move folder"}
             </button>
           </div>
         </form>

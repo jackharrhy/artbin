@@ -76,7 +76,7 @@ export async function action({ request, context }: Route.ActionArgs) {
 }
 
 export function meta() {
-  return [{ title: "Scan Settings - Admin - artbin" }];
+  return [{ title: "Scan settings - Admin - artbin" }];
 }
 
 export default function AdminScanSettings() {
@@ -86,8 +86,7 @@ export default function AdminScanSettings() {
   return (
     <div>
       <p className="mb-6 text-text-muted">
-        Configure which files and directories are included or excluded when scanning for game
-        archives.
+        Choose which files and directories the archive scanner includes or skips.
       </p>
 
       {actionData?.error && <div className="alert alert-error mb-4">{actionData.error}</div>}
@@ -100,10 +99,10 @@ export default function AdminScanSettings() {
         <div className="card mb-6">
           <div className="mb-4">
             <label className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1">
-              Excluded Directories
+              Excluded directories
             </label>
             <p className="text-xs text-text-muted mb-2">
-              Directories to skip during scanning. One per line. Matches anywhere in the path.
+              Skip these directories wherever they appear in a path. Enter one per line.
             </p>
             <textarea
               name="excludeDirs"
@@ -116,10 +115,10 @@ export default function AdminScanSettings() {
         <div className="card mb-6">
           <div className="mb-4">
             <label className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1">
-              Excluded Filenames
+              Excluded filenames
             </label>
             <p className="text-xs text-text-muted mb-2">
-              Exact filenames to always skip (case-insensitive). One per line.
+              Always skip these exact filenames, regardless of case. Enter one per line.
             </p>
             <textarea
               name="excludeFilenames"
@@ -132,10 +131,11 @@ export default function AdminScanSettings() {
         <div className="card mb-6">
           <div className="mb-4">
             <label className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1">
-              Excluded Path Patterns
+              Excluded path patterns
             </label>
             <p className="text-xs text-text-muted mb-2">
-              Regex patterns for paths to skip. One per line. Case-insensitive matching.
+              Skip paths that match these regular expressions. Enter one per line. Matching ignores
+              case.
             </p>
             <textarea
               name="excludePathPatterns"
@@ -148,11 +148,11 @@ export default function AdminScanSettings() {
         <div className="card mb-6">
           <div className="mb-4">
             <label className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1">
-              Known Game Directories
+              Known game directories
             </label>
             <p className="text-xs text-text-muted mb-2">
-              Directory names that indicate game content. ZIP files are only included if found in
-              one of these directories.
+              These directory names identify game content. The scanner only includes ZIP files found
+              in one of them.
             </p>
             <textarea
               name="knownGameDirs"
@@ -164,7 +164,7 @@ export default function AdminScanSettings() {
 
         <div className="flex gap-3 mb-8">
           <button type="submit" className="btn btn-primary">
-            Save Settings
+            Save settings
           </button>
           <button
             type="submit"
@@ -177,7 +177,7 @@ export default function AdminScanSettings() {
               }
             }}
           >
-            Reset to Defaults
+            Reset to defaults
           </button>
         </div>
       </Form>

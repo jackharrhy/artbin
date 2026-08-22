@@ -199,7 +199,7 @@ export function UploadModal({
         const nonArchives = newFiles.filter((f) => !isArchive(f.file.name));
         if (nonArchives.length > 0) {
           setError(
-            "At root level, only archives (PAK, PK3, ZIP) can be uploaded. Create a folder first to upload other files.",
+            "At the top level, you can only upload PAK, PK3, or ZIP archives. Create a folder before uploading other files.",
           );
           return;
         }
@@ -321,7 +321,7 @@ export function UploadModal({
     e.preventDefault();
 
     if (!folderName.trim() || !folderSlug.trim()) {
-      setError("Folder name and slug are required");
+      setError("Enter a folder name and slug");
       return;
     }
 
@@ -392,13 +392,13 @@ export function UploadModal({
           <h2 className="modal-title">
             {view === "main" &&
               (isAtRoot
-                ? "Add to Library"
+                ? "Add to library"
                 : isAdmin
                   ? `Upload to ${currentFolder?.name}`
-                  : `Upload to ${currentFolder?.name} (for review)`)}
-            {view === "create-folder" && "Create Folder"}
+                  : `Upload to ${currentFolder?.name} for review`)}
+            {view === "create-folder" && "Create folder"}
             {view === "uploading" && "Uploading..."}
-            {view === "archive-analysis" && "Archive Detected"}
+            {view === "archive-analysis" && "Archive detected"}
           </h2>
           <button className="modal-close" onClick={onClose} aria-label="Close">
             &times;
@@ -451,42 +451,44 @@ export function UploadModal({
                   <div className="upload-zone-empty">
                     {isAtRoot && isAdmin ? (
                       <>
-                        <p>Import an archive to create a new folder</p>
-                        <p className="text-xs text-text-faint mt-1">Supported: PAK, PK3, ZIP</p>
+                        <p>Import an archive to create a new folder.</p>
+                        <p className="text-xs text-text-faint mt-1">
+                          Supports PAK, PK3, and ZIP archives.
+                        </p>
                         <div className="upload-buttons">
                           <button
                             type="button"
                             className="btn"
                             onClick={() => fileInputRef.current?.click()}
                           >
-                            Select Archive
+                            Select archive
                           </button>
                         </div>
                       </>
                     ) : isAtRoot && !isAdmin ? (
                       <>
-                        <p>Navigate to a folder to upload files</p>
+                        <p>Open a folder before uploading files.</p>
                         <p className="text-xs text-text-faint mt-1">
-                          Select a folder first, then you can upload files for review.
+                          An admin will review the files after you upload them.
                         </p>
                       </>
                     ) : (
                       <>
-                        <p>Select files or a folder to upload</p>
+                        <p>Select files or a folder to upload.</p>
                         <div className="upload-buttons">
                           <button
                             type="button"
                             className="btn"
                             onClick={() => fileInputRef.current?.click()}
                           >
-                            Select Files
+                            Select files
                           </button>
                           <button
                             type="button"
                             className="btn"
                             onClick={() => folderInputRef.current?.click()}
                           >
-                            Select Folder
+                            Select folder
                           </button>
                         </div>
                       </>
@@ -514,7 +516,7 @@ export function UploadModal({
                       ))}
                       {files.length > 10 && (
                         <div className="upload-file-item text-text-muted">
-                          ... and {files.length - 10} more
+                          {files.length - 10} more file{files.length - 10 === 1 ? "" : "s"}
                         </div>
                       )}
                     </div>
@@ -538,7 +540,7 @@ export function UploadModal({
                 )}
                 {isAdmin && (
                   <button type="button" className="btn" onClick={() => setView("create-folder")}>
-                    Create Folder
+                    Create folder
                   </button>
                 )}
               </div>
@@ -550,8 +552,8 @@ export function UploadModal({
                 >
                   <h3 className="font-medium mb-1">Import from site</h3>
                   <p className="text-sm text-text-muted mb-3">
-                    Paste GameBanana or SCMapDB pages, or direct HTTPS links to ZIP, 7z, or RAR
-                    archives.
+                    Paste links to GameBanana or SCMapDB pages. Direct HTTPS links to ZIP, 7z, and
+                    RAR archives also work.
                   </p>
 
                   {siteImportResult?.error && (
@@ -559,7 +561,7 @@ export function UploadModal({
                   )}
                   {siteImportResult?.success && (
                     <div className="alert alert-success mb-3">
-                      Queued {siteImportResult.count} site{" "}
+                      Queued {siteImportResult.count}{" "}
                       {siteImportResult.count === 1 ? "import" : "imports"}.{" "}
                       <a href="/admin">View progress</a>
                     </div>
@@ -581,8 +583,8 @@ export function UploadModal({
                     className="input w-full font-mono"
                   />
                   <p className="mt-1 text-xs text-text-faint">
-                    One URL per line, up to 20. Each source becomes a collection
-                    {currentFolder ? ` beneath ${currentFolder.name}` : " at the top level"}.
+                    One URL per line, up to 20. Each URL creates a collection
+                    {currentFolder ? ` inside ${currentFolder.name}` : " at the top level"}.
                   </p>
 
                   <div className="modal-actions justify-end">
@@ -591,7 +593,7 @@ export function UploadModal({
                       className="btn btn-primary"
                       disabled={siteImporting || sourceUrls.trim().length === 0}
                     >
-                      {siteImporting ? "Queueing..." : "Import"}
+                      {siteImporting ? "Adding to queue..." : "Import"}
                     </button>
                   </div>
                 </form>
@@ -604,7 +606,7 @@ export function UploadModal({
             <form onSubmit={handleCreateFolder}>
               <div className="mb-4">
                 <label className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1">
-                  Folder Name
+                  Folder name
                 </label>
                 <input
                   type="text"
@@ -619,8 +621,10 @@ export function UploadModal({
 
               <div className="mb-4">
                 <label className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1">
-                  Folder Slug (URL path)
-                  {!customSlug && <span className="font-normal text-text-muted"> — auto</span>}
+                  Folder URL slug
+                  {!customSlug && (
+                    <span className="font-normal text-text-muted"> (from the folder name)</span>
+                  )}
                 </label>
                 <input
                   type="text"
@@ -637,19 +641,19 @@ export function UploadModal({
                     checked={customSlug}
                     onChange={(e) => setCustomSlug(e.target.checked)}
                   />
-                  Customize slug
+                  Use a custom slug
                 </label>
               </div>
 
               {currentFolder && (
                 <p className="text-xs text-text-faint mt-1 mb-4">
-                  Will be created inside: {currentFolder.name}
+                  New folder location: {currentFolder.name}
                 </p>
               )}
 
               <div className="modal-actions">
                 <button type="submit" className="btn btn-primary" disabled={uploading}>
-                  {uploading ? "Creating..." : "Create Folder"}
+                  {uploading ? "Creating..." : "Create folder"}
                 </button>
                 <button type="button" className="btn" onClick={() => setView("main")}>
                   Back
@@ -673,7 +677,7 @@ export function UploadModal({
               </dl>
 
               <details className="mb-4">
-                <summary className="cursor-pointer text-sm">Sample files (first 20)</summary>
+                <summary className="cursor-pointer text-sm">Files in archive (up to 20)</summary>
                 <div className="max-h-[150px] overflow-auto mt-2 text-xs font-mono">
                   {archiveAnalysis.sampleFiles.map((name, i) => (
                     <div key={i} className="p-1 border-b border-bg-subtle">
@@ -682,7 +686,8 @@ export function UploadModal({
                   ))}
                   {archiveAnalysis.totalFiles > 20 && (
                     <div className="p-1 text-text-faint">
-                      ... and {archiveAnalysis.totalFiles - 20} more
+                      {archiveAnalysis.totalFiles - 20} more file
+                      {archiveAnalysis.totalFiles - 20 === 1 ? "" : "s"}
                     </div>
                   )}
                 </div>
@@ -690,7 +695,7 @@ export function UploadModal({
 
               <div className="mb-4">
                 <label className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1">
-                  Folder Name
+                  Folder name
                 </label>
                 <input
                   type="text"
@@ -703,9 +708,9 @@ export function UploadModal({
 
               <div className="mb-4">
                 <label className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1">
-                  Folder Slug
+                  Folder URL slug
                   {!archiveCustomSlug && (
-                    <span className="font-normal text-text-muted"> — auto</span>
+                    <span className="font-normal text-text-muted"> (from the folder name)</span>
                   )}
                 </label>
                 <input
@@ -723,13 +728,13 @@ export function UploadModal({
                     checked={archiveCustomSlug}
                     onChange={(e) => setArchiveCustomSlug(e.target.checked)}
                   />
-                  Customize slug
+                  Use a custom slug
                 </label>
               </div>
 
               {currentFolder && (
                 <p className="text-xs text-text-faint mt-1 mb-4">
-                  Will be created inside: {currentFolder.name}
+                  New folder location: {currentFolder.name}
                 </p>
               )}
 
@@ -740,7 +745,7 @@ export function UploadModal({
                   onClick={handleExtractArchive}
                   disabled={uploading}
                 >
-                  {uploading ? "Starting..." : "Extract Archive"}
+                  {uploading ? "Starting..." : "Extract archive"}
                 </button>
                 <button
                   type="button"

@@ -14,7 +14,7 @@ export default function Home() {
   return (
     <main className="max-w-[360px] mx-auto mt-16 p-8 bg-bg border border-border text-center">
       <h1 className="text-2xl mb-4">artbin</h1>
-      <p className="mb-6 text-text-muted">Texture repository. Invite only.</p>
+      <p className="mb-6 text-text-muted">An invite-only texture repository.</p>
       <a href="/login" className="btn btn-primary">
         Login
       </a>

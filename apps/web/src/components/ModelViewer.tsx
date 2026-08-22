@@ -557,7 +557,7 @@ export function ModelViewer({
       {/* Controls hint */}
       {!loading && !error && (
         <div className="absolute top-2.5 right-2.5 px-2 py-1 bg-[rgba(255,255,255,0.8)] text-[0.6875rem] text-text-faint">
-          Drag to rotate | Scroll to zoom
+          Drag to rotate. Scroll to zoom.
         </div>
       )}
     </div>

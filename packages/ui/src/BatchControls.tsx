@@ -29,15 +29,17 @@ export function BatchControls({ selectedCount, onClear, children }: BatchControl
         <div className="modal-overlay" onClick={() => setIsOpen(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2 className="modal-title">Batch Import</h2>
+              <h2 className="modal-title">Batch import</h2>
               <button type="button" className="modal-close" onClick={() => setIsOpen(false)}>
                 &times;
               </button>
             </div>
             <div className="modal-body">
               <p className="mb-4 text-text-muted">
-                Import <strong>{selectedCount}</strong> archives as subfolders of a new parent
-                folder. Each archive will become a subfolder named after its filename.
+                Import <strong>{selectedCount}</strong>{" "}
+                {selectedCount === 1 ? "archive" : "archives"}
+                into a new parent folder. Each archive becomes a subfolder named after its file
+                name.
               </p>
 
               {children({ close })}

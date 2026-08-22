@@ -221,7 +221,7 @@ export async function action({ request, context }: Route.ActionArgs) {
 }
 
 export function meta() {
-  return [{ title: "Local Archives - Admin - artbin" }];
+  return [{ title: "Local archives - Admin - artbin" }];
 }
 
 function slugify(str: string): string {
@@ -245,7 +245,7 @@ function ImportArchiveForm({ archive }: { archive: FoundArchive }) {
       <div className="flex gap-3 items-end max-sm:flex-col max-sm:items-stretch">
         <div className="mb-4 flex-1">
           <label className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1">
-            Folder Name
+            Folder name
           </label>
           <input
             type="text"
@@ -309,13 +309,13 @@ function BatchImportForm({
 
       <div className="mb-4">
         <label className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1">
-          Parent Folder Name
+          Parent folder name
         </label>
         <input
           type="text"
           name="folderName"
           className="input w-full"
-          placeholder="e.g. Thirty Flights of Loving"
+          placeholder="For example, Thirty Flights of Loving"
           value={folderName}
           onChange={handleNameChange}
           required
@@ -340,10 +340,10 @@ function BatchImportForm({
 
       <div className="modal-actions">
         <button type="button" className="btn" onClick={onClear}>
-          Clear Selection
+          Clear selection
         </button>
         <button type="submit" className="btn btn-primary" disabled={!folderName || !folderSlug}>
-          Import as Subfolders
+          Import as subfolders
         </button>
       </div>
     </Form>
@@ -422,27 +422,27 @@ export default function AdminArchives() {
 
         {actionData?.success && actionData.action === "import-archive" && (
           <div className="alert alert-success mb-4">
-            <strong>Import started!</strong> {actionData.archiveName} is being extracted.{" "}
+            <strong>Import started.</strong> Extracting {actionData.archiveName}.{" "}
             <a href="/admin">View progress</a>
           </div>
         )}
 
         {actionData?.success && actionData.action === "import-bsp" && (
           <div className="alert alert-success mb-4">
-            <strong>BSP extraction started!</strong> Extracting textures from{" "}
+            <strong>BSP extraction started.</strong> Extracting textures from{" "}
             {actionData.archiveName}. <a href="/admin">View progress</a>
           </div>
         )}
 
         {actionData?.success && actionData.action === "batch-import" && (
           <div className="alert alert-success mb-4">
-            <strong>Batch import started!</strong>{" "}
+            <strong>Batch import started.</strong> Processing{" "}
             {(actionData.archiveCount ?? 0) > 0 &&
               `${actionData.archiveCount} archive${actionData.archiveCount !== 1 ? "s" : ""}`}
             {(actionData.archiveCount ?? 0) > 0 && (actionData.bspCount ?? 0) > 0 && " and "}
             {(actionData.bspCount ?? 0) > 0 &&
               `${actionData.bspCount} BSP map${actionData.bspCount !== 1 ? "s" : ""}`}{" "}
-            will be processed into "{actionData.folderName}". <a href="/admin">View progress</a>
+            into "{actionData.folderName}". <a href="/admin">View progress</a>
           </div>
         )}
 
@@ -450,9 +450,9 @@ export default function AdminArchives() {
         <div className="card mb-6">
           <div className="flex justify-between items-center gap-4">
             <div>
-              <strong>Scan Home Directory</strong>
+              <strong>Scan home directory</strong>
               <p className="text-sm text-text-muted m-0">
-                Find PAK, PK3, WAD, and ZIP files in game directories
+                Find PAK, PK3, WAD, and ZIP files in game directories.
               </p>
             </div>
             <Form method="post">
@@ -507,11 +507,11 @@ export default function AdminArchives() {
           </div>
         ) : scanJobStatus === "completed" ? (
           <div className="text-center p-8 text-text-muted">
-            No game archives found. Try running a scan.
+            No game archives found. Run another scan to check again.
           </div>
         ) : !scanJobStatus ? (
           <div className="text-center p-8 text-text-muted">
-            No scan results yet. Click "Scan" to search for game archives.
+            No scan results yet. Run a scan to search for game archives.
           </div>
         ) : null}
       </div>

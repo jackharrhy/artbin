@@ -299,7 +299,7 @@ export async function action({ request, context }: Route.ActionArgs) {
 // Meta
 // ---------------------------------------------------------------------------
 export function meta() {
-  return [{ title: "Orphan Finder - Admin - artbin" }];
+  return [{ title: "Orphan finder - Admin - artbin" }];
 }
 
 // ---------------------------------------------------------------------------
@@ -329,8 +329,7 @@ export default function AdminOrphans() {
 
       {actionData?.success && (
         <div className="bg-green-900/30 border border-green-700 text-green-300 px-3 py-2 text-sm mb-4">
-          Cleaned up {actionData.deleted} item{actionData.deleted === 1 ? "" : "s"} (
-          {actionData.action}).
+          Cleaned up {actionData.deleted} item{actionData.deleted === 1 ? "" : "s"}.
         </div>
       )}
 
@@ -345,7 +344,7 @@ export default function AdminOrphans() {
 
       {!scanResults && !isScanning && (
         <p className="text-text-muted text-sm">
-          Click Scan to compare uploads directory with the database.
+          Scan the uploads directory and compare it with the database.
         </p>
       )}
 
@@ -368,7 +367,7 @@ export default function AdminOrphans() {
                   value={JSON.stringify(scanResults.orphanedFiles)}
                 />
                 <button type="submit" className="btn btn-danger btn-sm" disabled={isSubmitting}>
-                  Delete Orphans
+                  Delete orphan files
                 </button>
               </Form>
             )}
@@ -389,7 +388,7 @@ export default function AdminOrphans() {
                   value={JSON.stringify(scanResults.missingFiles.map((f) => f.id))}
                 />
                 <button type="submit" className="btn btn-danger btn-sm" disabled={isSubmitting}>
-                  Delete Records
+                  Delete records
                 </button>
               </Form>
             )}
@@ -410,7 +409,7 @@ export default function AdminOrphans() {
                   value={JSON.stringify(scanResults.staleRejected)}
                 />
                 <button type="submit" className="btn btn-danger btn-sm" disabled={isSubmitting}>
-                  Cleanup
+                  Clean up
                 </button>
               </Form>
             )}
@@ -431,7 +430,7 @@ export default function AdminOrphans() {
                   value={JSON.stringify(scanResults.emptyInboxSessions)}
                 />
                 <button type="submit" className="btn btn-danger btn-sm" disabled={isSubmitting}>
-                  Cleanup
+                  Clean up
                 </button>
               </Form>
             )}
@@ -442,12 +441,13 @@ export default function AdminOrphans() {
       {/* Hash Stats & Duplicates */}
       <div className="mt-8 pt-6 border-t border-border-light">
         <h2 className="text-sm font-medium uppercase tracking-wide text-text-muted mb-3">
-          File Hashes
+          File hashes
         </h2>
 
         <div className="flex items-center justify-between border border-border-light px-4 py-3 mb-3">
           <span className="text-sm">
-            <strong>{hashStats.hashed}</strong> / {hashStats.total} files hashed
+            <strong>{hashStats.hashed}</strong> / {hashStats.total}{" "}
+            {hashStats.total === 1 ? "file" : "files"} hashed
             {hashStats.hashed < hashStats.total && (
               <span className="text-text-faint ml-2">
                 ({hashStats.total - hashStats.hashed} missing)
@@ -458,7 +458,7 @@ export default function AdminOrphans() {
             <Form method="post">
               <input type="hidden" name="_action" value="backfill-hashes" />
               <button type="submit" className="btn btn-primary btn-sm" disabled={isSubmitting}>
-                Backfill Hashes
+                Backfill hashes
               </button>
             </Form>
           )}

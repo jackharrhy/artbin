@@ -22,7 +22,7 @@ export default function Login() {
   if (errorParam === "access_denied") {
     errorMessage = "Authorization was denied";
   } else if (errorParam) {
-    errorMessage = "Login failed - please try again";
+    errorMessage = "Login failed. Please try again.";
   }
 
   return (

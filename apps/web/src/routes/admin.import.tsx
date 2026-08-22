@@ -15,19 +15,19 @@ const IMPORT_SOURCES = [
   {
     id: "texturetown",
     name: "TextureTown",
-    description: "textures.neocities.org - 3800+ retro game textures",
+    description: "textures.neocities.org: 3,800+ retro game textures",
     url: "https://textures.neocities.org/",
   },
   {
     id: "texture-station",
     name: "Texture Station",
-    description: "thejang.com/textures - 392 classic tiling backgrounds from 1996",
+    description: "thejang.com/textures: 392 classic tiling backgrounds from 1996",
     url: "https://thejang.com/textures/",
   },
   {
     id: "sadgrl",
     name: "Sadgrl Tiled Backgrounds",
-    description: "sadgrl.online archive - 500+ tiled backgrounds organized by color",
+    description: "sadgrl.online archive: 500+ tiled backgrounds organized by color",
     url: "https://sadgrlonline.github.io/archived-sadgrl.online/webmastery/downloads/tiledbgs.html",
   },
 ];
@@ -231,7 +231,7 @@ export default function AdminImport() {
       {actionData?.success && actionData.action === "texturetown" && (
         <div className="alert alert-success">
           <p>
-            <strong>TextureTown import started!</strong>
+            <strong>TextureTown import started.</strong>
           </p>
           <p>
             <a href="/admin">View job progress</a>
@@ -242,7 +242,7 @@ export default function AdminImport() {
       {actionData?.success && actionData.action === "texture-station" && (
         <div className="alert alert-success">
           <p>
-            <strong>Texture Station import started!</strong>
+            <strong>Texture Station import started.</strong>
           </p>
           <p>
             <a href="/admin">View job progress</a>
@@ -253,7 +253,7 @@ export default function AdminImport() {
       {actionData?.success && actionData.action === "sadgrl" && (
         <div className="alert alert-success">
           <p>
-            <strong>Sadgrl Tiled Backgrounds import started!</strong>
+            <strong>Sadgrl Tiled Backgrounds import started.</strong>
           </p>
           <p>
             <a href="/admin">View job progress</a>
@@ -276,7 +276,7 @@ export default function AdminImport() {
         <div className="alert alert-success">
           <p>
             <strong>
-              Queued {actionData.count} site {actionData.count === 1 ? "import" : "imports"}.
+              Queued {actionData.count} {actionData.count === 1 ? "import" : "imports"}.
             </strong>
           </p>
           <p>
@@ -287,19 +287,19 @@ export default function AdminImport() {
 
       {/* Stats */}
       <div className="card mb-6">
-        <h2 className="font-medium mb-2">Current Stats</h2>
+        <h2 className="font-medium mb-2">Current stats</h2>
         <dl className="detail-info">
-          <dt>Total Files</dt>
+          <dt>Total files</dt>
           <dd>{stats.fileCount.toLocaleString()}</dd>
-          <dt>Total Size</dt>
+          <dt>Total size</dt>
           <dd>{formatSize(stats.totalSize)}</dd>
-          <dt>Total Folders</dt>
+          <dt>Total folders</dt>
           <dd>{stats.folderCount.toLocaleString()}</dd>
         </dl>
 
         {stats.byKind.length > 0 && (
           <div className="mt-4 pt-4 border-t border-bg-subtle">
-            <h3 className="font-medium text-sm mb-2">By Type</h3>
+            <h3 className="font-medium text-sm mb-2">By type</h3>
             <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2">
               {stats.byKind
                 .sort((a, b) => b.size - a.size)
@@ -307,7 +307,9 @@ export default function AdminImport() {
                   <div key={k.kind} className="text-[0.8125rem]">
                     <span className="text-text-muted">{kindLabel(k.kind)}</span>
                     <br />
-                    <span>{k.count.toLocaleString()} files</span>
+                    <span>
+                      {k.count.toLocaleString()} {k.count === 1 ? "file" : "files"}
+                    </span>
                     <br />
                     <span className="text-text-faint">{formatSize(k.size)}</span>
                   </div>
@@ -326,9 +328,9 @@ export default function AdminImport() {
         <div className="card mb-4">
           <h3 className="font-medium mb-2">Import a hosted collection</h3>
           <p className="text-sm text-text-muted mb-4">
-            Paste GameBanana or SCMapDB page URLs, or direct HTTPS links to ZIP, 7z, and RAR
-            archives. Each source becomes a collection beneath the destination you choose; BSP and
-            WAD textures are extracted into browsable PNG folders.
+            Paste links to GameBanana or SCMapDB pages. Direct HTTPS links to ZIP, 7z, and RAR
+            archives also work. Each URL creates a collection at the destination you choose. The
+            importer extracts BSP and WAD textures into folders of PNG files.
           </p>
 
           <Form method="post">
@@ -368,7 +370,7 @@ export default function AdminImport() {
 
             <div className="flex justify-between items-center gap-4">
               <span className="text-xs text-text-faint">
-                Executables, scripts for the host OS, HTML, and unknown file types are skipped.
+                The importer skips executables, host OS scripts, HTML, and unknown file types.
               </span>
               <button
                 type="submit"
@@ -389,20 +391,20 @@ export default function AdminImport() {
       {/* Local Folder Import */}
       <section className="mb-8">
         <h2 className="text-sm font-medium uppercase tracking-wide text-text-muted mb-3">
-          Local Folder
+          Local folder
         </h2>
 
         <div className="card mb-4">
-          <h3 className="font-medium mb-2">Import from Folder Path</h3>
+          <h3 className="font-medium mb-2">Import a local folder</h3>
           <p className="text-sm text-text-muted mb-4">
-            Recursively import all supported files from a local folder (images, audio, models, etc.)
+            Import every supported file from a local folder and its subfolders.
           </p>
 
           <Form method="post">
             <input type="hidden" name="intent" value="folder-import" />
 
             <div className="mb-3">
-              <label className="block text-sm mb-1">Folder Path</label>
+              <label className="block text-sm mb-1">Folder path</label>
               <input
                 type="text"
                 name="folderPath"
@@ -412,7 +414,7 @@ export default function AdminImport() {
             </div>
 
             <div className="mb-4">
-              <label className="block text-sm mb-1">Collection Name (optional)</label>
+              <label className="block text-sm mb-1">Collection name (optional)</label>
               <input
                 type="text"
                 name="folderName"
@@ -423,7 +425,7 @@ export default function AdminImport() {
 
             <div className="flex justify-between items-center">
               <span className="text-xs text-text-faint">
-                Supports: png, jpg, tga, bmp, wav, ogg, mp3, obj, md5mesh, etc.
+                Supported formats include PNG, JPG, TGA, BMP, WAV, OGG, MP3, OBJ, and MD5MESH.
               </span>
               <button
                 type="submit"
@@ -447,7 +449,7 @@ export default function AdminImport() {
                   }
                 }}
               >
-                Import Folder
+                Import folder
               </button>
             </div>
           </Form>
@@ -457,15 +459,15 @@ export default function AdminImport() {
       {/* Local Archives */}
       <section className="mb-8">
         <h2 className="text-sm font-medium uppercase tracking-wide text-text-muted mb-3">
-          Local Archives
+          Local archives
         </h2>
 
         <div className="card mb-4">
           <div className="flex justify-between items-start gap-4">
             <div>
-              <h3 className="font-medium mb-1">Scan & Import Local Archives</h3>
+              <h3 className="font-medium mb-1">Scan and import local archives</h3>
               <p className="text-sm text-text-muted m-0">
-                Find PAK, PK3, WAD, and ZIP files in game directories on this computer
+                Find PAK, PK3, WAD, and ZIP files in game directories on this computer.
               </p>
             </div>
             <div className="flex gap-2">
@@ -473,7 +475,7 @@ export default function AdminImport() {
                 Settings
               </a>
               <a href="/admin/archives" className="btn btn-primary">
-                Browse Archives
+                Browse archives
               </a>
             </div>
           </div>
@@ -489,9 +491,9 @@ export default function AdminImport() {
         <div className="card mb-4">
           <div className="flex justify-between items-start gap-4">
             <div>
-              <h3 className="font-medium mb-1">Regenerate Previews</h3>
+              <h3 className="font-medium mb-1">Regenerate previews</h3>
               <p className="text-sm text-text-muted m-0">
-                Generate missing model previews (GLB/GLTF) and regenerate all folder preview images
+                Generate missing model previews (GLB/GLTF) and refresh every folder preview image.
               </p>
             </div>
             <Form method="post">
@@ -515,7 +517,7 @@ export default function AdminImport() {
       {/* Online Sources */}
       <section className="mb-8">
         <h2 className="text-sm font-medium uppercase tracking-wide text-text-muted mb-3">
-          Online Sources
+          Online sources
         </h2>
 
         {sources.map((source) => (
@@ -541,7 +543,7 @@ export default function AdminImport() {
                     }
                   }}
                 >
-                  Import All
+                  Import all
                 </button>
               </Form>
             </div>

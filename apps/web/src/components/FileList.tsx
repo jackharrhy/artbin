@@ -88,7 +88,7 @@ export function FileList({
   }, [hasMore, loading, onLoadMore]);
 
   if (files.length === 0) {
-    return <div className="text-center p-12 text-text-muted">No files found</div>;
+    return <div className="text-center p-12 text-text-muted">No files found.</div>;
   }
 
   return (
@@ -127,7 +127,7 @@ export function FileList({
       {/* Infinite scroll trigger */}
       {hasMore && (
         <div ref={loaderRef} className="p-8 text-center text-sm text-text-muted">
-          {loading ? <span>Loading...</span> : <span>Scroll for more</span>}
+          {loading ? <span>Loading...</span> : <span>Scroll to load more</span>}
         </div>
       )}
     </div>

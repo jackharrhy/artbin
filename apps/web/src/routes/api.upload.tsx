@@ -241,7 +241,7 @@ async function handleNonAdminUpload(
     return Response.json({
       pendingUpload: true,
       uploadSessionId: session.id,
-      message: "Uploaded! An admin will review your submission.",
+      message: "Upload complete. An admin will review your submission.",
     });
   } catch (err) {
     log.error(err instanceof Error ? err : String(err), { step: "non-admin-upload" });
@@ -258,7 +258,7 @@ async function handleAnalyzeArchive(formData: FormData) {
 
   const ext = file.name.split(".").pop()?.toLowerCase();
   if (!ext || !ARCHIVE_EXTENSIONS.has(ext)) {
-    return Response.json({ error: "Unsupported archive type. Supported: PAK, PK3, ZIP" });
+    return Response.json({ error: "Unsupported archive type. Use a PAK, PK3, or ZIP archive." });
   }
 
   try {

@@ -220,7 +220,7 @@ export async function action({ request, context }: Route.ActionArgs): Promise<Ac
 }
 
 export function meta() {
-  return [{ title: "Upload Inbox - Admin - artbin" }];
+  return [{ title: "Upload inbox - Admin - artbin" }];
 }
 
 function formatDate(date: Date | null): string {
@@ -299,14 +299,16 @@ export default function AdminInbox() {
           {(actionData.skippedCount ?? 0) > 0 && (
             <span className="text-text-muted">
               {" "}
-              ({actionData.skippedCount} missing from disk, records moved anyway)
+              ({actionData.skippedCount} file{actionData.skippedCount === 1 ? " was" : "s were"}
+              missing from disk. The system moved {actionData.skippedCount === 1 ? "its" : "their"}
+              record{actionData.skippedCount === 1 ? "" : "s"} anyway.)
             </span>
           )}
           {(actionData.failedSessions ?? 0) > 0 && (
             <span className="text-red-800">
               {" "}
               ({actionData.failedSessions} session
-              {actionData.failedSessions === 1 ? "" : "s"} failed -- check logs)
+              {actionData.failedSessions === 1 ? "" : "s"} failed. Check the logs.)
             </span>
           )}
         </div>
@@ -329,14 +331,14 @@ export default function AdminInbox() {
       {sessions.length > 1 && (
         <div className="border border-border-light p-4 mb-6 bg-bg-subtle">
           <h2 className="text-sm font-medium uppercase tracking-wide text-text-muted mb-3">
-            Bulk Actions
+            Bulk actions
           </h2>
           <Form method="post" className="flex items-end gap-3 flex-wrap">
             <div>
               <label className="block text-xs text-text-muted mb-1">Destination folder</label>
               <select name="destinationFolderId" className="input">
                 <option value="" disabled selected>
-                  Select a folder...
+                  Select a folder
                 </option>
                 {allFolders.map((f) => (
                   <option key={f.id} value={f.id}>
@@ -370,7 +372,7 @@ export default function AdminInbox() {
                 }
               }}
             >
-              Approve All
+              Approve all
             </button>
             <button
               type="submit"
@@ -383,7 +385,7 @@ export default function AdminInbox() {
                 }
               }}
             >
-              Reject All
+              Reject all
             </button>
           </Form>
         </div>
@@ -460,7 +462,7 @@ export default function AdminInbox() {
                       defaultValue={session.suggestedFolder?.id ?? ""}
                     >
                       <option value="" disabled>
-                        Select a folder...
+                        Select a folder
                       </option>
                       {allFolders.map((f) => (
                         <option key={f.id} value={f.id}>

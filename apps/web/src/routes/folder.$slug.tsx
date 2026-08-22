@@ -451,7 +451,9 @@ export default function FolderView() {
                     const folderCount = childFolders.length;
                     let msg = `Delete folder "${folder.name}"?`;
                     if (fileCount > 0 || folderCount > 0) {
-                      msg = `Delete folder "${folder.name}" with ${fileCount} file(s) and ${folderCount} subfolder(s)? This will permanently delete all contents.`;
+                      const fileLabel = `${fileCount} ${fileCount === 1 ? "file" : "files"}`;
+                      const folderLabel = `${folderCount} ${folderCount === 1 ? "subfolder" : "subfolders"}`;
+                      msg = `Delete folder "${folder.name}" with ${fileLabel} and ${folderLabel}? This permanently deletes everything inside.`;
                     }
                     if (!confirm(msg)) {
                       e.preventDefault();
@@ -502,7 +504,7 @@ export default function FolderView() {
               }}
               className="w-full bg-bg border border-border px-2 py-1 text-text-muted text-sm"
               rows={3}
-              placeholder="Folder description..."
+              placeholder="Describe this folder"
               autoFocus
             />
             <div className="flex gap-2 mt-1">
@@ -535,7 +537,7 @@ export default function FolderView() {
             className="mb-4 text-text-muted text-sm hover:text-text"
             onClick={() => setIsEditingDescription(true)}
           >
-            + Add description
+            Add description
           </button>
         ) : null}
 
@@ -562,7 +564,7 @@ export default function FolderView() {
             currentQuery={query}
             currentTag={tagSlug}
             tags={tags}
-            placeholder={`Search ${view} in ${folder.name}...`}
+            placeholder={`Search ${view} in ${folder.name}`}
           />
         )}
 
@@ -612,7 +614,11 @@ export default function FolderView() {
                   <span className="text-xs text-text-muted">
                     {textures.length}
                     {fileCounts.texture > textures.length ? ` of ${fileCounts.texture}` : ""}{" "}
-                    textures
+                    {(fileCounts.texture > textures.length
+                      ? fileCounts.texture
+                      : textures.length) === 1
+                      ? "texture"
+                      : "textures"}
                   </span>
                   {fileCounts.texture > textures.length && (
                     <a
@@ -651,7 +657,10 @@ export default function FolderView() {
                 <div className="flex justify-between items-center mb-4">
                   <span className="text-xs text-text-muted">
                     {models.length}
-                    {fileCounts.model > models.length ? ` of ${fileCounts.model}` : ""} models
+                    {fileCounts.model > models.length ? ` of ${fileCounts.model}` : ""}{" "}
+                    {(fileCounts.model > models.length ? fileCounts.model : models.length) === 1
+                      ? "model"
+                      : "models"}
                   </span>
                   {fileCounts.model > models.length && (
                     <a
@@ -694,7 +703,9 @@ export default function FolderView() {
             {otherFiles.length > 0 && (
               <section className="mb-8">
                 <div className="flex justify-between items-center mb-4">
-                  <span className="text-xs text-text-muted">{otherFiles.length} other files</span>
+                  <span className="text-xs text-text-muted">
+                    {otherFiles.length} other {otherFiles.length === 1 ? "file" : "files"}
+                  </span>
                   {fileCounts.all > folderFiles.length && (
                     <a
                       href={`${baseUrl}?view=all`}
