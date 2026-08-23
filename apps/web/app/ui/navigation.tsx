@@ -7,6 +7,7 @@ const tabsStyle = css({
   display: "flex",
   marginBottom: "1rem",
   overflowX: "auto",
+  overflowY: "hidden",
 });
 const tabStyle = css({
   borderBottom: "2px solid transparent",
