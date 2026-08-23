@@ -1,10 +1,10 @@
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
-import { files, folders, sessions, users } from "~/db/schema";
-import { setDbForTesting } from "~/db/connection.server";
-import { action as luckyAction } from "~/routes/api.lucky";
-import { getLuckyContext } from "~/components/LuckyButton";
+import { files, folders, sessions, users } from "#db";
+import { setDbForTesting } from "#db/connection.server";
+import { action as luckyAction } from "#api/api.lucky";
+import { getLuckyContext } from "../app/ui/public/lucky-button";
 import { applyMigrations, createTestDatabase, type TestDatabase } from "./db";
 import { makeWAD3Texture } from "./wad-fixture";
 

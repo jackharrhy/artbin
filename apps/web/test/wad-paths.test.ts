@@ -5,7 +5,7 @@ import {
   getWADTextureFilename,
   getWADTextureHref,
   splitWADTexturePath,
-} from "~/lib/wad-paths";
+} from "#lib/wad-paths";
 
 const texture = {
   index: 4,

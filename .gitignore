@@ -2,15 +2,14 @@
 .env
 node_modules/
 
-.react-router/
 build/
 dist/
 dist-ui/
 
-**/public/
+apps/web/public/
 
 *.db
 *.db-journal
 apps/web/data/cache/
+apps/web/.coverage/
 tmp
-.vite/

@@ -5,8 +5,8 @@ import { and, eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { createRequestLogger } from "evlog";
 
-import { db } from "~/db/connection.server";
-import { files, folders, remoteImports, type Job } from "~/db";
+import { db } from "#db/connection.server";
+import { files, folders, remoteImports, type Job } from "#db";
 import {
   ensureDir,
   finalizeFolders,
@@ -15,17 +15,17 @@ import {
   ROOT_FOLDER,
   sanitizeFilename,
   TEMP_DIR,
-} from "../files.server";
-import { registerJobHandler, updateJobProgress } from "../jobs.server";
+} from "../files.server.ts";
+import { registerJobHandler, updateJobProgress } from "../jobs.server.ts";
 import {
   extractSafeArchiveEntry,
   findRedundantArchiveRoot,
   listSafeArchiveEntries,
   stripArchiveRoot,
-} from "../archive-reader.server";
-import { extractGoldSourceTextures } from "../goldsource-assets.server";
-import { fetchRemoteImportManifest, type RemoteImportProvider } from "../import-sources.server";
-import { downloadRemoteFile } from "../remote-download.server";
+} from "../archive-reader.server.ts";
+import { extractGoldSourceTextures } from "../goldsource-assets.server.ts";
+import { fetchRemoteImportManifest, type RemoteImportProvider } from "../import-sources.server.ts";
+import { downloadRemoteFile } from "../remote-download.server.ts";
 
 export interface RemoteImportJobInput {
   sourceUrl: string;

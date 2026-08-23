@@ -15,8 +15,8 @@ import {
 import { getMimeType } from "@artbin/core/detection/mime";
 import { sanitizeFilename } from "@artbin/core/detection/filenames";
 import { nanoid } from "nanoid";
-import { generateFolderPreview } from "./folder-preview.server";
-import { getAncestorFolderIds } from "./file-queries.server";
+import { generateFolderPreview } from "./folder-preview.server.ts";
+import { getAncestorFolderIds } from "./file-queries.server.ts";
 
 const execAsync = promisify(exec);
 
@@ -290,8 +290,8 @@ export async function cleanupOldTempFiles(): Promise<void> {
   }
 }
 
-import { db } from "~/db/connection.server";
-import { files, folders } from "~/db";
+import { db } from "#db/connection.server";
+import { files, folders } from "#db";
 import { eq, inArray, sql } from "drizzle-orm";
 
 export interface CreateFileRecord {

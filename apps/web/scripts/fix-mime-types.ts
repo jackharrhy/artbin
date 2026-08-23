@@ -1,7 +1,7 @@
 /**
  * Fix MIME types for existing files that were incorrectly marked as application/octet-stream
  *
- * Run with: npx tsx scripts/fix-mime-types.ts
+ * Run with: node --import remix/node-tsx scripts/fix-mime-types.ts
  */
 
 import Database from "better-sqlite3";

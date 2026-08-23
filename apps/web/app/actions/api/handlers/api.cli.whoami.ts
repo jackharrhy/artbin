@@ -1,0 +1,13 @@
+import type * as Route from "./types.ts";
+import { requireCliAuth } from "#lib/cli-auth.server";
+
+export async function loader({ request }: Route.LoaderArgs) {
+  const user = await requireCliAuth(request);
+  return Response.json({
+    user: {
+      id: user.id,
+      name: user.username,
+      isAdmin: user.isAdmin,
+    },
+  });
+}

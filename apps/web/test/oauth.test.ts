@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { generateCodeVerifier, generateCodeChallenge } from "~/lib/oauth.server";
+import { generateCodeVerifier, generateCodeChallenge } from "#lib/oauth.server";
 
 describe("PKCE code generation", () => {
   test("generateCodeVerifier produces a base64url string of expected length", () => {

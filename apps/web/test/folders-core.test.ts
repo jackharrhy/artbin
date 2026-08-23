@@ -1,13 +1,13 @@
 import { afterEach, describe, expect, test } from "vitest";
 import { eq } from "drizzle-orm";
-import { files, folders, users } from "~/db/schema";
-import { setDbForTesting } from "~/db/connection.server";
+import { files, folders, users } from "#db";
+import { setDbForTesting } from "#db/connection.server";
 import {
   createFolder,
   createFolderAndMoveChildren,
   moveFolder,
   renameFolder,
-} from "~/lib/folders.server";
+} from "#lib/folders.server";
 import { applyMigrations, createTestDatabase, type TestDatabase } from "./db";
 
 let currentDb: TestDatabase | undefined;

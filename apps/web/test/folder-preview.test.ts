@@ -1,6 +1,6 @@
 import { basename } from "path";
 import { describe, expect, test } from "vitest";
-import { getFolderPreviewPath, getFolderPreviewFullPath } from "~/lib/folder-preview.server";
+import { getFolderPreviewPath, getFolderPreviewFullPath } from "#lib/folder-preview.server";
 
 describe("getFolderPreviewPath", () => {
   test("returns a path under the folder slug", () => {

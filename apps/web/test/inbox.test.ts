@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { eq } from "drizzle-orm";
-import { folders, files, users } from "~/db/schema";
-import { setDbForTesting } from "~/db/connection.server";
+import { folders, files, users } from "#db";
+import { setDbForTesting } from "#db/connection.server";
 import { applyMigrations, createTestDatabase, type TestDatabase } from "./db";
 
-vi.mock("~/lib/files.server", async (importOriginal) => {
+vi.mock("#lib/files.server", async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     ...actual,
@@ -17,7 +17,7 @@ vi.mock("~/lib/files.server", async (importOriginal) => {
   };
 });
 
-vi.mock("~/lib/folder-preview.server", () => ({
+vi.mock("#lib/folder-preview.server", () => ({
   generateFolderPreview: vi.fn(async () => null),
 }));
 
@@ -29,7 +29,7 @@ import {
   getPendingSessionsWithFiles,
   INBOX_SLUG,
   INBOX_NAME,
-} from "~/lib/inbox.server";
+} from "#lib/inbox.server";
 
 let currentDb: TestDatabase | undefined;
 

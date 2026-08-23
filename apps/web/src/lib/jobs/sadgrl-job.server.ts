@@ -5,10 +5,10 @@
  * Images are hosted on sadhost.neocities.org/images/tiles/
  */
 
-import type { Job } from "~/db";
+import type { Job } from "#db";
 
-import { registerJobHandler, updateJobProgress } from "../jobs.server";
-import { runScraper, downloadUrl, type ScraperCategory } from "./scraper-runner.server";
+import { registerJobHandler, updateJobProgress } from "../jobs.server.ts";
+import { runScraper, downloadUrl, type ScraperCategory } from "./scraper-runner.server.ts";
 
 export interface SadgrlImportInput {
   userId?: string;

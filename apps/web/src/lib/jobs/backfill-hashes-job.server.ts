@@ -1,11 +1,11 @@
-import { db } from "~/db/connection.server";
-import { files } from "~/db";
+import { db } from "#db/connection.server";
+import { files } from "#db";
 import { eq, isNull } from "drizzle-orm";
-import { registerJobHandler, updateJobProgress } from "../jobs.server";
-import { getFilePath, computeSha256FromFile } from "../files.server";
+import { registerJobHandler, updateJobProgress } from "../jobs.server.ts";
+import { getFilePath, computeSha256FromFile } from "../files.server.ts";
 import { existsSync } from "fs";
 import { createRequestLogger } from "evlog";
-import type { Job } from "~/db";
+import type { Job } from "#db";
 
 async function handleBackfillHashes(
   job: Job,

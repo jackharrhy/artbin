@@ -1,7 +1,7 @@
 import { existsSync } from "fs";
 import { basename, extname } from "path";
-import { db } from "~/db/connection.server";
-import { folders, files, users } from "~/db";
+import { db } from "#db/connection.server";
+import { folders, files, users } from "#db";
 import { eq, and, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import {
@@ -11,10 +11,10 @@ import {
   deleteFolder,
   recalculateFolderCounts,
   getFilePath,
-} from "./files.server";
-import { generateFolderPreview } from "./folder-preview.server";
-import { getDescendantFolderIds } from "./file-queries.server";
-import { useLogger } from "evlog/react-router";
+} from "./files.server.ts";
+import { generateFolderPreview } from "./folder-preview.server.ts";
+import { getDescendantFolderIds } from "./file-queries.server.ts";
+import { createRequestLogger } from "evlog";
 
 export const INBOX_SLUG = "_inbox";
 export const INBOX_NAME = "Inbox";
@@ -210,11 +210,12 @@ export async function approveSession(
     try {
       await generateFolderPreview(folderId);
     } catch (err) {
-      const log = useLogger();
+      const log = createRequestLogger();
       log.error(err instanceof Error ? err : new Error(String(err)), {
         step: "folder-preview",
         folderId,
       });
+      log.emit();
     }
   }
 

@@ -1,7 +1,7 @@
 import { afterEach, beforeAll, describe, expect, test } from "vitest";
 
-import { folders, jobs, sessions, users } from "~/db/schema";
-import { setDbForTesting } from "~/db/connection.server";
+import { folders, jobs, sessions, users } from "#db";
+import { setDbForTesting } from "#db/connection.server";
 import { applyMigrations, createTestDatabase, type TestDatabase } from "./db";
 
 let currentDb: TestDatabase | undefined;
@@ -39,7 +39,7 @@ describe("/api/import", () => {
   let action: Function;
 
   beforeAll(async () => {
-    action = (await import("~/routes/api.import")).action;
+    action = (await import("#api/api.import")).action;
   });
 
   test("queues Upload-dialog sources into its contextual folder", async () => {

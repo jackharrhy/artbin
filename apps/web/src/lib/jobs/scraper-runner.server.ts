@@ -6,13 +6,13 @@
  * duplicate detection, download, ingest, progress reporting, and finalization.
  */
 
-import { db } from "~/db/connection.server";
-import { files, type Job } from "~/db";
+import { db } from "#db/connection.server";
+import { files, type Job } from "#db";
 import { eq } from "drizzle-orm";
 import { createRequestLogger } from "evlog";
 
-import { updateJobProgress } from "../jobs.server";
-import { ingestFile, getOrCreateFolder, ROOT_FOLDER, finalizeFolders } from "../files.server";
+import { updateJobProgress } from "../jobs.server.ts";
+import { ingestFile, getOrCreateFolder, ROOT_FOLDER, finalizeFolders } from "../files.server.ts";
 
 export interface ScraperCategory {
   /** Display name for the category folder */

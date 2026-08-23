@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 
 const FOURM_BASE_URL = process.env.FOURM_URL ?? "http://localhost:8000";
 const FOURM_CLIENT_ID = process.env.FOURM_CLIENT_ID ?? "artbin";
-const ARTBIN_BASE_URL = process.env.ARTBIN_URL ?? "http://localhost:5173";
+const ARTBIN_BASE_URL = process.env.ARTBIN_URL ?? "http://localhost:5175";
 
 export const FOURM_AUTHORIZE_URL = `${FOURM_BASE_URL}/oauth/authorize`;
 export const FOURM_TOKEN_URL = `${FOURM_BASE_URL}/oauth/token`;

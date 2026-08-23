@@ -1,22 +1,13 @@
 import { afterEach, beforeAll, describe, expect, test, vi } from "vitest";
-import { files, folders, jobs, remoteImports, sessions, users } from "~/db/schema";
-import { setDbForTesting } from "~/db/connection.server";
-import { loader as whoamiLoader } from "~/routes/api.cli.whoami";
-import { action as foldersAction, loader as foldersLoader } from "~/routes/api.cli.folders";
-import { action as manageFolderAction } from "~/routes/api.cli.folder.manage";
-import { loader as downloadFolderLoader } from "~/routes/api.folder.download";
-import { action as manifestAction } from "~/routes/api.cli.manifest";
+import { files, folders, jobs, remoteImports, sessions, users } from "#db";
+import { setDbForTesting } from "#db/connection.server";
+import { loader as whoamiLoader } from "#api/api.cli.whoami";
+import { action as foldersAction, loader as foldersLoader } from "#api/api.cli.folders";
+import { action as manageFolderAction } from "#api/api.cli.folder.manage";
+import { loader as downloadFolderLoader } from "#api/api.folder.download";
+import { action as manifestAction } from "#api/api.cli.manifest";
 import { applyMigrations, createTestDatabase, type TestDatabase } from "./db";
 import { eq } from "drizzle-orm";
-
-// Mock evlog logger used by route handlers
-vi.mock("evlog/react-router", () => {
-  const noopLogger = { set: () => {}, error: () => {}, emit: () => {} };
-  return {
-    useLogger: () => noopLogger,
-    loggerContext: Symbol("loggerContext"),
-  };
-});
 
 // Mock BSP detection to control when extract-bsp jobs are queued
 vi.mock("@artbin/core/parsers/bsp", () => ({
@@ -27,7 +18,7 @@ vi.mock("@artbin/core/parsers/bsp", () => ({
 }));
 
 // Mock filesystem operations used by the folders endpoint
-vi.mock("~/lib/files.server", async (importOriginal) => {
+vi.mock("#lib/files.server", async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     ...actual,
@@ -703,11 +694,11 @@ describe("/api/cli/manifest", () => {
 
 describe("/api/cli/upload", () => {
   // Upload tests need the actual action import, but saveFile/processImage are mocked above
-  let uploadAction: (typeof import("~/routes/api.cli.upload"))["action"];
+  let uploadAction: (typeof import("#api/api.cli.upload"))["action"];
 
   // Dynamic import so mocks are applied first
   beforeAll(async () => {
-    const mod = await import("~/routes/api.cli.upload");
+    const mod = await import("#api/api.cli.upload");
     uploadAction = mod.action;
   });
 

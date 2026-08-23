@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { eq } from "drizzle-orm";
-import { folders, files, users } from "~/db/schema";
-import { setDbForTesting } from "~/db/connection.server";
+import { folders, files, users } from "#db";
+import { setDbForTesting } from "#db/connection.server";
 import { applyMigrations, createTestDatabase, type TestDatabase } from "./db";
 
 // Mock fs/promises so saveFile doesn't touch the real filesystem
@@ -37,7 +37,7 @@ vi.mock("fs", async (importOriginal) => {
 });
 
 import { exec } from "child_process";
-import { ingestFile } from "~/lib/files.server";
+import { ingestFile } from "#lib/files.server";
 
 let currentDb: TestDatabase | undefined;
 

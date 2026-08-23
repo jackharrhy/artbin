@@ -3,9 +3,9 @@ import { basename, extname } from "node:path";
 import { extractTexturesFromBSP, isBSPFile } from "@artbin/core/parsers/bsp";
 import { eq } from "drizzle-orm";
 
-import { db } from "~/db/connection.server";
-import { files } from "~/db";
-import { getOrCreateFolder, ingestFile, sanitizeFilename } from "./files.server";
+import { db } from "#db/connection.server";
+import { files } from "#db";
+import { getOrCreateFolder, ingestFile, sanitizeFilename } from "./files.server.ts";
 
 export interface GoldSourceTextureExtractionInput {
   buffer: Buffer;

@@ -5,21 +5,21 @@
  * generates missing model previews for GLB/GLTF files.
  */
 
-import { db } from "~/db/connection.server";
-import { files, folders, type Job } from "~/db";
+import { db } from "#db/connection.server";
+import { files, folders, type Job } from "#db";
 import { eq, and, isNull } from "drizzle-orm";
 import { readFile } from "fs/promises";
 import { existsSync } from "fs";
 import { createRequestLogger } from "evlog";
 
-import { registerJobHandler, updateJobProgress } from "../jobs.server";
+import { registerJobHandler, updateJobProgress } from "../jobs.server.ts";
 import {
   generateModelPreview,
   canGenerateModelPreview,
   getFilePath,
   getPreviewPath,
-} from "../files.server";
-import { generateFolderPreview } from "../folder-preview.server";
+} from "../files.server.ts";
+import { generateFolderPreview } from "../folder-preview.server.ts";
 
 async function handleRegeneratePreviews(
   job: Job,

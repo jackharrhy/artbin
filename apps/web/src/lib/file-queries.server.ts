@@ -1,5 +1,5 @@
-import { db } from "~/db/connection.server";
-import { files, folders, fileTags, tags } from "~/db";
+import { db } from "#db/connection.server";
+import { files, folders, fileTags, tags } from "#db";
 import { eq, like, and, or, inArray, desc, lt, sql } from "drizzle-orm";
 import type { FileKind } from "@artbin/core/detection/kind";
 

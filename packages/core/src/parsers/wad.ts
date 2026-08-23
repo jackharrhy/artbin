@@ -1,6 +1,6 @@
 import sharp from "sharp";
 
-import { indexedToRGBA, QUAKE_PALETTE, type ExtractedTexture } from "./bsp";
+import { indexedToRGBA, QUAKE_PALETTE, type ExtractedTexture } from "./bsp.ts";
 
 const WAD_HEADER_SIZE = 12;
 const WAD_DIRECTORY_ENTRY_SIZE = 32;

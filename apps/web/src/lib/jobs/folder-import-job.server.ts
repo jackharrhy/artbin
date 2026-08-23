@@ -5,14 +5,14 @@
  * preserving the directory structure.
  */
 
-import { type Job } from "~/db";
+import { type Job } from "#db";
 import { basename, dirname, join, extname } from "path";
 import { readdir, stat, readFile } from "fs/promises";
 import { existsSync } from "fs";
 import { createRequestLogger } from "evlog";
 
-import { registerJobHandler, updateJobProgress } from "../jobs.server";
-import { ingestFile, finalizeFolders, getOrCreateFolder, ROOT_FOLDER } from "../files.server";
+import { registerJobHandler, updateJobProgress } from "../jobs.server.ts";
+import { ingestFile, finalizeFolders, getOrCreateFolder, ROOT_FOLDER } from "../files.server.ts";
 
 /**
  * File extensions we know how to import directly.

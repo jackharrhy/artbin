@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "vitest";
 import { eq } from "drizzle-orm";
-import { jobs, users } from "~/db/schema";
-import { setDbForTesting } from "~/db/connection.server";
+import { jobs, users } from "#db";
+import { setDbForTesting } from "#db/connection.server";
 import {
   cancelJob,
   completeJob,
@@ -13,7 +13,7 @@ import {
   registerJobHandler,
   resetStuckJob,
   startJob,
-} from "~/lib/jobs.server";
+} from "#lib/jobs.server";
 import { applyMigrations, createTestDatabase, type TestDatabase } from "./db";
 
 let currentDb: TestDatabase | undefined;

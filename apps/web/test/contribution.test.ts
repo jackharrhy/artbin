@@ -1,22 +1,13 @@
 import { afterEach, beforeAll, describe, expect, test, vi } from "vitest";
 import { eq, and } from "drizzle-orm";
-import { folders, files, sessions, users } from "~/db/schema";
-import { setDbForTesting } from "~/db/connection.server";
-import { searchFiles, getFileCountsByKind } from "~/lib/file-queries.server";
-import { insertFileRecord } from "~/lib/files.server";
+import { folders, files, sessions, users } from "#db";
+import { setDbForTesting } from "#db/connection.server";
+import { searchFiles, getFileCountsByKind } from "#lib/file-queries.server";
+import { insertFileRecord } from "#lib/files.server";
 import { applyMigrations, createTestDatabase, type TestDatabase } from "./db";
 
-// Mock evlog logger used by route handlers
-vi.mock("evlog/react-router", () => {
-  const noopLogger = { set: () => {}, error: () => {}, emit: () => {} };
-  return {
-    useLogger: () => noopLogger,
-    loggerContext: Symbol("loggerContext"),
-  };
-});
-
 // Mock filesystem operations (same pattern as cli-api tests)
-vi.mock("~/lib/files.server", async (importOriginal) => {
+vi.mock("#lib/files.server", async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     ...actual,
@@ -222,10 +213,10 @@ describe("getFileCountsByKind status filtering", () => {
 // ─── Upload API (non-admin vs admin) ────────────────────────────────────────
 
 describe("/api/upload", () => {
-  let uploadAction: (typeof import("~/routes/api.upload"))["action"];
+  let uploadAction: (typeof import("#api/api.upload"))["action"];
 
   beforeAll(async () => {
-    const mod = await import("~/routes/api.upload");
+    const mod = await import("#api/api.upload");
     uploadAction = mod.action;
   });
 

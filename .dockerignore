@@ -6,8 +6,9 @@
 **/node_modules
 **/build
 **/dist
-**/.react-router
-**/data
+**/.coverage
+apps/web/data
 **/public/uploads
 **/tmp
 **/*.log
+.agents

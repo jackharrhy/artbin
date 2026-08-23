@@ -1,5 +1,5 @@
-import { getUserFromRequest } from "./auth.server";
-import type { User } from "~/db";
+import { getUserFromRequest } from "./auth.server.ts";
+import type { User } from "#db";
 
 /** Authenticate any user (admin or not). Throws 401 if not logged in. */
 export async function requireCliAuth(request: Request): Promise<User> {

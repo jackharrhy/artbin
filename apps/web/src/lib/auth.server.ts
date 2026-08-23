@@ -1,5 +1,5 @@
-import { db } from "~/db/connection.server";
-import { users, sessions } from "~/db";
+import { db } from "#db/connection.server";
+import { users, sessions } from "#db";
 import { eq } from "drizzle-orm";
 
 const SESSION_COOKIE = "artbin_session";
@@ -28,6 +28,7 @@ async function getDevelopmentUser() {
     })
     .returning();
 
+  if (!user) throw new Error("Failed to provision the local development user");
   return user;
 }
 
@@ -68,7 +69,7 @@ export async function getUserFromRequest(request: Request) {
   }
 
   const sessionId = parseSessionCookie(request.headers.get("Cookie"));
-  return getUserFromSession(sessionId);
+  return (await getUserFromSession(sessionId)) ?? null;
 }
 
 export function getSessionCookie(sessionId: string): string {

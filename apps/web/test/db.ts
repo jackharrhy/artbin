@@ -2,7 +2,7 @@ import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { readdirSync, readFileSync } from "fs";
 import { join } from "path";
-import * as schema from "~/db/schema";
+import * as schema from "#db/schema";
 
 export type TestDatabase = ReturnType<typeof createTestDatabase>;
 

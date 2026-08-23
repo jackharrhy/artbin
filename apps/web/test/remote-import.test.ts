@@ -9,18 +9,18 @@ import {
   findRedundantArchiveRoot,
   normalizeArchiveEntryPath,
   stripArchiveRoot,
-} from "~/lib/archive-reader.server";
+} from "#lib/archive-reader.server";
 import {
   fetchRemoteImportManifest,
   isAllowedRemoteDownloadUrl,
   parseRemoteImportUrl,
-} from "~/lib/import-sources.server";
-import { downloadRemoteFile } from "~/lib/remote-download.server";
+} from "#lib/import-sources.server";
+import { downloadRemoteFile } from "#lib/remote-download.server";
 import {
   isPublicRemoteAddress,
   resolvePublicHttpsUrl,
   validatePublicHttpsUrl,
-} from "~/lib/public-remote-url.server";
+} from "#lib/public-remote-url.server";
 
 afterEach(() => {
   vi.unstubAllGlobals();

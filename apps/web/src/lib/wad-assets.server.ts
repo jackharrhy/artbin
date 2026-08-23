@@ -4,12 +4,12 @@ import { join } from "node:path";
 
 import { extractTextureFromWAD, inspectWAD, type WADContents } from "@artbin/core/parsers/wad";
 
-import type { User } from "~/db";
-import { files } from "~/db";
-import { db } from "~/db/connection.server";
+import type { User } from "#db";
+import { files } from "#db";
+import { db } from "#db/connection.server";
 import { eq } from "drizzle-orm";
-import { getFilePath } from "./files.server";
-import { getWADTextureFilename, splitWADTexturePath } from "./wad-paths";
+import { getFilePath } from "./files.server.ts";
+import { getWADTextureFilename, splitWADTexturePath } from "./wad-paths.ts";
 
 const pendingPreviews = new Map<string, Promise<Buffer>>();
 const inspectionCache = new Map<string, Promise<WADContents | null>>();

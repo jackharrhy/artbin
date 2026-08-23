@@ -1,21 +1,16 @@
 /**
  * HTTP integration tests
  *
- * Spins up the built react-router-serve server and makes real HTTP requests
+ * Spins up the native Remix Node server and makes real HTTP requests
  * to verify static file serving, auth redirects, and protected routes.
  *
- * These tests require `pnpm run build` to have been run first. They are
- * automatically skipped if no build output is found, so `pnpm run test`
- * works without a build. CI workflows run them after the build step.
+ * This verifies the same source-served runtime used in production.
  */
 
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { spawn, type ChildProcess } from "child_process";
-import { existsSync, mkdirSync, writeFileSync, rmSync } from "fs";
+import { mkdirSync, writeFileSync, rmSync } from "fs";
 import { join } from "path";
-
-const BUILD_PATH = join(process.cwd(), "build", "server", "index.js");
-const hasBuild = existsSync(BUILD_PATH);
 
 const PORT = 4389;
 const BASE = `http://localhost:${PORT}`;
@@ -37,7 +32,7 @@ async function waitForServer(url: string, timeoutMs = 10_000): Promise<void> {
   throw new Error(`Server did not start within ${timeoutMs}ms`);
 }
 
-describe.skipIf(!hasBuild)("HTTP integration tests", () => {
+describe("HTTP integration tests", () => {
   beforeAll(async () => {
     // Create test fixture files for static serving tests
     mkdirSync(FIXTURE_DIR, { recursive: true });
@@ -45,7 +40,7 @@ describe.skipIf(!hasBuild)("HTTP integration tests", () => {
     writeFileSync(join(FIXTURE_DIR, "_underscored.txt"), "_test-file-content\n");
     writeFileSync(join(FIXTURE_DIR, ".dotfile.txt"), ".test-dot-content\n");
 
-    server = spawn("node_modules/.bin/react-router-serve", ["./build/server/index.js"], {
+    server = spawn(process.execPath, ["--import", "remix/node-tsx", "server.ts"], {
       cwd: process.cwd(),
       env: {
         ...process.env,
@@ -90,7 +85,7 @@ describe.skipIf(!hasBuild)("HTTP integration tests", () => {
 
     test("does NOT serve dotfiles (this is expected server behavior)", async () => {
       const res = await fetch(`${BASE}/uploads/_test/.dotfile.txt`);
-      // sirv returns 404 for dotfiles -- this is why we use _ not . for previews
+      // Dotfiles are intentionally hidden; previews use an underscore prefix instead.
       expect(res.status).not.toBe(200);
     });
   });
@@ -98,25 +93,25 @@ describe.skipIf(!hasBuild)("HTTP integration tests", () => {
   describe("auth redirects", () => {
     test("/folders redirects to /login when not authenticated", async () => {
       const res = await fetch(`${BASE}/folders`, { redirect: "manual" });
-      expect(res.status).toBe(302);
+      expect(res.status).toBe(303);
       expect(res.headers.get("location")).toBe("/login");
     });
 
     test("/settings redirects to /login when not authenticated", async () => {
       const res = await fetch(`${BASE}/settings`, { redirect: "manual" });
-      expect(res.status).toBe(302);
-      expect(res.headers.get("location")).toBe("/login");
+      expect(res.status).toBe(303);
+      expect(res.headers.get("location")).toBe("/login?returnTo=%2Fsettings");
     });
 
     test("/admin redirects to /login when not authenticated", async () => {
       const res = await fetch(`${BASE}/admin`, { redirect: "manual" });
-      expect(res.status).toBe(302);
+      expect(res.status).toBe(303);
       expect(res.headers.get("location")).toBe("/login");
     });
 
     test("/admin/users redirects to /login when not authenticated", async () => {
       const res = await fetch(`${BASE}/admin/users`, { redirect: "manual" });
-      expect(res.status).toBe(302);
+      expect(res.status).toBe(303);
       expect(res.headers.get("location")).toBe("/login");
     });
   });
@@ -153,6 +148,26 @@ describe.skipIf(!hasBuild)("HTTP integration tests", () => {
     test("/ returns 200", async () => {
       const res = await fetch(`${BASE}/`);
       expect(res.status).toBe(200);
+    });
+
+    test("serves the browser entry and its package dependency", async () => {
+      const pageRes = await fetch(`${BASE}/login`);
+      const page = await pageRes.text();
+      const entryPath = page.match(/<script type="module" src="([^"]+)"/)?.[1];
+
+      expect(entryPath).toBeTruthy();
+
+      const entryRes = await fetch(new URL(entryPath!, BASE));
+      expect(entryRes.status).toBe(200);
+
+      const entry = await entryRes.text();
+      const packagePath = entry.match(/"(\/assets\/node_modules\/[^"]+)"/)?.[1];
+
+      expect(packagePath).toBeTruthy();
+
+      const packageRes = await fetch(new URL(packagePath!, BASE));
+      expect(packageRes.status).toBe(200);
+      expect(packageRes.headers.get("content-type")).toContain("javascript");
     });
   });
 

@@ -5,10 +5,10 @@
  * Creates folders for each category and downloads all textures.
  */
 
-import type { Job } from "~/db";
+import type { Job } from "#db";
 
-import { registerJobHandler, updateJobProgress } from "../jobs.server";
-import { runScraper, downloadUrl, type ScraperCategory } from "./scraper-runner.server";
+import { registerJobHandler, updateJobProgress } from "../jobs.server.ts";
+import { runScraper, downloadUrl, type ScraperCategory } from "./scraper-runner.server.ts";
 
 interface TextureTownManifest {
   info: {

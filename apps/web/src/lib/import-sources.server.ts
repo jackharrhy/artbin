@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { basename } from "node:path";
 
-import { validatePublicHttpsUrl } from "./public-remote-url.server";
+import { validatePublicHttpsUrl } from "./public-remote-url.server.ts";
 
 export type RemoteImportProvider = "gamebanana" | "scmapdb" | "direct";
 

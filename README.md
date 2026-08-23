@@ -4,7 +4,7 @@ asset bin for game development resources. textures first, with support for other
 
 ## what it does
 
-- login + invite-code registration
+- 4orm OAuth login, with an automatic local administrator in development
 - folder-based asset library with file metadata and type classification (textures, models, audio, maps, archives, etc.)
 - admin import pipelines: online sources, local folder imports, archive scan/import (PAK/PK3/WAD/ZIP)
 - site imports from GameBanana, SCMapDB, and direct ZIP, 7z, or RAR URLs
@@ -13,14 +13,15 @@ asset bin for game development resources. textures first, with support for other
 ## structure
 
 ```
-apps/web/        # React Router web app (the main thing)
+apps/web/        # Remix 3 web app and API (the main thing)
 apps/cli/        # installable CLI for local imports and server folder management
 packages/core/   # shared parsers and file detection
 ```
 
 ## stack
 
-- React Router v7 + Tailwind CSS v4
+- Remix 3 beta with its native server router and UI runtime
+- Node.js HTTP server + Tailwind CSS v4
 - TypeScript, Drizzle ORM + SQLite
 - pnpm workspaces
 - three.js for 3D model viewer
@@ -34,7 +35,8 @@ pnpm install
 just dev
 ```
 
-app runs at `http://localhost:5173`.
+The app runs at `http://localhost:5175`. Remix's development runner handles server and browser-module
+hot updates. Use `pnpm --filter @artbin/web run dev:watch` if you want the simpler Node watch mode.
 
 The development server automatically uses a database-backed local admin account, so 4orm is not
 required for local work. Set `ARTBIN_REQUIRE_AUTH=1` when starting the server if you need to test the
@@ -126,6 +128,9 @@ pnpm run ci
 pnpm run build
 pnpm run db:push
 ```
+
+The web build compiles its stylesheet and verifies the server-first TypeScript source. Remix serves
+browser modules from the source asset graph, so there is no separate client bundle directory.
 
 ## docker
 

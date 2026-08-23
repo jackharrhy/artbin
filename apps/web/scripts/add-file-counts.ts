@@ -1,7 +1,7 @@
 /**
  * Migration script to add fileCount column and populate it
  *
- * Run with: npx tsx scripts/add-file-counts.ts
+ * Run with: node --import remix/node-tsx scripts/add-file-counts.ts
  */
 
 import Database from "better-sqlite3";

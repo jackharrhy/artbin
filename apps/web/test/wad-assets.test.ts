@@ -5,8 +5,8 @@ import { join } from "node:path";
 import sharp from "sharp";
 import { afterEach, describe, expect, test } from "vitest";
 
-import { extractGoldSourceTextures } from "~/lib/goldsource-assets.server";
-import { getWADTexturePreview, inspectWADFile } from "~/lib/wad-assets.server";
+import { extractGoldSourceTextures } from "#lib/goldsource-assets.server";
+import { getWADTexturePreview, inspectWADFile } from "#lib/wad-assets.server";
 import { makeWAD3Texture } from "./wad-fixture";
 
 const uploadDirectory = join(process.cwd(), "public", "uploads", "_wad-test");

@@ -5,14 +5,14 @@
  * and creates corresponding folders and file records in the database.
  */
 
-import { db } from "~/db/connection.server";
-import { folders, type Job } from "~/db";
+import { db } from "#db/connection.server";
+import { folders, type Job } from "#db";
 import { eq } from "drizzle-orm";
 import { basename, dirname } from "path";
 import { unlink } from "fs/promises";
 import { createRequestLogger, type AuditableLogger } from "evlog";
 
-import { registerJobHandler, updateJobProgress } from "../jobs.server";
+import { registerJobHandler, updateJobProgress } from "../jobs.server.ts";
 import {
   parseArchive,
   extractEntry,
@@ -20,11 +20,11 @@ import {
   getFileEntries,
   type ArchiveEntry,
   type ParsedArchive,
-} from "../archives.server";
-import { ingestFile, finalizeFolders, getOrCreateFolder, ROOT_FOLDER } from "../files.server";
-import { isBSPFile, extractTexturesFromBSP } from "../bsp.server";
-import { extractGoldSourceTextures } from "../goldsource-assets.server";
-import { findRedundantArchiveRoot, stripArchiveRoot } from "../archive-reader.server";
+} from "../archives.server.ts";
+import { ingestFile, finalizeFolders, getOrCreateFolder, ROOT_FOLDER } from "../files.server.ts";
+import { isBSPFile, extractTexturesFromBSP } from "../bsp.server.ts";
+import { extractGoldSourceTextures } from "../goldsource-assets.server.ts";
+import { findRedundantArchiveRoot, stripArchiveRoot } from "../archive-reader.server.ts";
 
 export interface ExtractJobInput {
   tempFile: string; // Path to uploaded archive in temp dir

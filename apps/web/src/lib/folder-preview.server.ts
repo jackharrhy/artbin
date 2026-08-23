@@ -5,14 +5,14 @@
  */
 
 import sharp from "sharp";
-import { db } from "~/db/connection.server";
-import { files, folders } from "~/db";
+import { db } from "#db/connection.server";
+import { files, folders } from "#db";
 import { eq, inArray, desc } from "drizzle-orm";
 import { join } from "path";
 import { existsSync } from "fs";
 import { unlink } from "fs/promises";
-import { UPLOADS_DIR, getFilePath, slugToPath, ensureDir } from "./files.server";
-import { getDescendantFolderIds } from "./file-queries.server";
+import { UPLOADS_DIR, getFilePath, slugToPath, ensureDir } from "./files.server.ts";
+import { getDescendantFolderIds } from "./file-queries.server.ts";
 import { createRequestLogger } from "evlog";
 
 // Preview configuration

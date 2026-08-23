@@ -3,8 +3,8 @@ import { open, unlink } from "node:fs/promises";
 import type { IncomingMessage } from "node:http";
 import { request as httpsRequest } from "node:https";
 
-import { isAllowedRemoteDownloadUrl, type RemoteImportProvider } from "./import-sources.server";
-import { resolvePublicHttpsUrl } from "./public-remote-url.server";
+import { isAllowedRemoteDownloadUrl, type RemoteImportProvider } from "./import-sources.server.ts";
+import { resolvePublicHttpsUrl } from "./public-remote-url.server.ts";
 
 export const MAX_REMOTE_DOWNLOAD_BYTES = 1024 * 1024 * 1024;
 const MAX_REDIRECTS = 5;

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "vitest";
-import { setDbForTesting } from "~/db/connection.server";
+import { setDbForTesting } from "#db/connection.server";
 import {
   getScanSettings,
   getSetting,
@@ -7,7 +7,7 @@ import {
   resetScanSettings,
   setSetting,
   updateScanSettings,
-} from "~/lib/settings.server";
+} from "#lib/settings.server";
 import { applyMigrations, createTestDatabase, type TestDatabase } from "./db";
 
 let currentDb: TestDatabase | undefined;

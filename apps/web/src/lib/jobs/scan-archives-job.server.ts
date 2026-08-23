@@ -6,13 +6,13 @@
  * Exclusion patterns are configurable via the settings table.
  */
 
-import { type Job } from "~/db";
+import { type Job } from "#db";
 import { exec } from "child_process";
 import { promisify } from "util";
 import { stat } from "fs/promises";
 import { basename, dirname } from "path";
-import { registerJobHandler, updateJobProgress } from "../jobs.server";
-import { getScanSettings, type ScanSettings } from "../settings.server";
+import { registerJobHandler, updateJobProgress } from "../jobs.server.ts";
+import { getScanSettings, type ScanSettings } from "../settings.server.ts";
 import { homedir } from "os";
 import { createRequestLogger } from "evlog";
 

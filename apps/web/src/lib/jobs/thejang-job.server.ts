@@ -5,11 +5,11 @@
  * Scrapes HTML pages to find texture images, creates folders for each category.
  */
 
-import type { Job } from "~/db";
+import type { Job } from "#db";
 import { createRequestLogger } from "evlog";
 
-import { registerJobHandler, updateJobProgress } from "../jobs.server";
-import { runScraper, downloadUrl, type ScraperCategory } from "./scraper-runner.server";
+import { registerJobHandler, updateJobProgress } from "../jobs.server.ts";
+import { runScraper, downloadUrl, type ScraperCategory } from "./scraper-runner.server.ts";
 
 interface CategoryDef {
   page: string;
