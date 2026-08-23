@@ -1,9 +1,12 @@
-import type { Handle, RemixNode } from "remix/ui";
+import { type Handle, type RemixNode } from "remix/ui";
 
 import type { User } from "#db";
 
 import { routes } from "../routes.ts";
+import { Tabs } from "./navigation.tsx";
 import { Page } from "./page.tsx";
+import { PageHeader } from "./primitives.tsx";
+import { pageStyle } from "./styles.ts";
 
 export type AdminTab =
   | "jobs"
@@ -40,29 +43,13 @@ export function AdminPage(
 
     return (
       <Page title={`${title} - Admin - artbin`} user={user}>
-        <main className="max-w-[1400px] mx-auto p-4 bg-bg min-h-[calc(100vh-48px)]">
-          <div className="flex items-center justify-between mb-4 pb-2 border-b border-border-light">
-            <h1 className="text-xl font-normal">Admin</h1>
-            <a href={routes.settings.index.href()} className="text-xs text-text-muted">
-              Settings
-            </a>
-          </div>
-          <nav className="flex border-b border-border-light mb-6 overflow-x-auto">
-            {tabs.map((tab) => (
-              <a
-                key={tab.id}
-                href={tab.href}
-                aria-current={active === tab.id ? "page" : undefined}
-                className={`px-4 py-2 text-sm no-underline whitespace-nowrap border-b-2 -mb-px ${
-                  active === tab.id
-                    ? "border-text text-text font-medium"
-                    : "border-transparent text-text-muted"
-                }`}
-              >
-                {tab.label}
-              </a>
-            ))}
-          </nav>
+        <main mix={pageStyle}>
+          <PageHeader
+            title="Admin"
+            description={title}
+            actions={<a href={routes.settings.index.href()}>Settings</a>}
+          />
+          <Tabs label="Admin sections" items={tabs} activeId={active} />
           {children}
         </main>
       </Page>

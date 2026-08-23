@@ -150,12 +150,16 @@ describe("HTTP integration tests", () => {
       expect(res.status).toBe(200);
     });
 
-    test("serves the browser entry and its package dependency", async () => {
+    test("serves the browser entry, Remix styles, and package dependency", async () => {
       const pageRes = await fetch(`${BASE}/login`);
       const page = await pageRes.text();
       const entryPath = page.match(/<script type="module" src="([^"]+)"/)?.[1];
 
       expect(entryPath).toBeTruthy();
+      expect(page).toContain("<style data-rmx");
+      expect(page).not.toContain('rel="stylesheet"');
+      expect(page).toContain("@layer rmx");
+      expect(page).toContain("max-width: 360px");
 
       const entryRes = await fetch(new URL(entryPath!, BASE));
       expect(entryRes.status).toBe(200);

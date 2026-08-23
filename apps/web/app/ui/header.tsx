@@ -1,8 +1,35 @@
-import type { Handle } from "remix/ui";
+import { css, type Handle } from "remix/ui";
 
 import type { User } from "#db";
 
 import { routes } from "../routes.ts";
+import { adminBadgeStyle, theme } from "./styles.ts";
+
+const headerStyle = css({
+  alignItems: "center",
+  backgroundColor: theme.color.background,
+  borderBottom: `1px solid ${theme.color.borderLight}`,
+  display: "flex",
+  height: "3rem",
+  justifyContent: "space-between",
+  paddingInline: "1rem",
+  position: "sticky",
+  top: 0,
+  zIndex: 100,
+});
+const brandStyle = css({
+  color: theme.color.text,
+  fontSize: "1.125rem",
+  letterSpacing: "0.025em",
+  textDecoration: "none",
+});
+const navStyle = css({ alignItems: "center", display: "flex", gap: "1rem" });
+const navLinkStyle = css({
+  color: theme.color.muted,
+  fontSize: "0.875rem",
+  textDecoration: "none",
+  "&:hover": { color: theme.color.text },
+});
 
 export interface HeaderProps {
   user?: Pick<User, "username" | "isAdmin"> | null;
@@ -13,51 +40,33 @@ export function Header(handle: Handle<HeaderProps>) {
     const { user } = handle.props;
 
     return (
-      <header className="sticky top-0 z-100 bg-bg border-b border-border-light flex items-center justify-between h-12 px-4">
-        <a
-          href={user ? routes.folders.href() : routes.home.href()}
-          className="text-lg tracking-wide no-underline text-text"
-        >
+      <header mix={headerStyle}>
+        <a href={user ? routes.folders.href() : routes.home.href()} mix={brandStyle}>
           artbin
         </a>
-        <nav className="flex items-center gap-4" aria-label="Main navigation">
+        <nav mix={navStyle} aria-label="Main navigation">
           {user ? (
             <>
-              <a
-                href={routes.folders.href()}
-                className="text-sm no-underline text-text-muted hover:text-text"
-              >
+              <a href={routes.folders.href()} mix={navLinkStyle}>
                 folders
               </a>
-              <a
-                href={routes.myUploads.href()}
-                className="text-sm no-underline text-text-muted hover:text-text"
-              >
+              <a href={routes.myUploads.href()} mix={navLinkStyle}>
                 my uploads
               </a>
-              <a
-                href={routes.settings.index.href()}
-                className="text-sm no-underline text-text-muted hover:text-text"
-              >
+              <a href={routes.settings.index.href()} mix={navLinkStyle}>
                 @{user.username}
               </a>
               {user.isAdmin ? (
                 <>
-                  <a
-                    href={routes.admin.inbox.index.href()}
-                    className="text-sm no-underline text-text-muted hover:text-text"
-                  >
+                  <a href={routes.admin.inbox.index.href()} mix={navLinkStyle}>
                     inbox
                   </a>
-                  <span className="badge-admin">admin</span>
+                  <span mix={adminBadgeStyle}>admin</span>
                 </>
               ) : null}
             </>
           ) : (
-            <a
-              href={routes.login.href()}
-              className="text-sm no-underline text-text-muted hover:text-text"
-            >
+            <a href={routes.login.href()} mix={navLinkStyle}>
               login
             </a>
           )}

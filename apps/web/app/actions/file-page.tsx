@@ -1,4 +1,4 @@
-import type { Handle } from "remix/ui";
+import { css, type Handle } from "remix/ui";
 
 import type { User } from "#db";
 
@@ -10,9 +10,124 @@ import {
 } from "../data/file-page.ts";
 import { routes } from "../routes.ts";
 import { formatSize } from "../ui/file-collection.tsx";
+import { Breadcrumbs } from "../ui/navigation.tsx";
+import { Badge, ButtonLink, Detail, DetailList, Disclosure } from "../ui/primitives.tsx";
 import { LuckyButton } from "../ui/public/lucky-button.tsx";
 import { ModelViewer, type ModelFormat } from "../ui/public/model-viewer.tsx";
 import { Page } from "../ui/page.tsx";
+import { cardStyle, theme } from "../ui/styles.ts";
+
+const pageStyle = css({
+  background: theme.color.background,
+  marginInline: "auto",
+  maxWidth: "1400px",
+  minHeight: "calc(100vh - 48px)",
+  padding: "1rem",
+});
+const luckyBarStyle = css({
+  alignItems: "center",
+  background: theme.color.hover,
+  border: `1px solid ${theme.color.borderLight}`,
+  display: "flex",
+  fontSize: "0.875rem",
+  gap: "1rem",
+  justifyContent: "space-between",
+  marginBottom: "1rem",
+  padding: "0.5rem 0.75rem",
+  "&:not(:has(button))": { display: "none" },
+  "@media (max-width: 640px)": { alignItems: "flex-start", flexDirection: "column" },
+});
+const contentGridStyle = css({
+  display: "grid",
+  gap: "1.5rem",
+  gridTemplateColumns: "1fr 300px",
+  "@media (max-width: 768px)": { gridTemplateColumns: "1fr" },
+});
+const previewStyle = css({
+  alignItems: "center",
+  background: "#fafafa",
+  border: `1px solid ${theme.color.borderLight}`,
+  display: "flex",
+  justifyContent: "center",
+  minHeight: "300px",
+});
+const imageStyle = css({
+  display: "block",
+  maxHeight: "500px",
+  maxWidth: "100%",
+  objectFit: "contain",
+});
+const audioPreviewStyle = css({ padding: "2rem", textAlign: "center", width: "100%" });
+const largeIconStyle = css({ fontSize: "3rem", marginBottom: "1rem" });
+const audioStyle = css({ minWidth: "300px", width: "100%" });
+const textPreviewStyle = css({
+  background: theme.color.background,
+  margin: "1rem",
+  maxHeight: "600px",
+  overflow: "auto",
+  width: "100%",
+});
+const preStyle = css({
+  color: theme.color.text,
+  fontFamily: theme.font.mono,
+  fontSize: "0.8125rem",
+  lineHeight: 1.625,
+  margin: 0,
+  overflowWrap: "anywhere",
+  padding: "0.5rem",
+  whiteSpace: "pre-wrap",
+});
+const detailsStyle = css({ alignSelf: "start" });
+const fileNameStyle = css({ fontWeight: 500, margin: "0 0 1rem", overflowWrap: "anywhere" });
+const capitalizeStyle = css({ textTransform: "capitalize" });
+const breakWordsStyle = css({ overflowWrap: "anywhere" });
+const codeStyle = css({ fontSize: "0.75rem" });
+const tagsStyle = css({ marginTop: "1rem" });
+const subheadingStyle = css({ fontWeight: 500, margin: "0 0 0.5rem" });
+const tagsListStyle = css({ display: "flex", flexWrap: "wrap", gap: "0.25rem" });
+const detailsSectionStyle = css({ marginTop: "1rem" });
+const relatedListStyle = css({
+  fontSize: "0.75rem",
+  marginTop: "0.5rem",
+  overflowWrap: "anywhere",
+});
+const downloadStyle = css({ marginTop: "1.5rem" });
+const textureHeaderStyle = css({
+  alignItems: "flex-start",
+  display: "flex",
+  gap: "1rem",
+  justifyContent: "space-between",
+  marginBottom: "1rem",
+});
+const textureTitleStyle = css({ fontSize: "1.25rem", fontWeight: "normal", margin: 0 });
+const texturePreviewStyle = css({
+  alignItems: "center",
+  background: "#fafafa",
+  border: `1px solid ${theme.color.borderLight}`,
+  display: "flex",
+  justifyContent: "center",
+  minHeight: "420px",
+  padding: "1.5rem",
+});
+const textureImageStyle = css({
+  display: "block",
+  maxHeight: "70vh",
+  maxWidth: "100%",
+  objectFit: "contain",
+});
+const downloadStackStyle = css({
+  display: "flex",
+  flexDirection: "column",
+  gap: "0.5rem",
+  marginTop: "1.5rem",
+});
+const fallbackStyle = css({ background: theme.color.hover, padding: "3rem", textAlign: "center" });
+const fallbackTitleStyle = css({ marginBottom: "0.5rem", textTransform: "capitalize" });
+const fallbackMessageStyle = css({
+  color: theme.color.muted,
+  fontSize: "0.875rem",
+  marginBottom: "1rem",
+});
 
 export function FileRoutePage(handle: Handle<{ data: FilePageData; user: User }>) {
   return () => {
@@ -39,8 +154,8 @@ function StandardFilePage(handle: Handle<{ data: StandardFilePageData; user: Use
 
     return (
       <Page title={`${file.name} - artbin`} user={user}>
-        <main className="max-w-[1400px] mx-auto p-4 bg-bg min-h-[calc(100vh-48px)]">
-          <div className="mb-4 flex items-center justify-between gap-4 border border-border-light bg-bg-hover px-3 py-2 text-sm max-sm:items-start max-sm:flex-col">
+        <main mix={pageStyle}>
+          <div mix={luckyBarStyle}>
             <LuckyButton
               contextual
               excludeHref={routes.file.href({ path: file.path })}
@@ -48,14 +163,14 @@ function StandardFilePage(handle: Handle<{ data: StandardFilePageData; user: Use
             />
           </div>
           <FileBreadcrumb data={data} />
-          <div className="grid grid-cols-[1fr_300px] gap-6 max-md:grid-cols-1">
-            <div className="bg-[#fafafa] border border-border-light flex items-center justify-center min-h-[300px]">
+          <div mix={contentGridStyle}>
+            <div mix={previewStyle}>
               {image ? (
                 <a href={downloadUrl} target="_blank" rel="noopener">
                   <img
                     src={displayUrl}
                     alt={file.name}
-                    className="max-w-full max-h-[500px] object-contain block"
+                    mix={imageStyle}
                     style={{ imageRendering: "pixelated" }}
                   />
                 </a>
@@ -79,17 +194,15 @@ function StandardFilePage(handle: Handle<{ data: StandardFilePageData; user: Use
                   />
                 )
               ) : audio && isWebPlayableAudio(file.name) ? (
-                <div className="p-8 text-center w-full">
-                  <div className="text-5xl mb-4">🔊</div>
-                  <audio controls src={downloadUrl} className="w-full min-w-[300px]">
+                <div mix={audioPreviewStyle}>
+                  <div mix={largeIconStyle}>🔊</div>
+                  <audio controls src={downloadUrl} mix={audioStyle}>
                     Your browser does not support the audio element.
                   </audio>
                 </div>
               ) : text && data.textContent !== null ? (
-                <div className="w-full max-h-[600px] overflow-auto bg-bg m-4">
-                  <pre className="m-0 p-2 font-mono text-[0.8125rem] leading-relaxed text-text whitespace-pre-wrap break-words">
-                    {data.textContent}
-                  </pre>
+                <div mix={textPreviewStyle}>
+                  <pre mix={preStyle}>{data.textContent}</pre>
                 </div>
               ) : (
                 <DownloadFallback
@@ -132,70 +245,61 @@ function FileDetails(handle: Handle<{ data: StandardFilePageData; downloadUrl: s
     const { data, downloadUrl } = handle.props;
     const { file } = data;
     return (
-      <aside className="card self-start">
-        <h1 className="font-medium mb-4 break-words">{file.name}</h1>
-        <dl>
-          <dt className="text-xs text-text-muted uppercase tracking-wide">Kind</dt>
-          <dd className="mb-3 capitalize">{file.kind}</dd>
-          <dt className="text-xs text-text-muted uppercase tracking-wide">Size</dt>
-          <dd className="mb-3">{formatSize(file.size)}</dd>
-          <dt className="text-xs text-text-muted uppercase tracking-wide">Type</dt>
-          <dd className="mb-3 break-words">{file.mimeType}</dd>
+      <aside mix={[cardStyle, detailsStyle]}>
+        <h1 mix={fileNameStyle}>{file.name}</h1>
+        <DetailList>
+          <Detail label="Kind">
+            <span mix={capitalizeStyle}>{file.kind}</span>
+          </Detail>
+          <Detail label="Size">{formatSize(file.size)}</Detail>
+          <Detail label="Type">
+            <span mix={breakWordsStyle}>{file.mimeType}</span>
+          </Detail>
           {file.width && file.height ? (
             <>
-              <dt className="text-xs text-text-muted uppercase tracking-wide">Dimensions</dt>
-              <dd className="mb-3">
+              <Detail label="Dimensions">
                 {file.width} × {file.height}
-              </dd>
-              <dt className="text-xs text-text-muted uppercase tracking-wide">Aspect ratio</dt>
-              <dd className="mb-3">{aspectRatio(file.width, file.height)}</dd>
+              </Detail>
+              <Detail label="Aspect ratio">{aspectRatio(file.width, file.height)}</Detail>
             </>
           ) : null}
-          {file.source ? (
-            <>
-              <dt className="text-xs text-text-muted uppercase tracking-wide">Source</dt>
-              <dd className="mb-3">{file.source}</dd>
-            </>
-          ) : null}
+          {file.source ? <Detail label="Source">{file.source}</Detail> : null}
           {file.sourceArchive ? (
-            <>
-              <dt className="text-xs text-text-muted uppercase tracking-wide">Archive</dt>
-              <dd className="mb-3 break-words">{file.sourceArchive}</dd>
-            </>
+            <Detail label="Archive">
+              <span mix={breakWordsStyle}>{file.sourceArchive}</span>
+            </Detail>
           ) : null}
-          <dt className="text-xs text-text-muted uppercase tracking-wide">Path</dt>
-          <dd className="mb-3 break-all">
-            <code className="text-xs">{file.path}</code>
-          </dd>
-        </dl>
+          <Detail label="Path">
+            <code mix={codeStyle}>{file.path}</code>
+          </Detail>
+        </DetailList>
         {data.tags.length ? (
-          <div className="mt-4">
-            <h2 className="font-medium mb-2">Tags</h2>
-            <div className="flex flex-wrap gap-1">
+          <div mix={tagsStyle}>
+            <h2 mix={subheadingStyle}>Tags</h2>
+            <div mix={tagsListStyle}>
               {data.tags.map((tag) => (
-                <span key={tag.id} className="tag">
-                  {tag.name}
-                </span>
+                <Badge key={tag.id}>{tag.name}</Badge>
               ))}
             </div>
           </div>
         ) : null}
         {data.availableTextures.length > 1 ? (
-          <details className="mt-4">
-            <summary className="cursor-pointer text-sm">Related textures</summary>
-            <ul className="mt-2 text-xs break-all">
-              {data.availableTextures.map((texture) => (
-                <li key={texture.url}>
-                  <a href={texture.url}>{texture.name}</a>
-                </li>
-              ))}
-            </ul>
-          </details>
+          <div mix={detailsSectionStyle}>
+            <Disclosure summary="Related textures">
+              <ul mix={relatedListStyle}>
+                {data.availableTextures.map((texture) => (
+                  <li key={texture.url}>
+                    <a href={texture.url}>{texture.name}</a>
+                  </li>
+                ))}
+              </ul>
+            </Disclosure>
+          </div>
         ) : null}
-        <div className="mt-6">
-          <a href={downloadUrl} className="btn btn-primary" download>
+        <div mix={downloadStyle}>
+          <ButtonLink href={downloadUrl} variant="primary" download>
             Download original
-          </a>
+          </ButtonLink>
         </div>
       </aside>
     );
@@ -206,35 +310,24 @@ function FileBreadcrumb(handle: Handle<{ data: StandardFilePageData }>) {
   return () => {
     const { data } = handle.props;
     return (
-      <div className="text-xs text-text-muted mb-4">
-        <a href={routes.folders.href()} className="text-text-muted no-underline">
-          Folders
-        </a>
-        {data.ancestors.map((ancestor) => (
-          <span key={ancestor.id}>
-            <span className="mx-2">/</span>
-            <a
-              href={routes.folder.index.href({ path: ancestor.slug })}
-              className="text-text-muted no-underline"
-            >
-              {ancestor.name}
-            </a>
-          </span>
-        ))}
-        {data.folder ? (
-          <span>
-            <span className="mx-2">/</span>
-            <a
-              href={routes.folder.index.href({ path: data.folder.slug })}
-              className="text-text-muted no-underline"
-            >
-              {data.folder.name}
-            </a>
-          </span>
-        ) : null}
-        <span className="mx-2">/</span>
-        <span>{data.file.name}</span>
-      </div>
+      <Breadcrumbs
+        items={[
+          { label: "Folders", href: routes.folders.href() },
+          ...data.ancestors.map((ancestor) => ({
+            label: ancestor.name,
+            href: routes.folder.index.href({ path: ancestor.slug }),
+          })),
+          ...(data.folder
+            ? [
+                {
+                  label: data.folder.name,
+                  href: routes.folder.index.href({ path: data.folder.slug }),
+                },
+              ]
+            : []),
+          { label: data.file.name },
+        ]}
+      />
     );
   };
 }
@@ -253,8 +346,8 @@ function WadTexturePage(handle: Handle<{ data: WadTexturePageData; user: User }>
 
     return (
       <Page title={`${data.texture.name} - artbin`} user={user}>
-        <main className="max-w-[1400px] mx-auto p-4 bg-bg min-h-[calc(100vh-48px)]">
-          <div className="mb-4 flex items-center justify-between gap-4 border border-border-light bg-bg-hover px-3 py-2 text-sm max-sm:flex-col">
+        <main mix={pageStyle}>
+          <div mix={luckyBarStyle}>
             <LuckyButton
               contextual
               fallbackWadFileId={data.file.id}
@@ -264,54 +357,50 @@ function WadTexturePage(handle: Handle<{ data: WadTexturePageData; user: User }>
               historyLabel="Lucky again"
             />
           </div>
-          <div className="text-xs text-text-muted mb-4">
-            <a href={routes.folders.href()}>Folders</a>
-            {data.folderTrail.map((folder) => (
-              <span key={folder.id}>
-                <span className="mx-2">/</span>
-                <a href={routes.folder.index.href({ path: folder.slug })}>{folder.name}</a>
-              </span>
-            ))}
-            <span className="mx-2">/</span>
-            <a href={libraryHref}>{data.file.name}</a>
-            <span className="mx-2">/</span>
-            <span>{data.texture.name}</span>
+          <Breadcrumbs
+            items={[
+              { label: "Folders", href: routes.folders.href() },
+              ...data.folderTrail.map((folder) => ({
+                label: folder.name,
+                href: routes.folder.index.href({ path: folder.slug }),
+              })),
+              { label: data.file.name, href: libraryHref },
+              { label: data.texture.name },
+            ]}
+          />
+          <div mix={textureHeaderStyle}>
+            <h1 mix={textureTitleStyle}>{data.texture.name}</h1>
           </div>
-          <div className="flex items-start justify-between gap-4 mb-4">
-            <h1 className="text-xl font-normal">{data.texture.name}</h1>
-          </div>
-          <div className="grid grid-cols-[1fr_300px] gap-6 max-md:grid-cols-1">
-            <div className="min-h-[420px] border border-border-light bg-[#fafafa] flex items-center justify-center p-6">
+          <div mix={contentGridStyle}>
+            <div mix={texturePreviewStyle}>
               <img
                 src={imageUrl}
                 alt={data.texture.name}
-                className="max-w-full max-h-[70vh] object-contain block"
+                mix={textureImageStyle}
                 style={{ imageRendering: "pixelated" }}
               />
             </div>
-            <aside className="card self-start">
-              <h2 className="font-medium mb-4">Texture details</h2>
-              <dl>
-                <dt className="text-xs text-text-muted uppercase tracking-wide">Dimensions</dt>
-                <dd className="mb-3">
+            <aside mix={[cardStyle, detailsStyle]}>
+              <h2 mix={fileNameStyle}>Texture details</h2>
+              <DetailList>
+                <Detail label="Dimensions">
                   {data.texture.width} × {data.texture.height}
-                </dd>
-                <dt className="text-xs text-text-muted uppercase tracking-wide">Transparency</dt>
-                <dd className="mb-3">{data.texture.isTransparent ? "Masked" : "Opaque"}</dd>
-                <dt className="text-xs text-text-muted uppercase tracking-wide">Library</dt>
-                <dd className="mb-3">
+                </Detail>
+                <Detail label="Transparency">
+                  {data.texture.isTransparent ? "Masked" : "Opaque"}
+                </Detail>
+                <Detail label="Library">
                   <a href={libraryHref}>{data.file.name}</a>
-                </dd>
-                <dt className="text-xs text-text-muted uppercase tracking-wide">Format</dt>
-                <dd className="mb-3">{data.contents.version}</dd>
-              </dl>
-              <div className="mt-6 flex flex-col gap-2">
-                <a href={imageUrl} className="btn btn-primary text-center" download>
+                </Detail>
+                <Detail label="Format">{data.contents.version}</Detail>
+              </DetailList>
+              <div mix={downloadStackStyle}>
+                <ButtonLink href={imageUrl} variant="primary" block download>
                   Download PNG
-                </a>
-                <a href={`/uploads/${data.file.path}`} className="btn text-center" download>
+                </ButtonLink>
+                <ButtonLink href={`/uploads/${data.file.path}`} block download>
                   Download original WAD
-                </a>
+                </ButtonLink>
               </div>
             </aside>
           </div>
@@ -325,13 +414,13 @@ function DownloadFallback(
   handle: Handle<{ icon: string; title: string; message: string; href: string }>,
 ) {
   return () => (
-    <div className="p-12 text-center bg-bg-hover">
-      <div className="text-5xl mb-4">{handle.props.icon}</div>
-      <div className="mb-2 capitalize">{handle.props.title}</div>
-      <div className="text-sm text-text-muted mb-4">{handle.props.message}</div>
-      <a href={handle.props.href} className="btn btn-primary" download>
+    <div mix={fallbackStyle}>
+      <div mix={largeIconStyle}>{handle.props.icon}</div>
+      <div mix={fallbackTitleStyle}>{handle.props.title}</div>
+      <div mix={fallbackMessageStyle}>{handle.props.message}</div>
+      <ButtonLink href={handle.props.href} variant="primary" download>
         Download
-      </a>
+      </ButtonLink>
     </div>
   );
 }

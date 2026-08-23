@@ -4,6 +4,25 @@ import type { User } from "#db";
 
 import { Document } from "../actions/document.tsx";
 import { Header } from "./header.tsx";
+import { buttonStyle, cardStyle, dangerTextStyle, primaryButtonStyle, theme } from "./styles.ts";
+import { css } from "remix/ui";
+
+const errorMainStyle = css({
+  alignItems: "center",
+  display: "flex",
+  flexDirection: "column",
+  justifyContent: "center",
+  minHeight: "100vh",
+  padding: "2rem",
+});
+
+const errorCardStyle = css({ maxWidth: "36rem", textAlign: "center" });
+const errorCodeStyle = css({
+  fontSize: "2.25rem",
+  fontWeight: 700,
+  margin: "0 0 1rem",
+});
+const errorMessageStyle = css({ fontSize: "1.25rem", margin: "0 0 1rem" });
 
 export interface PageProps {
   children?: RemixNode;
@@ -28,11 +47,11 @@ export function ErrorPage(handle: Handle<{ message: string; status: number }>) {
     const { message, status } = handle.props;
     return (
       <Page title={`${status} - artbin`}>
-        <main className="min-h-screen p-8 flex flex-col items-center justify-center">
-          <div className="card max-w-xl text-center">
-            <h1 className="text-4xl font-bold text-danger mb-4">{status}</h1>
-            <p className="text-xl mb-4">{message}</p>
-            <a href="/" className="btn btn-primary">
+        <main mix={errorMainStyle}>
+          <div mix={[cardStyle, errorCardStyle]}>
+            <h1 mix={[errorCodeStyle, dangerTextStyle]}>{status}</h1>
+            <p mix={errorMessageStyle}>{message}</p>
+            <a href="/" mix={[buttonStyle, primaryButtonStyle]}>
               Return home
             </a>
           </div>

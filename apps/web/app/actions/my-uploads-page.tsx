@@ -1,11 +1,41 @@
-import type { Handle } from "remix/ui";
+import { css, type Handle } from "remix/ui";
 
 import type { User } from "#db";
 
 import type { MyUploadsPageData } from "../data/my-uploads-page.ts";
 import { routes } from "../routes.ts";
 import { formatSize } from "../ui/file-collection.tsx";
+import { MediaCard } from "../ui/media-card.tsx";
+import { Tabs } from "../ui/navigation.tsx";
 import { Page } from "../ui/page.tsx";
+import { EmptyState, PageHeader } from "../ui/primitives.tsx";
+import { buttonStyle, pageStyle, theme } from "../ui/styles.ts";
+
+const groupStyle = css({ marginBottom: "1.5rem" });
+const folderLabelStyle = css({
+  color: theme.color.muted,
+  fontSize: "0.75rem",
+  margin: "0 0 0.5rem",
+});
+const moreStyle = css({ marginTop: "1.5rem", textAlign: "center" });
+const textureGridStyle = css({
+  display: "grid",
+  gap: "0.5rem",
+  gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
+  marginBottom: "0.75rem",
+});
+const fileSizeStyle = css({ color: theme.color.faint, fontSize: "0.75rem", margin: 0 });
+const fileRowStyle = css({
+  alignItems: "center",
+  borderBottom: `1px solid ${theme.color.borderLight}`,
+  display: "flex",
+  gap: "0.5rem",
+  padding: "0.5rem",
+});
+const fileIconStyle = css({ fontSize: "1.125rem" });
+const fileDetailsStyle = css({ flex: "1", minWidth: 0 });
+const truncateStyle = css({ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" });
+const linkStyle = css({ display: "block", textDecoration: "none" });
 
 export function MyUploadsPage(handle: Handle<{ data: MyUploadsPageData; user: User }>) {
   return () => {
@@ -22,35 +52,35 @@ export function MyUploadsPage(handle: Handle<{ data: MyUploadsPageData; user: Us
 
     return (
       <Page title="My uploads - artbin" user={user}>
-        <main className="max-w-[1400px] mx-auto p-4 bg-bg min-h-[calc(100vh-48px)]">
-          <h1 className="text-xl font-normal mb-4 pb-2 border-b border-border-light">My uploads</h1>
+        <main mix={pageStyle}>
+          <PageHeader
+            title="My uploads"
+            description="Track your pending, approved, and rejected files."
+          />
           {total === 0 ? (
-            <p className="text-text-muted">You haven't uploaded any files yet.</p>
+            <EmptyState
+              title="No uploads yet"
+              description="Files you add will appear here while they are reviewed."
+            />
           ) : (
             <>
-              <nav className="flex border-b border-border-light mb-6" aria-label="Upload status">
-                {(["pending", "approved", "rejected"] as const).map((status) => (
-                  <a
-                    key={status}
-                    href={`${routes.myUploads.href()}?status=${status}`}
-                    aria-current={data.status === status ? "page" : undefined}
-                    className={`px-4 py-2 text-sm no-underline border-b-2 -mb-px capitalize ${
-                      data.status === status
-                        ? "border-text text-text font-medium"
-                        : "border-transparent text-text-muted"
-                    }`}
-                  >
-                    {status} <span className="text-xs">({data.countMap[status]})</span>
-                  </a>
-                ))}
-              </nav>
+              <Tabs
+                label="Upload status"
+                activeId={data.status}
+                items={(["pending", "approved", "rejected"] as const).map((status) => ({
+                  id: status,
+                  href: `${routes.myUploads.href()}?status=${status}`,
+                  label: status[0]!.toUpperCase() + status.slice(1),
+                  count: data.countMap[status],
+                }))}
+              />
               {data.files.length === 0 ? (
-                <p className="text-text-muted">No {data.status} uploads.</p>
+                <EmptyState title={`No ${data.status} uploads`} />
               ) : data.status === "approved" ? (
                 [...grouped].map(([folderId, group]) => (
-                  <section key={folderId} className="mb-6">
+                  <section key={folderId} mix={groupStyle}>
                     {data.folderMap[folderId] ? (
-                      <p className="text-xs text-text-muted mb-2">
+                      <p mix={folderLabelStyle}>
                         Folder:{" "}
                         <a
                           href={routes.folder.index.href({ path: data.folderMap[folderId]!.slug })}
@@ -66,10 +96,10 @@ export function MyUploadsPage(handle: Handle<{ data: MyUploadsPageData; user: Us
                 <UploadFiles files={data.files} linkable={false} />
               )}
               {data.nextCursor ? (
-                <div className="mt-6 text-center">
+                <div mix={moreStyle}>
                   <a
                     href={`${routes.myUploads.href()}?status=${data.status}&cursor=${data.nextCursor}`}
-                    className="btn"
+                    mix={buttonStyle}
                   >
                     Load more
                   </a>
@@ -91,58 +121,33 @@ function UploadFiles(handle: Handle<{ files: MyUploadsPageData["files"]; linkabl
     return (
       <>
         {textures.length ? (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2 mb-3">
-            {textures.map((file) => {
-              const contents = (
-                <>
-                  <img
-                    src={`/uploads/${file.path}${file.hasPreview ? ".preview.png" : ""}`}
-                    alt={file.name}
-                    loading="lazy"
-                    className="w-full aspect-square object-cover"
-                  />
-                  <div className="px-2 py-1 border-t border-border-light">
-                    <p className="text-xs truncate" title={file.name}>
-                      {file.name}
-                    </p>
-                    <p className="text-xs text-text-faint">{formatSize(file.size)}</p>
-                  </div>
-                </>
-              );
-              return linkable ? (
-                <a
-                  key={file.id}
-                  href={routes.file.href({ path: file.path })}
-                  className="block border border-border-light bg-bg no-underline overflow-hidden"
-                >
-                  {contents}
-                </a>
-              ) : (
-                <div key={file.id} className="border border-border-light bg-bg overflow-hidden">
-                  {contents}
-                </div>
-              );
-            })}
+          <div mix={textureGridStyle}>
+            {textures.map((file) => (
+              <MediaCard
+                key={file.id}
+                href={linkable ? routes.file.href({ path: file.path }) : undefined}
+                imageSrc={`/uploads/${file.path}${file.hasPreview ? ".preview.png" : ""}`}
+                imageAlt={file.name}
+                title={file.name}
+                meta={formatSize(file.size)}
+              />
+            ))}
           </div>
         ) : null}
         {others.map((file) => {
           const contents = (
-            <div className="flex items-center gap-2 p-2 border-b border-border-light">
-              <span className="text-lg">{fileIcon(file.kind)}</span>
-              <div className="flex-1 min-w-0">
-                <div className="truncate">{file.name}</div>
-                <div className="text-xs text-text-faint">
+            <div mix={fileRowStyle}>
+              <span mix={fileIconStyle}>{fileIcon(file.kind)}</span>
+              <div mix={fileDetailsStyle}>
+                <div mix={truncateStyle}>{file.name}</div>
+                <div mix={fileSizeStyle}>
                   {file.kind} · {formatSize(file.size)}
                 </div>
               </div>
             </div>
           );
           return linkable ? (
-            <a
-              key={file.id}
-              href={routes.file.href({ path: file.path })}
-              className="block no-underline"
-            >
+            <a key={file.id} href={routes.file.href({ path: file.path })} mix={linkStyle}>
               {contents}
             </a>
           ) : (

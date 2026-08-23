@@ -1,4 +1,5 @@
 import { createController } from "remix/router";
+import { css } from "remix/ui";
 
 import {
   getClearSessionCookie,
@@ -10,6 +11,20 @@ import {
 import { requireUser } from "../../middleware/auth.ts";
 import { routes } from "../../routes.ts";
 import { Page } from "../../ui/page.tsx";
+import {
+  Alert,
+  Button,
+  ButtonLink,
+  Detail,
+  DetailList,
+  PageHeader,
+  Panel,
+  SectionHeader,
+} from "../../ui/primitives.tsx";
+import { narrowPageStyle } from "../../ui/styles.ts";
+
+const sectionStyle = css({ marginBottom: "2rem" });
+const topMarginStyle = css({ marginTop: "1rem" });
 
 export default createController(routes.settings, {
   middleware: [requireUser()],
@@ -21,43 +36,41 @@ export default createController(routes.settings, {
 
       return context.render(
         <Page title="Settings - artbin" user={user}>
-          <main className="max-w-[600px] mx-auto p-4 bg-bg min-h-[calc(100vh-48px)]">
-            <h1 className="text-xl font-normal mb-4 pb-2 border-b border-border-light">Settings</h1>
-            <section className="mb-8">
-              <h2 className="text-sm font-medium uppercase tracking-wide text-text-muted mb-3">
-                Account
-              </h2>
-              <div className="card">
-                <div className="mb-4">
-                  <span className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1">
-                    Username
-                  </span>
-                  <div>@{user.username}</div>
-                </div>
+          <main mix={narrowPageStyle}>
+            <PageHeader
+              title="Settings"
+              description="Manage your account and administrative access."
+            />
+            <section mix={sectionStyle}>
+              <SectionHeader title="Account" />
+              <Panel>
+                <DetailList>
+                  <Detail label="Username">@{user.username}</Detail>
+                </DetailList>
                 {developmentAuth ? (
-                  <p className="mt-4 text-sm text-text-muted">
-                    Local development mode is active. Authentication is disabled.
-                  </p>
+                  <div mix={topMarginStyle}>
+                    <Alert tone="info">
+                      Local development mode is active. Authentication is disabled.
+                    </Alert>
+                  </div>
                 ) : (
-                  <form method="post" action={routes.settings.action.href()} className="mt-4">
+                  <form method="post" action={routes.settings.action.href()} mix={topMarginStyle}>
                     <input type="hidden" name="intent" value="logout" />
-                    <button type="submit" className="btn btn-danger btn-sm">
+                    <Button type="submit" variant="danger" size="small">
                       Logout
-                    </button>
+                    </Button>
                   </form>
                 )}
-              </div>
+              </Panel>
             </section>
             {user.isAdmin ? (
-              <section className="mb-8">
-                <h2 className="text-sm font-medium uppercase tracking-wide text-text-muted mb-3">
-                  Admin
-                </h2>
-                <div className="card">
-                  <a href={routes.admin.jobs.index.href()} className="btn btn-primary btn-sm">
+              <section mix={sectionStyle}>
+                <SectionHeader title="Admin" />
+                <Panel>
+                  <ButtonLink href={routes.admin.jobs.index.href()} variant="primary" size="small">
                     Admin panel
-                  </a>
-                </div>
+                  </ButtonLink>
+                </Panel>
               </section>
             ) : null}
           </main>

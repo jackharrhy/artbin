@@ -11,6 +11,9 @@ export const routes = route({
   file: get("/file/*path"),
   legacyWad: get("/wad/:fileId"),
   legacyWadTexture: get("/wad/:fileId/texture/:textureIndex"),
+  dev: route("/dev", {
+    kitchenSink: get("/kitchen-sink"),
+  }),
   auth: route("/auth", {
     fourm: get("/4orm"),
     fourmCallback: get("/4orm/callback"),

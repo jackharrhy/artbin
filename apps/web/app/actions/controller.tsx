@@ -1,5 +1,6 @@
 import { createController } from "remix/router";
 import { redirect } from "remix/response/redirect";
+import { css } from "remix/ui";
 
 import { assetServer } from "../assets.ts";
 import { routes } from "../routes.ts";
@@ -10,6 +11,18 @@ import { loadFilePage } from "../data/file-page.ts";
 import { FileRoutePage } from "./file-page.tsx";
 import { loadMyUploadsPage } from "../data/my-uploads-page.ts";
 import { MyUploadsPage } from "./my-uploads-page.tsx";
+import { Alert, ButtonLink } from "../ui/primitives.tsx";
+import { mutedTextStyle, theme } from "../ui/styles.ts";
+
+const loginPageStyle = css({
+  backgroundColor: theme.color.background,
+  border: `1px solid ${theme.color.border}`,
+  margin: "4rem auto 0",
+  maxWidth: "360px",
+  padding: "2rem",
+});
+const loginTitleStyle = css({ fontSize: "1.25rem", margin: "0 0 1.5rem", textAlign: "center" });
+const loginNoteStyle = css({ fontSize: "0.875rem", margin: "1rem 0 0", textAlign: "center" });
 
 export default createController(routes, {
   actions: {
@@ -33,15 +46,13 @@ export default createController(routes, {
 
       return context.render(
         <Document title="Login - artbin">
-          <main className="max-w-[360px] mx-auto mt-16 p-8 bg-bg border border-border">
-            <h1 className="text-xl text-center mb-6">Login</h1>
-            {errorMessage ? <div className="alert alert-error">{errorMessage}</div> : null}
-            <a href={routes.auth.fourm.href()} className="btn btn-primary w-full text-center block">
+          <main mix={loginPageStyle}>
+            <h1 mix={loginTitleStyle}>Login</h1>
+            {errorMessage ? <Alert tone="danger">{errorMessage}</Alert> : null}
+            <ButtonLink href={routes.auth.fourm.href()} variant="primary" block>
               Login with 4orm
-            </a>
-            <p className="mt-4 text-sm text-center text-text-muted">
-              You need a 4orm account to use artbin.
-            </p>
+            </ButtonLink>
+            <p mix={[loginNoteStyle, mutedTextStyle]}>You need a 4orm account to use artbin.</p>
           </main>
         </Document>,
       );

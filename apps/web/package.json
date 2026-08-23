@@ -8,16 +8,13 @@
     "#api/*": "./app/actions/api/handlers/*.ts"
   },
   "scripts": {
-    "styles": "tailwindcss -i src/app.css -o app/actions/public/app.css --minify",
-    "prebuild": "pnpm run styles",
     "build": "tsc --noEmit",
-    "dev": "pnpm run styles && NODE_ENV=development node hmr.ts",
-    "dev:watch": "pnpm run styles && NODE_ENV=development node --watch --import remix/node-tsx server.ts",
+    "dev": "NODE_ENV=development node hmr.ts",
+    "dev:watch": "NODE_ENV=development node --watch --import remix/node-tsx server.ts",
     "start": "NODE_ENV=production node --import remix/node-tsx server.ts",
     "test": "pnpm run test:unit && pnpm run test:remix",
     "test:unit": "vitest run",
     "test:remix": "remix test --type server --concurrency 1",
-    "pretypecheck": "pnpm run styles",
     "typecheck": "tsc --noEmit",
     "ci": "pnpm run typecheck && pnpm run test",
     "db:migrate": "drizzle-kit migrate",
@@ -40,14 +37,12 @@
     "three": "^0.185.1"
   },
   "devDependencies": {
-    "@tailwindcss/cli": "^4.3.3",
     "@types/archiver": "^8.0.0",
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^26.2.0",
     "@types/three": "^0.185.4",
     "drizzle-kit": "^0.31.10",
     "playwright": "^1.62.1",
-    "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
     "vitest": "^4.1.11"
   }

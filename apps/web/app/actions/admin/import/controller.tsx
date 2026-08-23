@@ -5,6 +5,7 @@ import { basename } from "node:path";
 import { count, sql, sum } from "drizzle-orm";
 import { createController } from "remix/router";
 import { redirect } from "remix/response/redirect";
+import { css } from "remix/ui";
 
 import { files, folders } from "#db";
 import { db } from "#db/connection.server";
@@ -15,6 +16,51 @@ import { requireAdmin } from "../../../middleware/auth.ts";
 import { routes } from "../../../routes.ts";
 import { AdminPage } from "../../../ui/admin-page.tsx";
 import { formatSize } from "../../../ui/file-collection.tsx";
+import {
+  Badge,
+  Button,
+  ButtonLink,
+  FormField,
+  Panel,
+  SectionHeader,
+  SelectInput,
+  Stat,
+  StatGrid,
+  TextArea,
+  TextInput,
+} from "../../../ui/primitives.tsx";
+import { theme } from "../../../ui/styles.ts";
+
+const sectionStyle = css({ marginBottom: "2rem" });
+const statsCardStyle = css({ marginBottom: "1.5rem" });
+const kindStatsStyle = css({
+  color: theme.color.muted,
+  display: "flex",
+  flexWrap: "wrap",
+  fontSize: "0.75rem",
+  gap: "1rem",
+  marginTop: "1rem",
+});
+const descriptionStyle = css({
+  color: theme.color.muted,
+  fontSize: "0.875rem",
+  margin: "0 0 1rem",
+});
+const submitStyle = css({ marginTop: "1rem" });
+const archiveCardStyle = css({
+  alignItems: "center",
+  display: "flex",
+  gap: "1rem",
+  justifyContent: "space-between",
+});
+const onlineCardStyle = css({
+  alignItems: "flex-start",
+  display: "flex",
+  gap: "1rem",
+  justifyContent: "space-between",
+  marginBottom: "1rem",
+});
+const sourceDescriptionStyle = css({ color: theme.color.muted, fontSize: "0.875rem", margin: 0 });
 
 const sources = [
   {
@@ -57,131 +103,132 @@ export default createController(routes.admin.import, {
 
       return context.render(
         <AdminPage user={context.user} active="import" title="Import">
-          <section className="card mb-6">
-            <h2 className="font-medium mb-2">Current stats</h2>
-            <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-sm">
-              <dt>Total files</dt>
-              <dd>{fileStats?.count ?? 0}</dd>
-              <dt>Total size</dt>
-              <dd>{formatSize(Number(fileStats?.size) || 0)}</dd>
-              <dt>Total folders</dt>
-              <dd>{folderStats?.count ?? 0}</dd>
-            </dl>
-            <div className="mt-4 flex gap-4 flex-wrap text-xs text-text-muted">
-              {byKind.map((kind) => (
-                <span key={kind.kind}>
-                  {kind.kind}: {kind.count} ({formatSize(Number(kind.size) || 0)})
-                </span>
-              ))}
-            </div>
-          </section>
-
-          <section className="mb-8">
-            <h2 className="text-sm font-medium uppercase tracking-wide text-text-muted mb-3">
-              Import from site
-            </h2>
-            <form method="post" action={routes.admin.import.action.href()} className="card">
-              <input type="hidden" name="intent" value="remote-site-import" />
-              <p className="text-sm text-text-muted mb-4">
-                Paste GameBanana or SCMapDB pages, or direct HTTPS links to ZIP, 7z, and RAR
-                archives. Enter one URL per line, up to 20 at a time.
-              </p>
-              <label className="block text-sm mb-1" htmlFor="source-urls">
-                Source URLs
-              </label>
-              <textarea
-                id="source-urls"
-                name="sourceUrls"
-                rows={5}
-                required
-                className="input w-full font-mono"
-                placeholder="https://gamebanana.com/mods/140244"
-              />
-              <label className="block text-sm mt-3 mb-1" htmlFor="import-target">
-                Destination folder
-              </label>
-              <select id="import-target" name="targetFolderId" className="input w-full">
-                <option value="">Top level</option>
-                {destinationFolders.map((folder) => (
-                  <option key={folder.id} value={folder.id}>
-                    {folder.slug}
-                  </option>
+          <section mix={statsCardStyle}>
+            <SectionHeader title="Current stats" />
+            <Panel>
+              <StatGrid>
+                <Stat label="Total files" value={fileStats?.count ?? 0} />
+                <Stat label="Total size" value={formatSize(Number(fileStats?.size) || 0)} />
+                <Stat label="Total folders" value={folderStats?.count ?? 0} />
+              </StatGrid>
+              <div mix={kindStatsStyle}>
+                {byKind.map((kind) => (
+                  <Badge key={kind.kind}>
+                    {kind.kind}: {kind.count} ({formatSize(Number(kind.size) || 0)})
+                  </Badge>
                 ))}
-              </select>
-              <button type="submit" className="btn btn-primary mt-4">
-                Queue imports
-              </button>
-            </form>
+              </div>
+            </Panel>
           </section>
 
-          <section className="mb-8">
-            <h2 className="text-sm font-medium uppercase tracking-wide text-text-muted mb-3">
-              Local folder
-            </h2>
-            <form method="post" action={routes.admin.import.action.href()} className="card">
-              <input type="hidden" name="intent" value="folder-import" />
-              <label className="block text-sm mb-1">Folder path</label>
-              <input className="input w-full font-mono" name="folderPath" required />
-              <label className="block text-sm mt-3 mb-1">Collection name (optional)</label>
-              <input className="input w-full" name="folderName" />
-              <button type="submit" className="btn btn-primary mt-4">
-                Import folder
-              </button>
-            </form>
-          </section>
-
-          <section className="mb-8">
-            <h2 className="text-sm font-medium uppercase tracking-wide text-text-muted mb-3">
-              Local archives
-            </h2>
-            <div className="card flex justify-between items-center gap-4">
-              <p className="text-sm text-text-muted">
-                Scan and import PAK, PK3, WAD, ZIP, and BSP files on this computer.
-              </p>
-              <a href={routes.admin.archives.index.href()} className="btn btn-primary">
-                Browse archives
-              </a>
-            </div>
-          </section>
-
-          <section className="mb-8">
-            <h2 className="text-sm font-medium uppercase tracking-wide text-text-muted mb-3">
-              Maintenance
-            </h2>
-            <form method="post" action={routes.admin.import.action.href()} className="card">
-              <input type="hidden" name="intent" value="regenerate-previews" />
-              <p className="text-sm text-text-muted mb-3">
-                Generate missing model previews and refresh folder preview images.
-              </p>
-              <button className="btn" type="submit">
-                Regenerate previews
-              </button>
-            </form>
-          </section>
-
-          <section className="mb-8">
-            <h2 className="text-sm font-medium uppercase tracking-wide text-text-muted mb-3">
-              Online sources
-            </h2>
-            {sources.map((source) => (
-              <form
-                key={source.id}
-                method="post"
-                action={routes.admin.import.action.href()}
-                className="card mb-4 flex justify-between items-start gap-4"
-              >
-                <input type="hidden" name="intent" value={source.id} />
-                <div>
-                  <h3 className="font-medium">
-                    <a href={source.url} target="_blank" rel="noopener noreferrer">
-                      {source.name}
-                    </a>
-                  </h3>
-                  <p className="text-sm text-text-muted">{source.description}</p>
+          <section mix={sectionStyle}>
+            <SectionHeader title="Import from site" />
+            <form method="post" action={routes.admin.import.action.href()}>
+              <Panel>
+                <input type="hidden" name="intent" value="remote-site-import" />
+                <p mix={descriptionStyle}>
+                  Paste GameBanana or SCMapDB pages, or direct HTTPS links to ZIP, 7z, and RAR
+                  archives. Enter one URL per line, up to 20 at a time.
+                </p>
+                <FormField label="Source URLs" htmlFor="source-urls" required>
+                  <TextArea
+                    id="source-urls"
+                    name="sourceUrls"
+                    rows={5}
+                    required
+                    fullWidth
+                    mono
+                    placeholder="https://gamebanana.com/mods/140244"
+                  />
+                </FormField>
+                <FormField label="Destination folder" htmlFor="import-target">
+                  <SelectInput id="import-target" name="targetFolderId" fullWidth>
+                    <option value="">Top level</option>
+                    {destinationFolders.map((folder) => (
+                      <option key={folder.id} value={folder.id}>
+                        {folder.slug}
+                      </option>
+                    ))}
+                  </SelectInput>
+                </FormField>
+                <div mix={submitStyle}>
+                  <Button type="submit" variant="primary">
+                    Queue imports
+                  </Button>
                 </div>
-                <button type="submit" className="btn">
-                  Import all
-                </button>
+              </Panel>
+            </form>
+          </section>
+
+          <section mix={sectionStyle}>
+            <SectionHeader title="Local folder" />
+            <form method="post" action={routes.admin.import.action.href()}>
+              <Panel>
+                <input type="hidden" name="intent" value="folder-import" />
+                <FormField label="Folder path" htmlFor="local-folder-path" required>
+                  <TextInput id="local-folder-path" name="folderPath" required fullWidth mono />
+                </FormField>
+                <FormField
+                  label="Collection name"
+                  htmlFor="local-folder-name"
+                  hint="Optional. Defaults to the folder name."
+                >
+                  <TextInput id="local-folder-name" name="folderName" fullWidth />
+                </FormField>
+                <div mix={submitStyle}>
+                  <Button type="submit" variant="primary">
+                    Import folder
+                  </Button>
+                </div>
+              </Panel>
+            </form>
+          </section>
+
+          <section mix={sectionStyle}>
+            <SectionHeader title="Local archives" />
+            <Panel>
+              <div mix={archiveCardStyle}>
+                <p mix={sourceDescriptionStyle}>
+                  Scan and import PAK, PK3, WAD, ZIP, and BSP files on this computer.
+                </p>
+                <ButtonLink href={routes.admin.archives.index.href()} variant="primary">
+                  Browse archives
+                </ButtonLink>
+              </div>
+            </Panel>
+          </section>
+
+          <section mix={sectionStyle}>
+            <SectionHeader title="Maintenance" />
+            <form method="post" action={routes.admin.import.action.href()}>
+              <Panel>
+                <input type="hidden" name="intent" value="regenerate-previews" />
+                <p mix={descriptionStyle}>
+                  Generate missing model previews and refresh folder preview images.
+                </p>
+                <Button type="submit">Regenerate previews</Button>
+              </Panel>
+            </form>
+          </section>
+
+          <section mix={sectionStyle}>
+            <SectionHeader title="Online sources" />
+            {sources.map((source) => (
+              <form key={source.id} method="post" action={routes.admin.import.action.href()}>
+                <Panel>
+                  <div mix={onlineCardStyle}>
+                    <input type="hidden" name="intent" value={source.id} />
+                    <div>
+                      <h3>
+                        <a href={source.url} target="_blank" rel="noopener noreferrer">
+                          {source.name}
+                        </a>
+                      </h3>
+                      <p mix={sourceDescriptionStyle}>{source.description}</p>
+                    </div>
+                    <Button type="submit">Import all</Button>
+                  </div>
+                </Panel>
               </form>
             ))}
           </section>

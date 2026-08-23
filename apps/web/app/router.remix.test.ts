@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, it } from "remix/test";
 
 import { eq } from "drizzle-orm";
 
-import { files, folders, jobs, sessions, users } from "#db";
+import { files, folders, jobs, remoteImports, sessions, users } from "#db";
 import { setDbForTesting } from "#db/connection.server";
 
 import { applyMigrations, createTestDatabase, type TestDatabase } from "../test/db.ts";
@@ -66,13 +66,44 @@ describe("native Remix router", () => {
       folderId: folder.id,
       status: "approved",
     });
-    const response = await router.fetch(request(routes.folders.href(), adminCookie));
+    await database.db.insert(remoteImports).values({
+      id: "browse-source",
+      provider: "scmapdb",
+      externalId: "test",
+      destinationKey: "root",
+      sourceUrl: "https://scmapdb.wikidot.com",
+      title: "Test map",
+      author: "Mapper",
+      game: "Sven Co-op",
+      metadata: "{}",
+      folderId: folder.id,
+    });
+    const response = await router.fetch(
+      request(routes.folder.index.href({ path: folder.slug }), adminCookie),
+    );
     assert.equal(response.status, 200);
     const html = await response.text();
     assert.match(html, /Browse/);
     assert.match(html, /UploadControl/);
     assert.match(html, /I'm feeling lucky/);
+    assert.match(html, /href="https:\/\/scmapdb\.wikidot\.com\/map:test"/);
+    assert.match(html, /SCMapDB<\/a> by Mapper for Sven Co-op\./);
     assert.doesNotMatch(html, /react-router/);
+  });
+
+  it("renders the kitchen sink from the shared design system", async () => {
+    const response = await router.fetch(request(routes.dev.kitchenSink.href(), adminCookie));
+    assert.equal(response.status, 200);
+    const html = await response.text();
+    assert.match(html, /Kitchen sink/);
+    assert.match(html, /Foundations/);
+    assert.match(html, /Forms/);
+    assert.match(html, /Data display/);
+    assert.match(html, /Media and files/);
+    assert.match(html, /UploadControl/);
+    assert.match(html, /LuckyButton/);
+    assert.match(html, /role="progressbar"/);
+    assert.match(html, /aria-label="Example import jobs"/);
   });
 
   it("renders every admin surface through native controllers", async () => {

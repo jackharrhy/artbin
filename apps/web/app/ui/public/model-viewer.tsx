@@ -4,10 +4,69 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { MD2Loader } from "three/addons/loaders/MD2Loader.js";
 import { MTLLoader } from "three/addons/loaders/MTLLoader.js";
 import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
-import { clientEntry, on, ref, type Handle, type SerializableProps } from "remix/ui";
+import { clientEntry, css, on, ref, type Handle, type SerializableProps } from "remix/ui";
 
 import { ASELoader } from "./loaders/ASELoader.ts";
 import { MD5Loader } from "./loaders/MD5Loader.ts";
+import {
+  buttonStyle,
+  dangerTextStyle,
+  inputStyle,
+  monoTextStyle,
+  smallButtonStyle,
+  theme,
+} from "../styles.ts";
+
+const rootStyle = css({ width: "100%" });
+const stageStyle = css({ position: "relative" });
+const viewportStyle = css({ background: theme.color.hover, overflow: "hidden", width: "100%" });
+const canvasStyle = css({ display: "block", height: "100%", width: "100%" });
+const statusOverlayStyle = css({
+  alignItems: "center",
+  background: "rgba(245, 245, 245, 0.9)",
+  display: "flex",
+  inset: 0,
+  justifyContent: "center",
+  position: "absolute",
+});
+const statusHeadingStyle = css({ color: theme.color.muted, fontSize: "1.5rem" });
+const errorBlockStyle = css({ textAlign: "center" });
+const errorHeadingStyle = css({ fontSize: "1.5rem", marginBottom: "0.5rem" });
+const errorDetailStyle = css({ fontSize: "0.875rem" });
+const animationBarStyle = css({
+  alignItems: "center",
+  background: "rgba(255, 255, 255, 0.9)",
+  bottom: "0.625rem",
+  display: "flex",
+  fontSize: "0.8125rem",
+  gap: "0.5rem",
+  left: "0.625rem",
+  padding: "0.5rem",
+  position: "absolute",
+  right: "0.625rem",
+});
+const animationButtonStyle = css({ borderColor: theme.color.borderLight });
+const selectStyle = css({ flex: "1", fontSize: "0.8125rem", padding: "0.25rem" });
+const animationCountStyle = css({ color: theme.color.muted, fontSize: "0.75rem" });
+const instructionsStyle = css({
+  background: "rgba(255, 255, 255, 0.8)",
+  color: theme.color.faint,
+  fontSize: "0.6875rem",
+  padding: "0.25rem 0.5rem",
+  position: "absolute",
+  right: "0.625rem",
+  top: "0.625rem",
+});
+const textureBarStyle = css({
+  alignItems: "center",
+  background: theme.color.background,
+  borderTop: `1px solid ${theme.color.subtle}`,
+  display: "flex",
+  fontSize: "0.8125rem",
+  gap: "0.5rem",
+  padding: "0.5rem",
+});
+const textureLabelStyle = css({ color: theme.color.muted });
 
 export type ModelFormat = "md2" | "md5mesh" | "ase" | "obj" | "gltf" | "glb";
 
@@ -54,69 +113,79 @@ export const ModelViewer = clientEntry(
     return () => {
       const height = handle.props.height ?? 400;
       return (
-        <div className="w-full">
-          <div className="relative">
-            <div className="w-full bg-bg-hover overflow-hidden" style={{ height: `${height}px` }}>
+        <div mix={rootStyle}>
+          <div mix={stageStyle}>
+            <div mix={viewportStyle} style={{ height: `${height}px` }}>
               <canvas
-                className="block h-full w-full"
-                mix={ref((element, signal) => {
-                  scene = new ModelScene(element as HTMLCanvasElement, height);
-                  scene.onLoadStart = () => {
-                    loading = true;
-                    error = null;
-                    handle.update();
-                  };
-                  scene.onLoadComplete = () => {
-                    loading = false;
-                    handle.update();
-                  };
-                  scene.onLoadError = (message) => {
-                    loading = false;
-                    error = message;
-                    handle.update();
-                  };
-                  scene.onAnimationChange = (info) => {
-                    animation = info;
-                    handle.update();
-                  };
-                  signal.addEventListener("abort", () => {
-                    scene?.dispose();
-                    scene = null;
-                  });
-                  load();
-                })}
+                mix={[
+                  canvasStyle,
+                  ref((element, signal) => {
+                    scene = new ModelScene(element as HTMLCanvasElement, height);
+                    scene.onLoadStart = () => {
+                      loading = true;
+                      error = null;
+                      handle.update();
+                    };
+                    scene.onLoadComplete = () => {
+                      loading = false;
+                      handle.update();
+                    };
+                    scene.onLoadError = (message) => {
+                      loading = false;
+                      error = message;
+                      handle.update();
+                    };
+                    scene.onAnimationChange = (info) => {
+                      animation = info;
+                      handle.update();
+                    };
+                    signal.addEventListener("abort", () => {
+                      scene?.dispose();
+                      scene = null;
+                    });
+                    load();
+                  }),
+                ]}
               />
             </div>
             {loading ? (
-              <div className="absolute inset-0 flex items-center justify-center bg-[rgba(245,245,245,0.9)]">
-                <div className="text-2xl text-text-muted">Loading model...</div>
+              <div mix={statusOverlayStyle}>
+                <div mix={statusHeadingStyle}>Loading model...</div>
               </div>
             ) : null}
             {error ? (
-              <div className="absolute inset-0 flex items-center justify-center bg-[rgba(245,245,245,0.9)]">
-                <div className="text-center text-danger">
-                  <div className="text-2xl mb-2">Failed to load model</div>
-                  <div className="text-sm">{error}</div>
+              <div mix={statusOverlayStyle}>
+                <div mix={[errorBlockStyle, dangerTextStyle]}>
+                  <div mix={errorHeadingStyle}>Failed to load model</div>
+                  <div mix={errorDetailStyle}>{error}</div>
                 </div>
               </div>
             ) : null}
             {!loading && !error && animation?.names.length ? (
-              <div className="absolute bottom-2.5 left-2.5 right-2.5 flex items-center gap-2 p-2 bg-[rgba(255,255,255,0.9)] text-[0.8125rem]">
+              <div mix={animationBarStyle}>
                 <button
                   type="button"
-                  className="btn btn-sm font-mono border-border-light"
-                  mix={on("click", () => scene?.togglePlayPause())}
+                  mix={[
+                    buttonStyle,
+                    smallButtonStyle,
+                    monoTextStyle,
+                    animationButtonStyle,
+                    on("click", () => scene?.togglePlayPause()),
+                  ]}
                 >
                   {animation.isPlaying ? "Pause" : "Play"}
                 </button>
                 <select
                   value={animation.currentIndex}
-                  className="input flex-1 p-1 text-[0.8125rem]"
-                  mix={on("change", (event) => {
-                    scene?.playAnimation(
-                      Number.parseInt((event.currentTarget as HTMLSelectElement).value, 10),
-                    );
-                  })}
+                  mix={[
+                    inputStyle,
+                    selectStyle,
+                    on("change", (event) => {
+                      scene?.playAnimation(
+                        Number.parseInt((event.currentTarget as HTMLSelectElement).value, 10),
+                      );
+                    }),
+                  ]}
                 >
                   {animation.names.map((name, index) => (
                     <option key={`${name}-${index}`} value={index}>
@@ -124,28 +193,29 @@ export const ModelViewer = clientEntry(
                     </option>
                   ))}
                 </select>
-                <span className="text-text-muted text-xs">
+                <span mix={animationCountStyle}>
                   {animation.names.length} animation{animation.names.length === 1 ? "" : "s"}
                 </span>
               </div>
             ) : null}
             {!loading && !error ? (
-              <div className="absolute top-2.5 right-2.5 px-2 py-1 bg-[rgba(255,255,255,0.8)] text-[0.6875rem] text-text-faint">
-                Drag to rotate. Scroll to zoom.
-              </div>
+              <div mix={instructionsStyle}>Drag to rotate. Scroll to zoom.</div>
             ) : null}
           </div>
           {(handle.props.textures?.length ?? 0) > 1 ? (
-            <div className="p-2 bg-bg border-t border-bg-subtle flex items-center gap-2 text-[0.8125rem]">
-              <label className="text-text-muted">Texture:</label>
+            <div mix={textureBarStyle}>
+              <label mix={textureLabelStyle}>Texture:</label>
               <select
                 value={selectedTexture ?? ""}
-                className="input flex-1 p-1 text-[0.8125rem]"
-                mix={on("change", async (event) => {
-                  selectedTexture = (event.currentTarget as HTMLSelectElement).value || undefined;
-                  await handle.update();
-                  await load();
-                })}
+                mix={[
+                  inputStyle,
+                  selectStyle,
+                  on("change", async (event) => {
+                    selectedTexture = (event.currentTarget as HTMLSelectElement).value || undefined;
+                    await handle.update();
+                    await load();
+                  }),
+                ]}
               >
                 <option value="">None</option>
                 {handle.props.textures?.map((texture) => (

@@ -1,5 +1,6 @@
 import { createController } from "remix/router";
 import { redirect } from "remix/response/redirect";
+import { css } from "remix/ui";
 
 import { cancelJob, deleteJob, getAllJobs, isJobStuck, resetStuckJob } from "#lib/jobs.server";
 
@@ -7,6 +8,24 @@ import { requireAdmin } from "../../../middleware/auth.ts";
 import { routes } from "../../../routes.ts";
 import { AdminPage } from "../../../ui/admin-page.tsx";
 import { AutoRefresh } from "../../../ui/public/auto-refresh.tsx";
+import {
+  Badge,
+  Button,
+  DataTable,
+  EmptyState,
+  ProgressBar,
+  TableCell,
+  TableHeaderCell,
+  TableHeaderRow,
+  TableRow,
+  type Tone,
+} from "../../../ui/primitives.tsx";
+import { dangerTextStyle, mutedTextStyle } from "../../../ui/styles.ts";
+
+const refreshNoteStyle = css({ fontSize: "0.875rem", margin: "0 0 0.5rem" });
+const smallCellStyle = css({ fontSize: "0.75rem" });
+const progressCellStyle = css({ fontSize: "0.75rem", maxWidth: "260px" });
+const actionsStyle = css({ display: "flex", gap: "0.25rem" });
 
 const stuckThresholdMinutes = 30;
 
@@ -25,12 +44,15 @@ export default createController(routes.admin.jobs, {
         <AdminPage user={context.user} active="jobs" title="Jobs">
           <AutoRefresh active={active} />
           {active ? (
-            <p className="mb-2 text-sm text-text-muted">Active jobs refresh every two seconds.</p>
+            <p mix={[refreshNoteStyle, mutedTextStyle]}>Active jobs refresh every two seconds.</p>
           ) : null}
           {jobs.length ? (
             <JobsTable jobs={jobs} />
           ) : (
-            <p className="text-text-muted">No jobs found.</p>
+            <EmptyState
+              title="No jobs found"
+              description="Imports and maintenance tasks will appear here."
+            />
           )}
         </AdminPage>,
       );
@@ -63,68 +85,60 @@ type AdminJob = Awaited<ReturnType<typeof getAllJobs>>[number] & { isStuck: bool
 
 function JobsTable(handle: { props: { jobs: AdminJob[] } }) {
   return () => (
-    <div className="card overflow-auto">
-      <table className="w-full border-collapse">
-        <thead>
-          <tr className="border-b-2 border-bg-subtle text-left">
-            <th className="p-2">ID</th>
-            <th className="p-2">Type</th>
-            <th className="p-2">Status</th>
-            <th className="p-2">Progress</th>
-            <th className="p-2">Created</th>
-            <th className="p-2">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {handle.props.jobs.map((job) => (
-            <tr key={job.id} className="border-b border-bg-subtle">
-              <td className="p-2">
-                <code className="text-xs">{job.id.slice(0, 8)}...</code>
-              </td>
-              <td className="p-2 text-sm">{job.type}</td>
-              <td className="p-2">
-                <span className={`px-2 py-0.5 text-xs ${statusClass(job.status, job.isStuck)}`}>
-                  {job.isStuck ? "stuck" : job.status}
-                </span>
-              </td>
-              <td className="p-2 text-xs max-w-[260px]">
+    <DataTable label="Background jobs">
+      <thead>
+        <TableHeaderRow>
+          <TableHeaderCell>ID</TableHeaderCell>
+          <TableHeaderCell>Type</TableHeaderCell>
+          <TableHeaderCell>Status</TableHeaderCell>
+          <TableHeaderCell>Progress</TableHeaderCell>
+          <TableHeaderCell>Created</TableHeaderCell>
+          <TableHeaderCell>Actions</TableHeaderCell>
+        </TableHeaderRow>
+      </thead>
+      <tbody>
+        {handle.props.jobs.map((job) => (
+          <TableRow key={job.id}>
+            <TableCell>
+              <code mix={smallCellStyle}>{job.id.slice(0, 8)}...</code>
+            </TableCell>
+            <TableCell>{job.type}</TableCell>
+            <TableCell>
+              <Badge tone={statusTone(job.status, job.isStuck)}>
+                {job.isStuck ? "stuck" : job.status}
+              </Badge>
+            </TableCell>
+            <TableCell>
+              <div mix={progressCellStyle}>
                 {job.status === "running" ? (
-                  <>
-                    <div className="w-[100px] h-1.5 bg-bg-subtle overflow-hidden">
-                      <div
-                        className="h-full bg-[#4CAF50]"
-                        style={{ width: `${job.progress ?? 0}%` }}
-                      />
-                    </div>
-                    <div className="mt-1 truncate">
-                      {job.progressMessage ?? `${job.progress ?? 0}%`}
-                    </div>
-                  </>
+                  <ProgressBar value={job.progress ?? 0} label={job.progressMessage ?? "Running"} />
                 ) : job.status === "failed" ? (
-                  <span className="text-danger" title={job.error ?? undefined}>
+                  <span mix={dangerTextStyle} title={job.error ?? undefined}>
                     {job.error?.slice(0, 60) ?? "Failed"}
                   </span>
                 ) : (
                   job.status
                 )}
-              </td>
-              <td className="p-2 text-xs">{formatDate(job.createdAt)}</td>
-              <td className="p-2">
-                <div className="flex gap-1">
-                  {job.status === "pending" ? <JobForm jobId={job.id} intent="cancel" /> : null}
-                  {job.status === "running" && job.isStuck ? (
-                    <JobForm jobId={job.id} intent="reset" />
-                  ) : null}
-                  {job.status !== "running" || job.isStuck ? (
-                    <JobForm jobId={job.id} intent="delete" danger />
-                  ) : null}
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+              </div>
+            </TableCell>
+            <TableCell>
+              <span mix={smallCellStyle}>{formatDate(job.createdAt)}</span>
+            </TableCell>
+            <TableCell>
+              <div mix={actionsStyle}>
+                {job.status === "pending" ? <JobForm jobId={job.id} intent="cancel" /> : null}
+                {job.status === "running" && job.isStuck ? (
+                  <JobForm jobId={job.id} intent="reset" />
+                ) : null}
+                {job.status !== "running" || job.isStuck ? (
+                  <JobForm jobId={job.id} intent="delete" danger />
+                ) : null}
+              </div>
+            </TableCell>
+          </TableRow>
+        ))}
+      </tbody>
+    </DataTable>
   );
 }
 
@@ -132,24 +146,25 @@ function JobForm(handle: { props: { jobId: string; intent: string; danger?: bool
   return () => (
     <form method="post" action={routes.admin.jobs.action.href()}>
       <input type="hidden" name="jobId" value={handle.props.jobId} />
-      <button
+      <Button
         type="submit"
         name="intent"
         value={handle.props.intent}
-        className={`btn btn-sm ${handle.props.danger ? "btn-danger" : ""}`}
+        size="small"
+        variant={handle.props.danger ? "danger" : "default"}
       >
         {handle.props.intent[0]!.toUpperCase() + handle.props.intent.slice(1)}
-      </button>
+      </Button>
     </form>
   );
 }
 
-function statusClass(status: string, stuck: boolean): string {
-  if (stuck || status === "failed") return "bg-[#f8d7da]";
-  if (status === "completed") return "bg-[#d4edda]";
-  if (status === "running") return "bg-[#fff3cd]";
-  if (status === "cancelled") return "bg-[#e2e3e5]";
-  return "bg-[#cce5ff]";
+function statusTone(status: string, stuck: boolean): Tone {
+  if (stuck || status === "failed") return "danger";
+  if (status === "completed") return "success";
+  if (status === "running") return "warning";
+  if (status === "cancelled") return "neutral";
+  return "info";
 }
 
 function formatDate(value: Date | null): string {

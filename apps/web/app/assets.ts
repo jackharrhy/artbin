@@ -15,7 +15,13 @@ export const assetServer = createAssetServer({
     "app/*path": "apps/web/app/*path",
     "node_modules/*path": "node_modules/*path",
   },
-  allowFiles: ["apps/web/app/routes.ts", "apps/web/app/**/public/**"],
+  allowFiles: [
+    "apps/web/app/routes.ts",
+    "apps/web/app/ui/styles.ts",
+    "apps/web/app/ui/modal.tsx",
+    "apps/web/app/ui/primitives.tsx",
+    "apps/web/app/**/public/**",
+  ],
   allowPackages: ["remix", "three"],
   denyFiles: ["apps/web/app/**/*.test.*"],
   files: {
@@ -31,8 +37,6 @@ export const assetServer = createAssetServer({
 });
 
 const entry = "apps/web/app/actions/public/entry.ts";
-const stylesheet = "apps/web/app/actions/public/app.css";
 
 export const entryHref = await assetServer.getHref(entry);
 export const entryPreloads = await assetServer.getPreloads(entry);
-export const stylesheetHref = await assetServer.getHref(stylesheet);

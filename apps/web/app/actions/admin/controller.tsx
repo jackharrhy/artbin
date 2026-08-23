@@ -8,6 +8,15 @@ import { db } from "#db/connection.server";
 import { requireAdmin } from "../../middleware/auth.ts";
 import { routes } from "../../routes.ts";
 import { AdminPage } from "../../ui/admin-page.tsx";
+import {
+  Badge,
+  DataTable,
+  EmptyState,
+  TableCell,
+  TableHeaderCell,
+  TableHeaderRow,
+  TableRow,
+} from "../../ui/primitives.tsx";
 
 export default createController(routes.admin, {
   middleware: [requireAdmin()],
@@ -27,28 +36,32 @@ export default createController(routes.admin, {
       return context.render(
         <AdminPage user={context.user} active="users" title="Users">
           {allUsers.length ? (
-            <table className="w-full text-sm">
+            <DataTable label="Users">
               <thead>
-                <tr className="border-b border-border-light text-left text-text-muted">
-                  <th className="pb-2 font-medium">Username</th>
-                  <th className="pb-2 font-medium">Role</th>
-                  <th className="pb-2 font-medium">Joined</th>
-                </tr>
+                <TableHeaderRow>
+                  <TableHeaderCell>Username</TableHeaderCell>
+                  <TableHeaderCell>Role</TableHeaderCell>
+                  <TableHeaderCell>Joined</TableHeaderCell>
+                </TableHeaderRow>
               </thead>
               <tbody>
                 {allUsers.map((user) => (
-                  <tr key={user.id} className="border-b border-border-light">
-                    <td className="py-2">@{user.username}</td>
-                    <td className="py-2">{user.isAdmin ? "Admin" : "User"}</td>
-                    <td className="py-2 text-text-muted">
+                  <TableRow key={user.id}>
+                    <TableCell>@{user.username}</TableCell>
+                    <TableCell>
+                      <Badge tone={user.isAdmin ? "info" : "neutral"}>
+                        {user.isAdmin ? "Admin" : "User"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
                       {user.createdAt ? new Date(user.createdAt).toLocaleString() : "Unknown"}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
               </tbody>
-            </table>
+            </DataTable>
           ) : (
-            <p className="text-text-muted">No users yet.</p>
+            <EmptyState title="No users yet" />
           )}
         </AdminPage>,
       );

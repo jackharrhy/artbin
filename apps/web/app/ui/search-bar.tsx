@@ -1,4 +1,24 @@
-import type { Handle } from "remix/ui";
+import { css, type Handle } from "remix/ui";
+
+import { Button, ButtonLink } from "./primitives.tsx";
+import { inputStyle, visuallyHiddenStyle } from "./styles.ts";
+
+const formStyle = css({
+  alignItems: "center",
+  display: "flex",
+  flexWrap: "wrap",
+  gap: "0.5rem",
+  marginBottom: "1rem",
+});
+const searchGroupStyle = css({
+  display: "flex",
+  flex: "1",
+  gap: "0.5rem",
+  maxWidth: "400px",
+  minWidth: "200px",
+});
+const fillStyle = css({ flex: "1" });
+const tagSelectStyle = css({ minWidth: "120px" });
 
 interface SearchBarProps {
   action: string;
@@ -14,10 +34,10 @@ export function SearchBar(handle: Handle<SearchBarProps>) {
     const clearHref = `${action}?view=${encodeURIComponent(currentView)}`;
 
     return (
-      <form method="get" action={action} className="flex gap-2 items-center flex-wrap mb-4">
+      <form method="get" action={action} mix={formStyle}>
         <input type="hidden" name="view" value={currentView} />
-        <div className="flex gap-2 flex-1 min-w-[200px] max-w-[400px]">
-          <label className="sr-only" htmlFor="browse-search">
+        <div mix={searchGroupStyle}>
+          <label mix={visuallyHiddenStyle} htmlFor="browse-search">
             Search {currentView}
           </label>
           <input
@@ -26,18 +46,16 @@ export function SearchBar(handle: Handle<SearchBarProps>) {
             name="q"
             value={currentQuery}
             placeholder={`Search ${currentView}`}
-            className="input flex-1"
+            mix={[inputStyle, fillStyle]}
           />
-          <button type="submit" className="btn">
-            Search
-          </button>
+          <Button type="submit">Search</Button>
         </div>
         {tags.length > 0 ? (
           <>
-            <label className="sr-only" htmlFor="browse-tag">
+            <label mix={visuallyHiddenStyle} htmlFor="browse-tag">
               Filter by tag
             </label>
-            <select id="browse-tag" name="tag" className="input min-w-[120px]">
+            <select id="browse-tag" name="tag" mix={[inputStyle, tagSelectStyle]}>
               <option value="" selected={!currentTag}>
                 All tags
               </option>
@@ -47,15 +65,15 @@ export function SearchBar(handle: Handle<SearchBarProps>) {
                 </option>
               ))}
             </select>
-            <button type="submit" className="btn btn-sm">
+            <Button type="submit" size="small">
               Apply
-            </button>
+            </Button>
           </>
         ) : null}
         {currentQuery || currentTag ? (
-          <a href={clearHref} className="btn btn-sm text-text-muted">
+          <ButtonLink href={clearHref} size="small">
             Clear filters
-          </a>
+          </ButtonLink>
         ) : null}
       </form>
     );

@@ -1,4 +1,4 @@
-import type { Handle, RemixNode } from "remix/ui";
+import { css, type Handle, type RemixNode } from "remix/ui";
 
 import type { User } from "#db";
 
@@ -6,10 +6,97 @@ import type { DirectoryPageData, FolderPageData, WadPageData } from "../../data/
 import { routes } from "../../routes.ts";
 import { BrowseTabs } from "../../ui/browse-tabs.tsx";
 import { FileCollection, formatSize } from "../../ui/file-collection.tsx";
+import { MediaCard } from "../../ui/media-card.tsx";
+import { Breadcrumbs } from "../../ui/navigation.tsx";
+import {
+  Button,
+  ButtonLink,
+  Detail,
+  DetailList,
+  Disclosure,
+  EmptyState,
+  FormField,
+  PageHeader,
+  SectionHeader,
+  SelectInput,
+  TextArea,
+  TextInput,
+} from "../../ui/primitives.tsx";
 import { LuckyButton } from "../../ui/public/lucky-button.tsx";
 import { Page } from "../../ui/page.tsx";
 import { SearchBar } from "../../ui/search-bar.tsx";
 import { UploadControl } from "../../ui/public/upload-control.tsx";
+import { inputStyle, theme, visuallyHiddenStyle } from "../../ui/styles.ts";
+
+const pageStyle = css({
+  background: theme.color.background,
+  marginInline: "auto",
+  maxWidth: "1400px",
+  minHeight: "calc(100vh - 48px)",
+  padding: "1rem",
+});
+const actionsStyle = css({ display: "flex", flexWrap: "wrap", gap: "0.5rem" });
+const sourceStyle = css({ color: theme.color.muted, fontSize: "0.875rem", margin: "0 0 1rem" });
+const sourceLinkStyle = css({ color: theme.color.text, fontWeight: 500 });
+const descriptionStyle = css({ color: theme.color.muted, margin: "0 0 1rem" });
+const tabsRowStyle = css({
+  alignItems: "center",
+  display: "flex",
+  gap: "1rem",
+  justifyContent: "space-between",
+});
+const manageStyle = css({ marginBottom: "1.25rem" });
+const manageGridStyle = css({
+  display: "grid",
+  gap: "1.5rem",
+  gridTemplateColumns: "repeat(2, 1fr)",
+  marginTop: "1rem",
+  "@media (max-width: 768px)": { gridTemplateColumns: "1fr" },
+});
+const fullRowStyle = css({
+  gridColumn: "span 2",
+  "@media (max-width: 768px)": { gridColumn: "span 1" },
+});
+const inputRowStyle = css({ display: "flex", gap: "0.5rem" });
+const growStyle = css({ flex: "1" });
+const spacedButtonStyle = css({ marginTop: "0.5rem" });
+const sectionStyle = css({ marginBottom: "2rem" });
+const foldersGridStyle = css({
+  display: "grid",
+  gap: "0.5rem",
+  gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+});
+const wadPreviewStyle = css({
+  display: "grid",
+  gridTemplateColumns: "repeat(2, 1fr)",
+  height: "100%",
+  width: "100%",
+});
+const wadPreviewCellStyle = css({
+  border: `1px solid ${theme.color.borderLight}`,
+  overflow: "hidden",
+});
+const coverImageStyle = css({
+  display: "block",
+  height: "100%",
+  objectFit: "cover",
+  width: "100%",
+});
+const wadActionsStyle = css({ alignItems: "center", display: "flex", gap: "0.5rem" });
+const searchStyle = css({
+  alignItems: "center",
+  display: "flex",
+  gap: "0.5rem",
+  marginBottom: "1rem",
+});
+const searchInputStyle = css({ maxWidth: "20rem", width: "100%" });
+const textureGridStyle = css({
+  display: "grid",
+  gap: "0.5rem",
+  gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+});
+const wadFactsStyle = css({ marginTop: "2rem" });
+const smallCodeStyle = css({ fontSize: "0.75rem" });
 
 export function FolderRoutePage(handle: Handle<{ data: FolderPageData; user: User }>) {
   return () => {
@@ -42,38 +129,42 @@ function DirectoryPage(handle: Handle<{ data: DirectoryPageData; user: User }>) 
 
     return (
       <Page title={`${folder.name} - artbin`} user={user}>
-        <main className="max-w-[1400px] mx-auto p-4 bg-bg min-h-[calc(100vh-48px)]">
+        <main mix={pageStyle}>
           <Breadcrumb items={data.ancestors} current={folder.name} />
 
-          <div className="flex justify-between items-start gap-4 mb-4 max-md:flex-col">
-            <h1 className="text-xl font-normal">{folder.name}</h1>
-            <div className="flex gap-2 flex-wrap">
-              <a
-                href={routes.api.folderDownload.href({ path: folder.slug })}
-                className="btn"
-                download
-              >
-                Download ZIP
-              </a>
-              <UploadControl
-                currentFolder={{ id: folder.id, slug: folder.slug, name: folder.name }}
-                isAdmin={!!user.isAdmin}
-              />
-            </div>
-          </div>
+          <PageHeader
+            title={folder.name}
+            actions={
+              <div mix={actionsStyle}>
+                <ButtonLink href={routes.api.folderDownload.href({ path: folder.slug })} download>
+                  Download ZIP
+                </ButtonLink>
+                <UploadControl
+                  currentFolder={{ id: folder.id, slug: folder.slug, name: folder.name }}
+                  isAdmin={!!user.isAdmin}
+                />
+              </div>
+            }
+          />
 
           {data.remoteImport ? (
-            <div className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-text-muted">
-              <span>Imported from</span>
-              <a href={data.remoteImport.sourceUrl} target="_blank" rel="noopener noreferrer">
+            <p mix={sourceStyle}>
+              Imported from{" "}
+              <a
+                mix={sourceLinkStyle}
+                href={canonicalImportSourceHref(data.remoteImport)}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={`Open the original ${providerName(data.remoteImport.provider)} source`}
+              >
                 {providerName(data.remoteImport.provider)}
               </a>
-              {data.remoteImport.author ? <span>by {data.remoteImport.author}</span> : null}
-              {data.remoteImport.game ? <span>for {data.remoteImport.game}</span> : null}
-            </div>
+              {data.remoteImport.author ? ` by ${data.remoteImport.author}` : ""}
+              {data.remoteImport.game ? ` for ${data.remoteImport.game}` : ""}.
+            </p>
           ) : null}
 
-          {folder.description ? <p className="mb-4 text-text-muted">{folder.description}</p> : null}
+          {folder.description ? <p mix={descriptionStyle}>{folder.description}</p> : null}
 
           {user.isAdmin ? (
             <AdminFolderControls
@@ -83,7 +174,7 @@ function DirectoryPage(handle: Handle<{ data: DirectoryPageData; user: User }>) 
             />
           ) : null}
 
-          <div className="flex items-center justify-between gap-4">
+          <div mix={tabsRowStyle}>
             <BrowseTabs
               baseUrl={baseUrl}
               currentView={data.view}
@@ -141,76 +232,91 @@ function AdminFolderControls(
   return () => {
     const { folder, action, moveTargets } = handle.props;
     return (
-      <details className="card mb-5">
-        <summary className="cursor-pointer text-sm font-medium">Manage folder</summary>
-        <div className="grid grid-cols-2 gap-6 mt-4 max-md:grid-cols-1">
-          <form method="post" action={action}>
-            <input type="hidden" name="_action" value="rename" />
-            <label className="block text-xs uppercase tracking-wide text-text-muted mb-1">
-              Folder name
-            </label>
-            <div className="flex gap-2">
-              <input className="input flex-1" name="name" value={folder.name} required />
-              <button className="btn" type="submit">
-                Rename
-              </button>
-            </div>
-          </form>
-          <form method="post" action={action}>
-            <input type="hidden" name="_action" value="move" />
-            <label className="block text-xs uppercase tracking-wide text-text-muted mb-1">
-              Parent folder
-            </label>
-            <div className="flex gap-2">
-              <select className="input flex-1" name="newParentId">
-                <option value="" selected={!folder.parentId}>
-                  Root level
-                </option>
-                {moveTargets.map((candidate) => (
-                  <option
-                    key={candidate.id}
-                    value={candidate.id}
-                    selected={folder.parentId === candidate.id}
-                  >
-                    {candidate.slug}
-                  </option>
-                ))}
-              </select>
-              <button className="btn" type="submit">
-                Move
-              </button>
-            </div>
-          </form>
-          <form method="post" action={action} className="col-span-2 max-md:col-span-1">
-            <input type="hidden" name="_action" value="update-description" />
-            <label className="block text-xs uppercase tracking-wide text-text-muted mb-1">
-              Description
-            </label>
-            <textarea
-              name="description"
-              className="input w-full"
-              rows={3}
-              placeholder="Describe this folder"
-              value={folder.description ?? ""}
-            />
-            <button className="btn mt-2" type="submit">
-              Save description
-            </button>
-          </form>
-          <form method="post" action={action} className="col-span-2 max-md:col-span-1">
-            <input type="hidden" name="_action" value="delete" />
-            <label className="block text-xs uppercase tracking-wide text-danger mb-1">
-              Type “{folder.name}” to permanently delete this folder
-            </label>
-            <div className="flex gap-2">
-              <input className="input flex-1" name="confirmName" required />
-              <button className="btn btn-danger" type="submit">
-                Delete
-              </button>
-            </div>
-          </form>
-        </div>
-      </details>
+      <div mix={manageStyle}>
+        <Disclosure summary="Manage folder">
+          <div mix={manageGridStyle}>
+            <form method="post" action={action}>
+              <input type="hidden" name="_action" value="rename" />
+              <FormField label="Folder name" htmlFor={`${folder.id}-name`}>
+                <div mix={inputRowStyle}>
+                  <div mix={growStyle}>
+                    <TextInput
+                      id={`${folder.id}-name`}
+                      name="name"
+                      value={folder.name}
+                      required
+                      fullWidth
+                    />
+                  </div>
+                  <Button type="submit">Rename</Button>
+                </div>
+              </FormField>
+            </form>
+            <form method="post" action={action}>
+              <input type="hidden" name="_action" value="move" />
+              <FormField label="Parent folder" htmlFor={`${folder.id}-parent`}>
+                <div mix={inputRowStyle}>
+                  <div mix={growStyle}>
+                    <SelectInput id={`${folder.id}-parent`} name="newParentId" fullWidth>
+                      <option value="" selected={!folder.parentId}>
+                        Root level
+                      </option>
+                      {moveTargets.map((candidate) => (
+                        <option
+                          key={candidate.id}
+                          value={candidate.id}
+                          selected={folder.parentId === candidate.id}
+                        >
+                          {candidate.slug}
+                        </option>
+                      ))}
+                    </SelectInput>
+                  </div>
+                  <Button type="submit">Move</Button>
+                </div>
+              </FormField>
+            </form>
+            <form method="post" action={action} mix={fullRowStyle}>
+              <input type="hidden" name="_action" value="update-description" />
+              <FormField label="Description" htmlFor={`${folder.id}-description`}>
+                <TextArea
+                  id={`${folder.id}-description`}
+                  name="description"
+                  rows={3}
+                  fullWidth
+                  placeholder="Describe this folder"
+                  value={folder.description ?? ""}
+                />
+              </FormField>
+              <div mix={spacedButtonStyle}>
+                <Button type="submit">Save description</Button>
+              </div>
+            </form>
+            <form method="post" action={action} mix={fullRowStyle}>
+              <input type="hidden" name="_action" value="delete" />
+              <FormField
+                label="Delete folder"
+                htmlFor={`${folder.id}-confirm-delete`}
+                hint={`Type “${folder.name}” to permanently delete this folder`}
+              >
+                <div mix={inputRowStyle}>
+                  <div mix={growStyle}>
+                    <TextInput
+                      id={`${folder.id}-confirm-delete`}
+                      name="confirmName"
+                      required
+                      fullWidth
+                    />
+                  </div>
+                  <Button type="submit" variant="danger">
+                    Delete
+                  </Button>
+                </div>
+              </FormField>
+            </form>
+          </div>
+        </Disclosure>
+      </div>
     );
   };
 }
@@ -229,15 +335,17 @@ function FolderContents(
     return (
       <>
         {data.childFolders.length || data.wadLibraries.length ? (
-          <section className="mb-8">
-            <h2 className="text-sm font-medium uppercase tracking-wide text-text-muted mb-3">
-              {data.childFolders.length && data.wadLibraries.length
-                ? "Folders and WADs"
-                : data.wadLibraries.length
-                  ? "WAD libraries"
-                  : "Subfolders"}
-            </h2>
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-2">
+          <section mix={sectionStyle}>
+            <SectionHeader
+              title={
+                data.childFolders.length && data.wadLibraries.length
+                  ? "Folders and WADs"
+                  : data.wadLibraries.length
+                    ? "WAD libraries"
+                    : "Subfolders"
+              }
+            />
+            <div mix={foldersGridStyle}>
               {data.childFolders.map((child) => (
                 <FolderCard
                   key={child.id}
@@ -247,44 +355,33 @@ function FolderContents(
                 />
               ))}
               {data.wadLibraries.map((library) => (
-                <a
+                <MediaCard
                   key={library.id}
                   href={routes.folder.index.href({ path: library.path })}
-                  className="block border border-border-light bg-bg no-underline hover:border-border overflow-hidden"
-                >
-                  {library.previewTextures.length ? (
-                    <div className="aspect-square grid grid-cols-2 bg-bg-hover">
-                      {library.previewTextures.map((texture) => (
-                        <div
-                          key={texture.index}
-                          className="overflow-hidden border border-border-light"
-                        >
-                          <img
-                            className="w-full h-full object-cover block"
-                            src={routes.api.wadTexture.href({
-                              fileId: library.id,
-                              textureIndex: String(texture.index),
-                            })}
-                            alt={texture.name}
-                            loading="lazy"
-                            style={{ imageRendering: "pixelated" }}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="aspect-square flex items-center justify-center text-5xl text-border-light">
-                      ▦
-                    </div>
-                  )}
-                  <div className="px-3 py-2 border-t border-border-light">
-                    <div className="font-medium mb-1">{library.name}</div>
-                    <div className="text-xs text-text-muted">
-                      {library.version} · {library.textureCount}{" "}
-                      {library.textureCount === 1 ? "texture" : "textures"}
-                    </div>
-                  </div>
-                </a>
+                  title={library.name}
+                  meta={`${library.version} · ${library.textureCount} ${library.textureCount === 1 ? "texture" : "textures"}`}
+                  placeholder="▦"
+                  preview={
+                    library.previewTextures.length ? (
+                      <div mix={wadPreviewStyle}>
+                        {library.previewTextures.map((texture) => (
+                          <div key={texture.index} mix={wadPreviewCellStyle}>
+                            <img
+                              mix={coverImageStyle}
+                              src={routes.api.wadTexture.href({
+                                fileId: library.id,
+                                textureIndex: String(texture.index),
+                              })}
+                              alt={texture.name}
+                              loading="lazy"
+                              style={{ imageRendering: "pixelated" }}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    ) : undefined
+                  }
+                />
               ))}
             </div>
           </section>
@@ -318,7 +415,10 @@ function FolderContents(
           </AssetSection>
         ) : null}
         {!data.childFolders.length && !data.files.length ? (
-          <div className="text-center p-12 text-text-muted">This folder is empty</div>
+          <EmptyState
+            title="This folder is empty"
+            description="Upload files or create a subfolder to add content."
+          />
         ) : null}
       </>
     );
@@ -334,15 +434,11 @@ function AssetSection(
   }>,
 ) {
   return () => (
-    <section className="mb-8">
-      <div className="flex justify-between items-center mb-4">
-        <span className="text-xs text-text-muted">{handle.props.title}</span>
-        {handle.props.showViewAll ? (
-          <a href={handle.props.viewHref} className="text-xs text-text-muted no-underline">
-            View all
-          </a>
-        ) : null}
-      </div>
+    <section mix={sectionStyle}>
+      <SectionHeader
+        title={handle.props.title}
+        actions={handle.props.showViewAll ? <a href={handle.props.viewHref}>View all</a> : null}
+      />
       {handle.props.children}
     </section>
   );
@@ -350,28 +446,13 @@ function AssetSection(
 
 function FolderCard(handle: Handle<{ href: string; name: string; previewPath: string | null }>) {
   return () => (
-    <a
+    <MediaCard
       href={handle.props.href}
-      className="block border border-border-light bg-bg no-underline hover:border-border overflow-hidden"
-    >
-      {handle.props.previewPath ? (
-        <div className="aspect-square overflow-hidden bg-bg-hover">
-          <img
-            className="w-full h-full object-cover block"
-            src={`/uploads/${handle.props.previewPath}`}
-            alt=""
-            loading="lazy"
-          />
-        </div>
-      ) : (
-        <div className="aspect-square flex items-center justify-center text-5xl text-border-light">
-          📁
-        </div>
-      )}
-      <div className="px-3 py-2 border-t border-border-light">
-        <div className="font-medium mb-1">{handle.props.name}</div>
-      </div>
-    </a>
+      title={handle.props.name}
+      imageSrc={handle.props.previewPath ? `/uploads/${handle.props.previewPath}` : undefined}
+      imageAlt=""
+      placeholder="📁"
+    />
   );
 }
 
@@ -386,31 +467,28 @@ function WadLibraryPage(handle: Handle<{ data: WadPageData; user: User }>) {
 
     return (
       <Page title={`${data.file.name} - artbin`} user={user}>
-        <main className="max-w-[1400px] mx-auto p-4 bg-bg min-h-[calc(100vh-48px)]">
+        <main mix={pageStyle}>
           <Breadcrumb items={data.folderTrail} current={data.file.name} />
-          <div className="flex items-start justify-between gap-4 mb-5 max-sm:flex-col">
-            <div>
-              <h1 className="text-xl font-normal mb-1">{data.file.name}</h1>
-              <p className="text-sm text-text-muted">
-                {data.contents.version} texture library with {data.contents.textures.length}{" "}
-                {data.contents.textures.length === 1 ? "texture" : "textures"}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              {data.contents.textures.length ? (
-                <LuckyButton
-                  wadFileId={data.file.id}
-                  sourceLabel={data.file.name}
-                  label="Random texture"
-                />
-              ) : null}
-              <a href={`/uploads/${data.file.path}`} className="btn btn-primary" download>
-                Download WAD
-              </a>
-            </div>
-          </div>
-          <form method="get" action={libraryHref} className="flex items-center gap-2 mb-4">
-            <label className="sr-only" htmlFor="wad-search">
+          <PageHeader
+            title={data.file.name}
+            description={`${data.contents.version} texture library with ${data.contents.textures.length} ${data.contents.textures.length === 1 ? "texture" : "textures"}`}
+            actions={
+              <div mix={wadActionsStyle}>
+                {data.contents.textures.length ? (
+                  <LuckyButton
+                    wadFileId={data.file.id}
+                    sourceLabel={data.file.name}
+                    label="Random texture"
+                  />
+                ) : null}
+                <ButtonLink href={`/uploads/${data.file.path}`} variant="primary" download>
+                  Download WAD
+                </ButtonLink>
+              </div>
+            }
+          />
+          <form method="get" action={libraryHref} mix={searchStyle}>
+            <label mix={visuallyHiddenStyle} htmlFor="wad-search">
               Search WAD textures
             </label>
             <input
@@ -418,64 +496,51 @@ function WadLibraryPage(handle: Handle<{ data: WadPageData; user: User }>) {
               type="search"
               name="q"
               value={data.query}
-              className="input w-full max-w-xs"
+              mix={[inputStyle, searchInputStyle]}
               placeholder="Search textures"
             />
-            <button className="btn" type="submit">
-              Search
-            </button>
+            <Button type="submit">Search</Button>
             {data.query ? (
-              <a className="btn btn-sm" href={libraryHref}>
+              <ButtonLink href={libraryHref} size="small">
                 Clear
-              </a>
+              </ButtonLink>
             ) : null}
           </form>
           {textures.length ? (
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-2">
+            <div mix={textureGridStyle}>
               {textures.map((texture) => (
-                <a
+                <MediaCard
                   key={texture.index}
                   href={routes.file.href({
                     path: `${data.file.path}/${textureFilename(texture, data.contents.textures)}`,
                   })}
-                  className="group border border-border-light bg-bg no-underline hover:border-border"
-                >
-                  <div className="aspect-square overflow-hidden bg-bg-hover">
-                    <img
-                      src={routes.api.wadTexture.href({
-                        fileId: data.file.id,
-                        textureIndex: String(texture.index),
-                      })}
-                      alt={texture.name}
-                      loading="lazy"
-                      className="w-full h-full object-contain block"
-                      style={{ imageRendering: "pixelated" }}
-                    />
-                  </div>
-                  <div className="px-2 py-2 border-t border-border-light">
-                    <div className="truncate text-xs text-text">{texture.name}</div>
-                    <div className="text-[0.68rem] text-text-faint">
-                      {texture.width} × {texture.height}
-                    </div>
-                  </div>
-                </a>
+                  imageSrc={routes.api.wadTexture.href({
+                    fileId: data.file.id,
+                    textureIndex: String(texture.index),
+                  })}
+                  imageAlt={texture.name}
+                  imageFit="contain"
+                  imageRendering="pixelated"
+                  title={texture.name}
+                  meta={`${texture.width} × ${texture.height}`}
+                />
               ))}
             </div>
           ) : (
-            <div className="border border-border-light p-12 text-center text-text-muted">
-              No textures match this search.
-            </div>
+            <EmptyState
+              title="No textures match this search"
+              description="Try a shorter or different texture name."
+            />
           )}
-          <dl className="mt-8 grid grid-cols-[max-content_1fr] gap-x-4 gap-y-2 text-sm">
-            <dt className="text-text-muted">Original file</dt>
-            <dd>
-              <code className="text-xs">{data.file.path}</code>
-            </dd>
-            <dt className="text-text-muted">Size</dt>
-            <dd>{formatSize(data.file.size)}</dd>
-            <dt className="text-text-muted">Format</dt>
-            <dd>{data.contents.version}</dd>
-          </dl>
+          <div mix={wadFactsStyle}>
+            <DetailList>
+              <Detail label="Original file">
+                <code mix={smallCodeStyle}>{data.file.path}</code>
+              </Detail>
+              <Detail label="Size">{formatSize(data.file.size)}</Detail>
+              <Detail label="Format">{data.contents.version}</Detail>
+            </DetailList>
+          </div>
         </main>
       </Page>
     );
@@ -489,24 +554,16 @@ function Breadcrumb(
   }>,
 ) {
   return () => (
-    <div className="text-xs text-text-muted mb-4">
-      <a className="text-text-muted hover:text-text" href={routes.folders.href()}>
-        Folders
-      </a>
-      {handle.props.items.map((item) => (
-        <span key={item.id}>
-          <span className="mx-2">/</span>
-          <a
-            className="text-text-muted hover:text-text"
-            href={routes.folder.index.href({ path: item.slug })}
-          >
-            {item.name}
-          </a>
-        </span>
-      ))}
-      <span className="mx-2">/</span>
-      <span>{handle.props.current}</span>
-    </div>
+    <Breadcrumbs
+      items={[
+        { label: "Folders", href: routes.folders.href() },
+        ...handle.props.items.map((item) => ({
+          label: item.name,
+          href: routes.folder.index.href({ path: item.slug }),
+        })),
+        { label: handle.props.current },
+      ]}
+    />
   );
 }
 
@@ -516,6 +573,18 @@ function providerName(provider: string): string {
     : provider === "scmapdb"
       ? "SCMapDB"
       : "direct archive";
+}
+
+function canonicalImportSourceHref(
+  remoteImport: NonNullable<DirectoryPageData["remoteImport"]>,
+): string {
+  if (remoteImport.provider === "gamebanana") {
+    return `https://gamebanana.com/mods/${remoteImport.externalId}`;
+  }
+  if (remoteImport.provider === "scmapdb") {
+    return `https://scmapdb.wikidot.com/map:${remoteImport.externalId}`;
+  }
+  return remoteImport.sourceUrl;
 }
 
 function folderSearchHref(data: DirectoryPageData, cursor: string): string {

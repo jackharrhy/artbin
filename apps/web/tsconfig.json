@@ -1,6 +1,6 @@
 {
   "include": ["app/**/*", "server.ts", "hmr.ts", "scripts/**/*", "src/db/**/*", "src/lib/**/*"],
-  "exclude": ["node_modules", "tmp", "build", "app/actions/public/app.css"],
+  "exclude": ["node_modules", "tmp", "build"],
   "compilerOptions": {
     "lib": ["ES2024", "DOM", "DOM.Iterable"],
     "types": ["node", "remix/assets/types/hmr"],

@@ -1,6 +1,45 @@
-import type { Handle } from "remix/ui";
+import { css, type Handle } from "remix/ui";
 
 import { routes } from "../routes.ts";
+import { MediaCard } from "./media-card.tsx";
+import { EmptyState } from "./primitives.tsx";
+import { buttonStyle, theme } from "./styles.ts";
+
+const gridStyle = css({
+  display: "grid",
+  gap: "0.5rem",
+  gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+});
+const listStyle = css({
+  background: theme.color.background,
+  border: `1px solid ${theme.color.borderLight}`,
+});
+const listItemStyle = css({
+  borderBottom: `1px solid ${theme.color.borderLight}`,
+  "&:last-child": { borderBottom: 0 },
+});
+const listLinkStyle = css({
+  alignItems: "center",
+  color: "inherit",
+  display: "flex",
+  gap: "0.75rem",
+  padding: "0.75rem",
+  textDecoration: "none",
+  transition: "background-color 150ms",
+  "&:hover": { background: theme.color.hover, textDecoration: "none" },
+});
+const iconStyle = css({ flexShrink: 0, fontSize: "1.5rem" });
+const fileInfoStyle = css({ flex: "1", minWidth: 0 });
+const fileNameStyle = css({
+  fontWeight: 500,
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+});
+const metadataStyle = css({ color: theme.color.muted, fontSize: "0.75rem" });
+const playerStyle = css({ padding: "0 0.75rem 0.75rem" });
+const audioStyle = css({ height: "2rem", width: "100%" });
+const moreStyle = css({ padding: "2rem", textAlign: "center" });
 
 export interface FileItem {
   id: string;
@@ -27,63 +66,57 @@ export function FileCollection(handle: Handle<FileCollectionProps>) {
   return () => {
     const { files, grid = false, showAudioPlayers = true, nextHref } = handle.props;
     if (files.length === 0) {
-      return <div className="text-center p-12 text-text-muted">No files found.</div>;
+      return (
+        <EmptyState
+          title="No files found"
+          description="Try another view or adjust the current filters."
+        />
+      );
     }
 
     return (
       <div>
         {grid ? (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-2">
+          <div mix={gridStyle}>
             {files.map((file) => (
-              <a
+              <MediaCard
                 key={file.id}
                 href={routes.file.href({ path: file.path })}
-                className="group relative aspect-square overflow-hidden border border-border-light bg-[#f9f9f9] transition-colors hover:border-border"
-              >
-                <img
-                  src={`/uploads/${file.path}${file.hasPreview ? ".preview.png" : ""}`}
-                  alt={file.name}
-                  loading="lazy"
-                  className="h-full w-full object-cover"
-                />
-                <div className="absolute bottom-0 left-0 right-0 truncate bg-white/95 px-2 py-1 text-[0.7rem] text-text-muted opacity-0 transition-opacity group-hover:opacity-100">
-                  {file.name}
-                  {file.width && file.height ? (
-                    <span className="ml-2 opacity-70">
-                      {file.width}×{file.height}
-                    </span>
-                  ) : null}
-                </div>
-              </a>
+                imageSrc={`/uploads/${file.path}${file.hasPreview ? ".preview.png" : ""}`}
+                imageAlt={file.name}
+                title={file.name}
+                meta={
+                  file.width && file.height
+                    ? `${file.width} × ${file.height}`
+                    : formatSize(file.size)
+                }
+              />
             ))}
           </div>
         ) : (
-          <div className="border border-border-light bg-bg">
+          <div mix={listStyle}>
             {files.map((file) => {
               const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
               const canPlay =
                 file.kind === "audio" && showAudioPlayers && playableAudio.has(extension);
               return (
-                <div key={file.id} className="border-b border-border-light last:border-b-0">
-                  <a
-                    href={routes.file.href({ path: file.path })}
-                    className="flex items-center gap-3 p-3 no-underline text-inherit transition-colors duration-150 hover:bg-bg-hover hover:no-underline"
-                  >
-                    <span className="shrink-0 text-2xl">{fileIcon(file.kind)}</span>
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate font-medium">{file.name}</div>
-                      <div className="text-xs text-text-muted">
+                <div key={file.id} mix={listItemStyle}>
+                  <a href={routes.file.href({ path: file.path })} mix={listLinkStyle}>
+                    <span mix={iconStyle}>{fileIcon(file.kind)}</span>
+                    <div mix={fileInfoStyle}>
+                      <div mix={fileNameStyle}>{file.name}</div>
+                      <div mix={metadataStyle}>
                         {file.kind} · {formatSize(file.size)}
                       </div>
                     </div>
                   </a>
                   {canPlay ? (
-                    <div className="px-3 pb-3">
+                    <div mix={playerStyle}>
                       <audio
                         controls
                         src={`/uploads/${file.path}`}
                         preload="none"
-                        className="h-8 w-full"
+                        mix={audioStyle}
                       />
                     </div>
                   ) : null}
@@ -93,8 +126,8 @@ export function FileCollection(handle: Handle<FileCollectionProps>) {
           </div>
         )}
         {nextHref ? (
-          <div className="p-8 text-center">
-            <a href={nextHref} className="btn">
+          <div mix={moreStyle}>
+            <a href={nextHref} mix={buttonStyle}>
               Load more
             </a>
           </div>

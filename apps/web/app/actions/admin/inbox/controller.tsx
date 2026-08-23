@@ -1,7 +1,7 @@
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { createController } from "remix/router";
 import { redirect } from "remix/response/redirect";
-import type { Handle } from "remix/ui";
+import { css, type Handle } from "remix/ui";
 
 import { folders } from "#db";
 import { db } from "#db/connection.server";
@@ -11,6 +11,56 @@ import { requireAdmin } from "../../../middleware/auth.ts";
 import { routes } from "../../../routes.ts";
 import { AdminPage } from "../../../ui/admin-page.tsx";
 import { formatSize } from "../../../ui/file-collection.tsx";
+import { MediaCard } from "../../../ui/media-card.tsx";
+import {
+  Alert,
+  Button,
+  EmptyState,
+  FormField,
+  Panel,
+  SectionHeader,
+  SelectInput,
+} from "../../../ui/primitives.tsx";
+import { theme } from "../../../ui/styles.ts";
+
+const countStyle = css({ color: theme.color.muted, fontSize: "0.875rem", margin: "0 0 1rem" });
+const sessionsStyle = css({ display: "flex", flexDirection: "column", gap: "1.5rem" });
+const mutedStyle = css({ color: theme.color.muted });
+const bulkStyle = css({
+  marginBottom: "1.5rem",
+});
+const bulkFormStyle = css({ alignItems: "end", display: "flex", flexWrap: "wrap", gap: "0.75rem" });
+const sessionHeaderStyle = css({
+  borderBottom: `1px solid ${theme.color.borderLight}`,
+  marginBottom: "0.75rem",
+  paddingBottom: "0.75rem",
+});
+const metadataStyle = css({ fontSize: "0.875rem", margin: 0 });
+const suggestionStyle = css({
+  color: theme.color.muted,
+  fontSize: "0.875rem",
+  margin: "0.25rem 0 0",
+});
+const countDetailStyle = css({
+  color: theme.color.faint,
+  fontSize: "0.75rem",
+  margin: "0.25rem 0 0",
+});
+const filesGridStyle = css({
+  display: "grid",
+  gap: "0.5rem",
+  gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))",
+  marginBottom: "1rem",
+});
+const actionRowStyle = css({
+  alignItems: "end",
+  borderTop: `1px solid ${theme.color.borderLight}`,
+  display: "flex",
+  gap: "1rem",
+  paddingTop: "0.75rem",
+});
+const approveFormStyle = css({ alignItems: "end", display: "flex", flex: "1", gap: "0.5rem" });
+const growStyle = css({ flex: "1" });
 
 type PendingSession = Awaited<ReturnType<typeof getPendingSessionsWithFiles>>[number];
 
@@ -40,22 +90,25 @@ export default createController(routes.admin.inbox, {
 
       return context.render(
         <AdminPage user={context.user} active="inbox" title="Upload inbox">
-          {notice ? <div className="alert alert-success mb-4">{notice}</div> : null}
+          {notice ? <Alert tone="success">{notice}</Alert> : null}
           {totalPendingFiles ? (
-            <p className="text-sm text-text-muted mb-4">
+            <p mix={countStyle}>
               {totalPendingFiles} file{totalPendingFiles === 1 ? "" : "s"} in {sessions.length}{" "}
               session{sessions.length === 1 ? "" : "s"}
             </p>
           ) : null}
           {sessions.length > 1 ? <BulkActions folders={allFolders} uploaders={uploaders} /> : null}
           {sessions.length ? (
-            <div className="flex flex-col gap-6">
+            <div mix={sessionsStyle}>
               {sessions.map((session) => (
                 <InboxSession key={session.folder.id} session={session} folders={allFolders} />
               ))}
             </div>
           ) : (
-            <p className="text-text-muted">No pending uploads.</p>
+            <EmptyState
+              title="No pending uploads"
+              description="New member uploads will appear here for review."
+            />
           )}
         </AdminPage>,
       );
@@ -164,46 +217,40 @@ function BulkActions(
   }>,
 ) {
   return () => (
-    <section className="border border-border-light p-4 mb-6 bg-bg-subtle">
-      <h2 className="text-sm font-medium uppercase tracking-wide text-text-muted mb-3">
-        Bulk actions
-      </h2>
-      <form
-        method="post"
-        action={routes.admin.inbox.action.href()}
-        className="flex items-end gap-3 flex-wrap"
-      >
-        <div>
-          <label className="block text-xs text-text-muted mb-1">Destination folder</label>
-          <select name="destinationFolderId" className="input">
-            <option value="">Select a folder</option>
-            {handle.props.folders.map((folder) => (
-              <option key={folder.id} value={folder.id}>
-                {folder.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        {handle.props.uploaders.length > 1 ? (
-          <div>
-            <label className="block text-xs text-text-muted mb-1">Filter by uploader</label>
-            <select name="uploaderId" className="input">
-              <option value="">All uploaders</option>
-              {handle.props.uploaders.map((uploader) => (
-                <option key={uploader.id} value={uploader.id}>
-                  @{uploader.username}
+    <section mix={bulkStyle}>
+      <Panel>
+        <SectionHeader title="Bulk actions" />
+        <form method="post" action={routes.admin.inbox.action.href()} mix={bulkFormStyle}>
+          <FormField label="Destination folder" htmlFor="bulk-destination-folder">
+            <SelectInput id="bulk-destination-folder" name="destinationFolderId">
+              <option value="">Select a folder</option>
+              {handle.props.folders.map((folder) => (
+                <option key={folder.id} value={folder.id}>
+                  {folder.name}
                 </option>
               ))}
-            </select>
-          </div>
-        ) : null}
-        <button type="submit" name="intent" value="approve-all" className="btn btn-primary">
-          Approve all
-        </button>
-        <button type="submit" name="intent" value="reject-all" className="btn btn-danger">
-          Reject all
-        </button>
-      </form>
+            </SelectInput>
+          </FormField>
+          {handle.props.uploaders.length > 1 ? (
+            <FormField label="Filter by uploader" htmlFor="bulk-uploader-filter">
+              <SelectInput id="bulk-uploader-filter" name="uploaderId">
+                <option value="">All uploaders</option>
+                {handle.props.uploaders.map((uploader) => (
+                  <option key={uploader.id} value={uploader.id}>
+                    @{uploader.username}
+                  </option>
+                ))}
+              </SelectInput>
+            </FormField>
+          ) : null}
+          <Button type="submit" name="intent" value="approve-all" variant="primary">
+            Approve all
+          </Button>
+          <Button type="submit" name="intent" value="reject-all" variant="danger">
+            Reject all
+          </Button>
+        </form>
+      </Panel>
     </section>
   );
 }
@@ -217,82 +264,75 @@ function InboxSession(
   return () => {
     const { session, folders: destinationFolders } = handle.props;
     return (
-      <section className="border border-border-light p-4">
-        <div className="mb-3 pb-3 border-b border-border-light">
-          <p className="text-sm">
-            <span className="text-text-muted">Uploaded by </span>
-            <strong>{session.uploader ? `@${session.uploader.username}` : "Unknown"}</strong>
-            <span className="text-text-muted"> on {formatDate(session.folder.createdAt)}</span>
-          </p>
-          {session.suggestedFolder ? (
-            <p className="text-sm text-text-muted mt-1">
-              Suggested folder: <span className="text-text">{session.suggestedFolder.name}</span>
+      <section>
+        <Panel>
+          <div mix={sessionHeaderStyle}>
+            <p mix={metadataStyle}>
+              <span mix={mutedStyle}>Uploaded by </span>
+              <strong>{session.uploader ? `@${session.uploader.username}` : "Unknown"}</strong>
+              <span mix={mutedStyle}> on {formatDate(session.folder.createdAt)}</span>
             </p>
-          ) : null}
-          <p className="text-xs text-text-faint mt-1">
-            {session.files.length} file{session.files.length === 1 ? "" : "s"}
-          </p>
-        </div>
+            {session.suggestedFolder ? (
+              <p mix={suggestionStyle}>
+                Suggested folder: <span>{session.suggestedFolder.name}</span>
+              </p>
+            ) : null}
+            <p mix={countDetailStyle}>
+              {session.files.length} file{session.files.length === 1 ? "" : "s"}
+            </p>
+          </div>
 
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-2 mb-4">
-          {session.files.map((file) => {
-            const thumbnail = thumbnailUrl(file);
-            return (
-              <div key={file.id} className="border border-border-light p-1 text-center">
-                {thumbnail ? (
-                  <img
-                    src={thumbnail}
-                    alt={file.name}
-                    className="w-full aspect-square object-cover mb-1"
-                    loading="lazy"
-                  />
-                ) : (
-                  <div className="w-full aspect-square bg-bg-subtle flex items-center justify-center mb-1">
-                    <span className="text-xs text-text-faint">{file.kind}</span>
-                  </div>
-                )}
-                <p className="text-xs text-text-muted truncate" title={file.name}>
-                  {file.name}
-                </p>
-                <p className="text-xs text-text-faint">{formatSize(file.size)}</p>
+          <div mix={filesGridStyle}>
+            {session.files.map((file) => {
+              const thumbnail = thumbnailUrl(file);
+              return (
+                <MediaCard
+                  key={file.id}
+                  imageSrc={thumbnail ?? undefined}
+                  imageAlt={file.name}
+                  placeholder={file.kind === "texture" ? "🖼️" : "📎"}
+                  title={file.name}
+                  meta={`${file.kind} · ${formatSize(file.size)}`}
+                />
+              );
+            })}
+          </div>
+
+          <div mix={actionRowStyle}>
+            <form method="post" action={routes.admin.inbox.action.href()} mix={approveFormStyle}>
+              <input type="hidden" name="sessionFolderId" value={session.folder.id} />
+              <div mix={growStyle}>
+                <FormField
+                  label="Destination folder"
+                  htmlFor={`${session.folder.id}-destination-folder`}
+                >
+                  <SelectInput
+                    id={`${session.folder.id}-destination-folder`}
+                    name="destinationFolderId"
+                    value={session.suggestedFolder?.id ?? ""}
+                    fullWidth
+                  >
+                    <option value="">Select a folder</option>
+                    {destinationFolders.map((folder) => (
+                      <option key={folder.id} value={folder.id}>
+                        {folder.name}
+                      </option>
+                    ))}
+                  </SelectInput>
+                </FormField>
               </div>
-            );
-          })}
-        </div>
-
-        <div className="flex items-end gap-4 pt-3 border-t border-border-light">
-          <form
-            method="post"
-            action={routes.admin.inbox.action.href()}
-            className="flex items-end gap-2 flex-1"
-          >
-            <input type="hidden" name="sessionFolderId" value={session.folder.id} />
-            <div className="flex-1">
-              <label className="block text-xs text-text-muted mb-1">Destination folder</label>
-              <select
-                name="destinationFolderId"
-                className="input w-full"
-                value={session.suggestedFolder?.id ?? ""}
-              >
-                <option value="">Select a folder</option>
-                {destinationFolders.map((folder) => (
-                  <option key={folder.id} value={folder.id}>
-                    {folder.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <button type="submit" name="intent" value="approve" className="btn btn-primary">
-              Approve
-            </button>
-          </form>
-          <form method="post" action={routes.admin.inbox.action.href()}>
-            <input type="hidden" name="sessionFolderId" value={session.folder.id} />
-            <button type="submit" name="intent" value="reject" className="btn btn-danger">
-              Reject
-            </button>
-          </form>
-        </div>
+              <Button type="submit" name="intent" value="approve" variant="primary">
+                Approve
+              </Button>
+            </form>
+            <form method="post" action={routes.admin.inbox.action.href()}>
+              <input type="hidden" name="sessionFolderId" value={session.folder.id} />
+              <Button type="submit" name="intent" value="reject" variant="danger">
+                Reject
+              </Button>
+            </form>
+          </div>
+        </Panel>
       </section>
     );
   };

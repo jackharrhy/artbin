@@ -1,7 +1,7 @@
 import { desc, eq } from "drizzle-orm";
 import { createController } from "remix/router";
 import { redirect } from "remix/response/redirect";
-import type { Handle } from "remix/ui";
+import { css, type Handle } from "remix/ui";
 
 import { jobs } from "#db";
 import { db } from "#db/connection.server";
@@ -13,6 +13,80 @@ import { routes } from "../../../routes.ts";
 import { AdminPage } from "../../../ui/admin-page.tsx";
 import { formatSize } from "../../../ui/file-collection.tsx";
 import { AutoRefresh } from "../../../ui/public/auto-refresh.tsx";
+import {
+  Alert,
+  Badge,
+  Button,
+  CheckboxField,
+  EmptyState,
+  FormField,
+  Panel,
+  ProgressBar,
+  SectionHeader,
+  TextInput,
+} from "../../../ui/primitives.tsx";
+import { theme } from "../../../ui/styles.ts";
+
+const introStyle = css({ color: theme.color.muted, margin: "0 0 1.5rem" });
+const scanCardStyle = css({ marginBottom: "1.5rem" });
+const scanRowStyle = css({
+  alignItems: "center",
+  display: "flex",
+  gap: "1rem",
+  justifyContent: "space-between",
+});
+const scanNoteStyle = css({ color: theme.color.muted, fontSize: "0.875rem", margin: 0 });
+const progressStyle = css({ marginTop: "1rem" });
+const resultsNoteStyle = css({
+  color: theme.color.muted,
+  fontSize: "0.875rem",
+  margin: "0 0 0.75rem",
+});
+const listStyle = css({ display: "flex", flexDirection: "column", gap: "0.75rem" });
+const batchStyle = css({ marginBottom: "1.5rem" });
+const descriptionStyle = css({
+  color: theme.color.muted,
+  fontSize: "0.875rem",
+  margin: "0 0 0.75rem",
+});
+const archivePickerStyle = css({
+  border: `1px solid ${theme.color.borderLight}`,
+  marginBottom: "1rem",
+  maxHeight: "16rem",
+  overflow: "auto",
+  padding: "0.5rem",
+});
+const pathStyle = css({ overflowWrap: "anywhere", fontFamily: theme.font.mono });
+const twoColumnStyle = css({
+  display: "grid",
+  gap: "0.75rem",
+  gridTemplateColumns: "repeat(2, 1fr)",
+  "@media (max-width: 640px)": { gridTemplateColumns: "1fr" },
+});
+const submitStyle = css({ marginTop: "1rem" });
+const archiveCardStyle = css({ marginBottom: "0.75rem" });
+const archiveHeaderStyle = css({
+  display: "flex",
+  gap: "0.75rem",
+  justifyContent: "space-between",
+  marginBottom: "0.75rem",
+});
+const minWidthStyle = css({ minWidth: 0 });
+const archiveNameStyle = css({ overflowWrap: "anywhere" });
+const archivePathStyle = css({
+  color: theme.color.muted,
+  fontFamily: theme.font.mono,
+  fontSize: "0.75rem",
+  margin: 0,
+  overflowWrap: "anywhere",
+});
+const archiveFormStyle = css({
+  alignItems: "end",
+  display: "grid",
+  gap: "0.75rem",
+  gridTemplateColumns: "1fr 1fr auto",
+  "@media (max-width: 640px)": { gridTemplateColumns: "1fr" },
+});
 
 export default createController(routes.admin.archives, {
   middleware: [requireAdmin()],
@@ -38,56 +112,65 @@ export default createController(routes.admin.archives, {
       return context.render(
         <AdminPage user={context.user} active="archives" title="Local archives">
           <AutoRefresh active={scanning} />
-          <p className="mb-6 text-text-muted">
+          <p mix={introStyle}>
             Scan this computer for PAK, PK3, WAD, ZIP, and BSP files, then import selected assets.
           </p>
-          {notice ? <div className="alert alert-success mb-4">{notice}</div> : null}
-          <section className="card mb-6">
-            <div className="flex justify-between items-center gap-4">
-              <div>
-                <strong>Scan home directory</strong>
-                <p className="text-sm text-text-muted m-0">
-                  Scan settings control game directories and ignored paths.
-                </p>
+          {notice ? <Alert tone="success">{notice}</Alert> : null}
+          <section mix={scanCardStyle}>
+            <Panel>
+              <div mix={scanRowStyle}>
+                <div>
+                  <strong>Scan home directory</strong>
+                  <p mix={scanNoteStyle}>
+                    Scan settings control game directories and ignored paths.
+                  </p>
+                </div>
+                <form method="post" action={routes.admin.archives.action.href()}>
+                  <Button
+                    type="submit"
+                    name="intent"
+                    value="scan"
+                    variant="primary"
+                    disabled={scanning}
+                  >
+                    {scanning ? "Scan running" : "Scan"}
+                  </Button>
+                </form>
               </div>
-              <form method="post" action={routes.admin.archives.action.href()}>
-                <button type="submit" name="intent" value="scan" className="btn btn-primary">
-                  {scanning ? "Scan running" : "Scan"}
-                </button>
-              </form>
-            </div>
-            {scanning ? (
-              <div className="mt-4">
-                <div className="w-full h-1.5 bg-bg-subtle overflow-hidden">
-                  <div
-                    className="h-full bg-[#4CAF50]"
-                    style={{ width: `${recentScan?.progress ?? 0}%` }}
+              {scanning ? (
+                <div mix={progressStyle}>
+                  <ProgressBar
+                    value={recentScan?.progress ?? 0}
+                    label={recentScan?.progressMessage ?? "Starting scan"}
                   />
                 </div>
-                <p className="text-xs text-text-muted mt-2 mb-0">
-                  {recentScan?.progressMessage ?? "Starting scan..."}
-                </p>
-              </div>
-            ) : null}
+              ) : null}
+            </Panel>
           </section>
 
           {archives.length ? (
             <>
               <BatchArchiveForm archives={archives} />
-              <p className="text-sm text-text-muted mb-3">
+              <p mix={resultsNoteStyle}>
                 Found {archives.length} archive{archives.length === 1 ? "" : "s"}. Each item can
                 also be imported into its own folder.
               </p>
-              <div className="flex flex-col gap-3">
+              <div mix={listStyle}>
                 {archives.map((archive) => (
                   <ArchiveCard key={archive.path} archive={archive} />
                 ))}
               </div>
             </>
           ) : recentScan?.status === "completed" ? (
-            <p className="text-center p-8 text-text-muted">No game archives were found.</p>
+            <EmptyState
+              title="No game archives were found"
+              description="Adjust the scan settings or choose another location."
+            />
           ) : !recentScan ? (
-            <p className="text-center p-8 text-text-muted">No scan results yet.</p>
+            <EmptyState
+              title="No scan results yet"
+              description="Run a scan to find supported archives on this computer."
+            />
           ) : null}
         </AdminPage>,
       );
@@ -204,32 +287,40 @@ export default createController(routes.admin.archives, {
 
 function BatchArchiveForm(handle: Handle<{ archives: FoundArchive[] }>) {
   return () => (
-    <form method="post" action={routes.admin.archives.action.href()} className="card mb-6">
-      <h2 className="font-medium mb-2">Batch import</h2>
-      <p className="text-sm text-text-muted mb-3">
-        Select files and import each one as a subfolder of a new collection.
-      </p>
-      <div className="max-h-64 overflow-auto border border-border-light p-2 mb-4">
-        {handle.props.archives.map((archive) => (
-          <label key={archive.path} className="flex gap-2 items-start py-1 text-sm">
-            <input type="checkbox" name="archivePath" value={archive.path} />
-            <span className="font-mono break-all">{archive.path}</span>
-          </label>
-        ))}
-      </div>
-      <div className="grid sm:grid-cols-2 gap-3">
-        <label className="text-sm">
-          Parent folder name
-          <input className="input w-full mt-1" name="folderName" required />
-        </label>
-        <label className="text-sm">
-          Folder slug
-          <input className="input w-full mt-1" name="folderSlug" pattern="[a-z0-9-]+" required />
-        </label>
-      </div>
-      <button type="submit" name="intent" value="batch-import" className="btn btn-primary mt-4">
-        Import selected
-      </button>
+    <form method="post" action={routes.admin.archives.action.href()} mix={batchStyle}>
+      <Panel>
+        <SectionHeader title="Batch import" />
+        <p mix={descriptionStyle}>
+          Select files and import each one as a subfolder of a new collection.
+        </p>
+        <div mix={archivePickerStyle}>
+          {handle.props.archives.map((archive) => (
+            <CheckboxField key={archive.path} name="archivePath" value={archive.path}>
+              <span mix={pathStyle}>{archive.path}</span>
+            </CheckboxField>
+          ))}
+        </div>
+        <div mix={twoColumnStyle}>
+          <FormField label="Parent folder name" htmlFor="batch-folder-name" required>
+            <TextInput id="batch-folder-name" name="folderName" required fullWidth />
+          </FormField>
+          <FormField label="Folder slug" htmlFor="batch-folder-slug" required>
+            <TextInput
+              id="batch-folder-slug"
+              name="folderSlug"
+              pattern="[a-z0-9-]+"
+              required
+              fullWidth
+              mono
+            />
+          </FormField>
+        </div>
+        <div mix={submitStyle}>
+          <Button type="submit" name="intent" value="batch-import" variant="primary">
+            Import selected
+          </Button>
+        </div>
+      </Panel>
     </form>
   );
 }
@@ -240,42 +331,47 @@ function ArchiveCard(handle: Handle<{ archive: FoundArchive }>) {
     const defaultName = archive.gameDir
       ? `${archive.gameDir} - ${archive.name.replace(/\.[^.]+$/, "")}`
       : archive.name.replace(/\.[^.]+$/, "");
+    const fieldPrefix = `archive-${encodeURIComponent(archive.path)}`;
     return (
-      <section className="border border-border-light p-4">
-        <div className="flex justify-between gap-3 mb-3">
-          <div className="min-w-0">
-            <strong className="break-all">{archive.name}</strong>
-            <p className="text-xs text-text-muted font-mono break-all">{archive.path}</p>
+      <section mix={archiveCardStyle}>
+        <Panel>
+          <div mix={archiveHeaderStyle}>
+            <div mix={minWidthStyle}>
+              <strong mix={archiveNameStyle}>{archive.name}</strong>
+              <p mix={archivePathStyle}>{archive.path}</p>
+            </div>
+            <Badge>
+              {archive.type.toUpperCase()} · {formatSize(archive.size)}
+            </Badge>
           </div>
-          <span className="text-xs text-text-muted whitespace-nowrap">
-            {archive.type.toUpperCase()} · {formatSize(archive.size)}
-          </span>
-        </div>
-        <form
-          method="post"
-          action={routes.admin.archives.action.href()}
-          className="grid sm:grid-cols-[1fr_1fr_auto] gap-3 items-end"
-        >
-          <input type="hidden" name="archivePath" value={archive.path} />
-          <input type="hidden" name="archiveType" value={archive.type} />
-          <label className="text-xs text-text-muted">
-            Folder name
-            <input className="input w-full mt-1" name="folderName" value={defaultName} required />
-          </label>
-          <label className="text-xs text-text-muted">
-            Folder slug
-            <input
-              className="input w-full mt-1"
-              name="folderSlug"
-              value={slug(defaultName)}
-              pattern="[a-z0-9-]+"
-              required
-            />
-          </label>
-          <button type="submit" name="intent" value="import-archive" className="btn btn-primary">
-            Import
-          </button>
-        </form>
+          <form method="post" action={routes.admin.archives.action.href()} mix={archiveFormStyle}>
+            <input type="hidden" name="archivePath" value={archive.path} />
+            <input type="hidden" name="archiveType" value={archive.type} />
+            <FormField label="Folder name" htmlFor={`${fieldPrefix}-name`}>
+              <TextInput
+                id={`${fieldPrefix}-name`}
+                name="folderName"
+                value={defaultName}
+                required
+                fullWidth
+              />
+            </FormField>
+            <FormField label="Folder slug" htmlFor={`${fieldPrefix}-slug`}>
+              <TextInput
+                id={`${fieldPrefix}-slug`}
+                name="folderSlug"
+                value={slug(defaultName)}
+                pattern="[a-z0-9-]+"
+                required
+                fullWidth
+                mono
+              />
+            </FormField>
+            <Button type="submit" name="intent" value="import-archive" variant="primary">
+              Import
+            </Button>
+          </form>
+        </Panel>
       </section>
     );
   };

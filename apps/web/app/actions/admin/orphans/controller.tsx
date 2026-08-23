@@ -5,7 +5,7 @@ import { join, relative } from "node:path";
 import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { createController } from "remix/router";
 import { redirect } from "remix/response/redirect";
-import type { Handle } from "remix/ui";
+import { css, type Handle } from "remix/ui";
 
 import { files, folders } from "#db";
 import { db } from "#db/connection.server";
@@ -15,6 +15,62 @@ import { createJob } from "#lib/jobs.server";
 import { requireAdmin } from "../../../middleware/auth.ts";
 import { routes } from "../../../routes.ts";
 import { AdminPage } from "../../../ui/admin-page.tsx";
+import { Alert, Button, ButtonLink, Panel, SectionHeader } from "../../../ui/primitives.tsx";
+import { theme } from "../../../ui/styles.ts";
+
+const scanActionStyle = css({ marginBottom: "1.5rem" });
+const scanIntroStyle = css({ color: theme.color.muted, fontSize: "0.875rem", margin: "0 0 2rem" });
+const cleanupListStyle = css({
+  display: "flex",
+  flexDirection: "column",
+  gap: "0.75rem",
+  marginBottom: "2rem",
+});
+const cleanupRowStyle = css({
+  alignItems: "center",
+  display: "flex",
+  gap: "0.75rem",
+  justifyContent: "space-between",
+});
+const smallTextStyle = css({ fontSize: "0.875rem" });
+const hashSectionStyle = css({
+  borderTop: `1px solid ${theme.color.borderLight}`,
+  marginTop: "2rem",
+  paddingTop: "1.5rem",
+});
+const statsRowStyle = css({
+  alignItems: "center",
+  display: "flex",
+  justifyContent: "space-between",
+  marginBottom: "0.75rem",
+});
+const missingStyle = css({ color: theme.color.faint, marginLeft: "0.5rem" });
+const duplicateTitleStyle = css({ marginTop: "1rem" });
+const duplicateListStyle = css({ display: "flex", flexDirection: "column", gap: "0.5rem" });
+const hashStyle = css({
+  color: theme.color.faint,
+  fontFamily: theme.font.mono,
+  fontSize: "0.75rem",
+  margin: "0 0 0.5rem",
+});
+const fileListStyle = css({ fontSize: "0.875rem", listStyle: "none", margin: 0, padding: 0 });
+const fileRowStyle = css({
+  alignItems: "center",
+  display: "flex",
+  gap: "0.5rem",
+  justifyContent: "space-between",
+  paddingBlock: "0.125rem",
+});
+const filePathStyle = css({
+  color: theme.color.muted,
+  fontFamily: theme.font.mono,
+  fontSize: "0.75rem",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+});
+const noShrinkStyle = css({ flexShrink: 0 });
+const tinyButtonStyle = css({ fontSize: "0.75rem" });
 
 interface ScanResults {
   orphanedFiles: string[];
@@ -72,16 +128,14 @@ export default createController(routes.admin.orphans, {
 
       return context.render(
         <AdminPage user={context.user} active="orphans" title="Orphan finder">
-          {notice ? <div className="alert alert-success mb-4">{notice}</div> : null}
-          <div className="mb-6">
-            <a href={`${routes.admin.orphans.index.href()}?scan=true`} className="btn btn-primary">
+          {notice ? <Alert tone="success">{notice}</Alert> : null}
+          <div mix={scanActionStyle}>
+            <ButtonLink href={`${routes.admin.orphans.index.href()}?scan=true`} variant="primary">
               Scan uploads
-            </a>
+            </ButtonLink>
           </div>
           {!scanResults ? (
-            <p className="text-text-muted text-sm mb-8">
-              Scan the uploads directory and compare it with the database.
-            </p>
+            <p mix={scanIntroStyle}>Scan the uploads directory and compare it with the database.</p>
           ) : (
             <ScanResultsPanel results={scanResults} />
           )}
@@ -174,9 +228,9 @@ function ScanResultsPanel(handle: Handle<{ results: ScanResults }>) {
       results.missingFiles.length === 0 &&
       results.staleRejected.length === 0 &&
       results.emptyInboxSessions.length === 0;
-    if (allClean) return <p className="text-green-700 text-sm mb-8">Everything looks clean.</p>;
+    if (allClean) return <Alert tone="success">Everything looks clean.</Alert>;
     return (
-      <div className="flex flex-col gap-3 mb-8">
+      <div mix={cleanupListStyle}>
         <CleanupRow
           count={results.orphanedFiles.length}
           label="orphaned file on disk"
@@ -225,21 +279,23 @@ function CleanupRow(
   }>,
 ) {
   return () => (
-    <div className="flex items-center justify-between gap-3 border border-border-light px-4 py-3">
-      <span className="text-sm">
-        <strong>{handle.props.count}</strong> {handle.props.label}
-        {handle.props.count === 1 ? "" : "s"}
-      </span>
-      {handle.props.count ? (
-        <form method="post" action={routes.admin.orphans.action.href()}>
-          <input type="hidden" name="intent" value={handle.props.intent} />
-          <input type="hidden" name={handle.props.field} value={handle.props.value} />
-          <button type="submit" className="btn btn-danger btn-sm">
-            {handle.props.button}
-          </button>
-        </form>
-      ) : null}
-    </div>
+    <Panel>
+      <div mix={cleanupRowStyle}>
+        <span mix={smallTextStyle}>
+          <strong>{handle.props.count}</strong> {handle.props.label}
+          {handle.props.count === 1 ? "" : "s"}
+        </span>
+        {handle.props.count ? (
+          <form method="post" action={routes.admin.orphans.action.href()}>
+            <input type="hidden" name="intent" value={handle.props.intent} />
+            <input type="hidden" name={handle.props.field} value={handle.props.value} />
+            <Button type="submit" variant="danger" size="small">
+              {handle.props.button}
+            </Button>
+          </form>
+        ) : null}
+      </div>
+    </Panel>
   );
 }
 
@@ -252,44 +308,47 @@ function HashPanel(
   return () => {
     const { stats, duplicates } = handle.props;
     return (
-      <section className="mt-8 pt-6 border-t border-border-light">
-        <h2 className="text-sm font-medium uppercase tracking-wide text-text-muted mb-3">
-          File hashes
-        </h2>
-        <div className="flex items-center justify-between border border-border-light px-4 py-3 mb-3">
-          <span className="text-sm">
-            <strong>{stats.hashed}</strong> / {stats.total} {stats.total === 1 ? "file" : "files"}{" "}
-            hashed
+      <section mix={hashSectionStyle}>
+        <SectionHeader title="File hashes" />
+        <Panel>
+          <div mix={statsRowStyle}>
+            <span mix={smallTextStyle}>
+              <strong>{stats.hashed}</strong> / {stats.total} {stats.total === 1 ? "file" : "files"}{" "}
+              hashed
+              {stats.hashed < stats.total ? (
+                <span mix={missingStyle}>({stats.total - stats.hashed} missing)</span>
+              ) : null}
+            </span>
             {stats.hashed < stats.total ? (
-              <span className="text-text-faint ml-2">({stats.total - stats.hashed} missing)</span>
+              <form method="post" action={routes.admin.orphans.action.href()}>
+                <Button
+                  type="submit"
+                  name="intent"
+                  value="backfill-hashes"
+                  variant="primary"
+                  size="small"
+                >
+                  Backfill hashes
+                </Button>
+              </form>
             ) : null}
-          </span>
-          {stats.hashed < stats.total ? (
-            <form method="post" action={routes.admin.orphans.action.href()}>
-              <button
-                type="submit"
-                name="intent"
-                value="backfill-hashes"
-                className="btn btn-primary btn-sm"
-              >
-                Backfill hashes
-              </button>
-            </form>
-          ) : null}
-        </div>
+          </div>
+        </Panel>
         {duplicates.length ? (
           <>
-            <h3 className="text-sm font-medium uppercase tracking-wide text-text-muted mb-2 mt-4">
-              Duplicates ({duplicates.length} group{duplicates.length === 1 ? "" : "s"})
-            </h3>
-            <div className="flex flex-col gap-2">
+            <div mix={duplicateTitleStyle}>
+              <SectionHeader
+                title={`Duplicates (${duplicates.length} group${duplicates.length === 1 ? "" : "s"})`}
+              />
+            </div>
+            <div mix={duplicateListStyle}>
               {duplicates.map((group) => (
                 <DuplicateCard key={group.sha256} group={group} />
               ))}
             </div>
           </>
         ) : stats.hashed ? (
-          <p className="text-sm text-text-muted">No duplicate files found.</p>
+          <p mix={[smallTextStyle, scanIntroStyle]}>No duplicate files found.</p>
         ) : null}
       </section>
     );
@@ -300,15 +359,15 @@ function DuplicateCard(handle: Handle<{ group: DuplicateGroup }>) {
   return () => {
     const group = handle.props.group;
     return (
-      <div className="border border-border-light px-4 py-3">
-        <p className="text-xs text-text-faint mb-2 font-mono">
+      <Panel>
+        <p mix={hashStyle}>
           sha256: {group.sha256.slice(0, 16)}... ({group.count} copies)
         </p>
-        <ul className="text-sm space-y-1">
+        <ul mix={fileListStyle}>
           {group.files.map((file) => (
-            <li key={file.id} className="flex items-center justify-between gap-2">
-              <span className="font-mono text-xs text-text-muted truncate">{file.path}</span>
-              <form method="post" action={routes.admin.orphans.action.href()} className="shrink-0">
+            <li key={file.id} mix={fileRowStyle}>
+              <span mix={filePathStyle}>{file.path}</span>
+              <form method="post" action={routes.admin.orphans.action.href()} mix={noShrinkStyle}>
                 <input type="hidden" name="intent" value="delete-duplicates" />
                 <input type="hidden" name="keepId" value={file.id} />
                 <input
@@ -318,14 +377,16 @@ function DuplicateCard(handle: Handle<{ group: DuplicateGroup }>) {
                     group.files.filter((other) => other.id !== file.id).map((other) => other.id),
                   )}
                 />
-                <button type="submit" className="btn btn-sm text-xs">
-                  Keep this copy
-                </button>
+                <span mix={tinyButtonStyle}>
+                  <Button type="submit" size="small">
+                    Keep this copy
+                  </Button>
+                </span>
               </form>
             </li>
           ))}
         </ul>
-      </div>
+      </Panel>
     );
   };
 }

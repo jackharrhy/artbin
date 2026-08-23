@@ -1,5 +1,6 @@
 import { createController } from "remix/router";
 import { redirect } from "remix/response/redirect";
+import { css } from "remix/ui";
 
 import {
   initializeScanSettings,
@@ -10,6 +11,12 @@ import {
 import { requireAdmin } from "../../../middleware/auth.ts";
 import { routes } from "../../../routes.ts";
 import { AdminPage } from "../../../ui/admin-page.tsx";
+import { Button, FormField, Inline, Panel, TextArea } from "../../../ui/primitives.tsx";
+import { theme } from "../../../ui/styles.ts";
+
+const introStyle = css({ color: theme.color.muted, margin: "0 0 1.5rem" });
+const actionsStyle = css({ display: "flex", gap: "0.75rem", marginBottom: "2rem" });
+const fieldStyle = css({ marginBottom: "1.5rem" });
 
 export default createController(routes.admin.scanSettings, {
   middleware: [requireAdmin()],
@@ -19,7 +26,7 @@ export default createController(routes.admin.scanSettings, {
       const settings = await initializeScanSettings();
       return context.render(
         <AdminPage user={context.user} active="scan-settings" title="Scan settings">
-          <p className="mb-6 text-text-muted">
+          <p mix={introStyle}>
             Choose which files and directories the archive scanner includes or skips.
           </p>
           <form method="post" action={routes.admin.scanSettings.action.href()}>
@@ -47,13 +54,15 @@ export default createController(routes.admin.scanSettings, {
               help="Directory names that identify game content."
               value={settings.knownGameDirs.join("\n")}
             />
-            <div className="flex gap-3 mb-8">
-              <button type="submit" name="intent" value="save" className="btn btn-primary">
-                Save settings
-              </button>
-              <button type="submit" name="intent" value="reset" className="btn">
-                Reset to defaults
-              </button>
+            <div mix={actionsStyle}>
+              <Inline>
+                <Button type="submit" name="intent" value="save" variant="primary">
+                  Save settings
+                </Button>
+                <Button type="submit" name="intent" value="reset">
+                  Reset to defaults
+                </Button>
+              </Inline>
             </div>
           </form>
         </AdminPage>,
@@ -81,16 +90,19 @@ function SettingsField(handle: {
   props: { name: string; label: string; help: string; value: string };
 }) {
   return () => (
-    <div className="card mb-6">
-      <label className="block text-xs font-medium uppercase tracking-wide text-text-muted mb-1">
-        {handle.props.label}
-      </label>
-      <p className="text-xs text-text-muted mb-2">{handle.props.help}</p>
-      <textarea
-        name={handle.props.name}
-        className="input w-full min-h-[140px] font-mono text-[0.8125rem]"
-        value={handle.props.value}
-      />
+    <div mix={fieldStyle}>
+      <Panel>
+        <FormField label={handle.props.label} htmlFor={handle.props.name} hint={handle.props.help}>
+          <TextArea
+            id={handle.props.name}
+            name={handle.props.name}
+            value={handle.props.value}
+            rows={7}
+            fullWidth
+            mono
+          />
+        </FormField>
+      </Panel>
     </div>
   );
 }

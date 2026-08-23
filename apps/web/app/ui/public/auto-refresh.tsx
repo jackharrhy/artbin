@@ -1,5 +1,7 @@
 import { clientEntry, ref, type Handle, type SerializableProps } from "remix/ui";
 
+import { visuallyHiddenStyle } from "../styles.ts";
+
 interface AutoRefreshProps extends SerializableProps {
   active: boolean;
   intervalMs?: number;
@@ -10,13 +12,15 @@ export const AutoRefresh = clientEntry(
   function AutoRefresh(handle: Handle<AutoRefreshProps>) {
     return () => (
       <span
-        className="sr-only"
         aria-hidden="true"
-        mix={ref((_element, signal) => {
-          if (!handle.props.active) return;
-          const timer = setInterval(() => location.reload(), handle.props.intervalMs ?? 2_000);
-          signal.addEventListener("abort", () => clearInterval(timer));
-        })}
+        mix={[
+          visuallyHiddenStyle,
+          ref((_element, signal) => {
+            if (!handle.props.active) return;
+            const timer = setInterval(() => location.reload(), handle.props.intervalMs ?? 2_000);
+            signal.addEventListener("abort", () => clearInterval(timer));
+          }),
+        ]}
       />
     );
   },
