@@ -1,8 +1,10 @@
 import { afterEach, beforeAll, describe, expect, test, vi } from "vitest";
-import { files, folders, jobs, sessions, users } from "~/db/schema";
+import { files, folders, jobs, remoteImports, sessions, users } from "~/db/schema";
 import { setDbForTesting } from "~/db/connection.server";
 import { loader as whoamiLoader } from "~/routes/api.cli.whoami";
-import { action as foldersAction } from "~/routes/api.cli.folders";
+import { action as foldersAction, loader as foldersLoader } from "~/routes/api.cli.folders";
+import { action as manageFolderAction } from "~/routes/api.cli.folder.manage";
+import { loader as downloadFolderLoader } from "~/routes/api.folder.download";
 import { action as manifestAction } from "~/routes/api.cli.manifest";
 import { applyMigrations, createTestDatabase, type TestDatabase } from "./db";
 import { eq } from "drizzle-orm";
@@ -111,9 +113,13 @@ function userRequest(url: string, init?: RequestInit): Request {
  * Route handlers using requireCliAdmin throw Response objects on auth failure.
  * This helper catches thrown Responses and returns them.
  */
-async function callRoute(handler: Function, request: Request): Promise<Response> {
+async function callRoute(
+  handler: Function,
+  request: Request,
+  params: Record<string, string> = {},
+): Promise<Response> {
   try {
-    return await handler({ request, params: {}, context: {} });
+    return await handler({ request, params, context: {} });
   } catch (err) {
     if (err instanceof Response) return err;
     throw err;
@@ -148,7 +154,7 @@ describe("/api/cli/whoami", () => {
     expect(body).toEqual({ error: "Not authenticated" });
   });
 
-  test("returns 403 for non-admin user", async () => {
+  test("returns user info for an authenticated non-admin", async () => {
     const db = setupDatabase();
     await seedNonAdminSession(db);
 
@@ -157,15 +163,104 @@ describe("/api/cli/whoami", () => {
     });
     const response = await callRoute(whoamiLoader, request);
 
-    expect(response.status).toBe(403);
+    expect(response.status).toBe(200);
     const body = await response.json();
-    expect(body).toEqual({ error: "Admin access required" });
+    expect(body).toEqual({ user: { id: "user-1", name: "user", isAdmin: false } });
   });
 });
 
 // ─── folders ─────────────────────────────────────────────────────────────────
 
 describe("/api/cli/folders", () => {
+  test("lists the public folder tree with aggregate counts", async () => {
+    const db = setupDatabase();
+    await seedNonAdminSession(db);
+    await db.insert(folders).values([
+      { id: "maps", name: "Maps", slug: "maps", fileCount: 2 },
+      {
+        id: "tower",
+        name: "Tower",
+        slug: "maps/tower",
+        parentId: "maps",
+        fileCount: 3,
+      },
+      { id: "inbox", name: "Inbox", slug: "_inbox", fileCount: 9 },
+    ]);
+
+    const response = await callRoute(
+      foldersLoader,
+      userRequest("http://localhost/api/cli/folders"),
+    );
+    expect(response.status).toBe(200);
+
+    const body = await response.json();
+    expect(body.folders).toHaveLength(2);
+    expect(body.folders[0]).toMatchObject({
+      slug: "maps",
+      childCount: 1,
+      descendantCount: 1,
+      totalFileCount: 5,
+    });
+    expect(body.folders.some((folder: { slug: string }) => folder.slug === "_inbox")).toBe(false);
+  });
+
+  test("lets admins include system folders", async () => {
+    const db = setupDatabase();
+    await seedAdminSession(db);
+    await db.insert(folders).values([
+      { id: "maps", name: "Maps", slug: "maps" },
+      { id: "inbox", name: "Inbox", slug: "_inbox" },
+    ]);
+
+    const response = await callRoute(
+      foldersLoader,
+      adminRequest("http://localhost/api/cli/folders?includeSystem=true"),
+    );
+    const body = await response.json();
+    expect(body.folders.map((folder: { slug: string }) => folder.slug)).toEqual(["_inbox", "maps"]);
+  });
+
+  test("shows folder children and import source metadata", async () => {
+    const db = setupDatabase();
+    await seedAdminSession(db);
+    await db.insert(folders).values([
+      { id: "tower", name: "Tower", slug: "tower", fileCount: 1 },
+      {
+        id: "textures",
+        name: "Textures",
+        slug: "tower/textures",
+        parentId: "tower",
+        fileCount: 2,
+      },
+    ]);
+    await db.insert(remoteImports).values({
+      id: "import-1",
+      provider: "scmapdb",
+      externalId: "tower",
+      destinationKey: "root",
+      sourceUrl: "https://scmapdb.example/tower",
+      title: "Tower",
+      author: "Larry",
+      game: "Sven Co-op",
+      metadata: "{}",
+      folderId: "tower",
+    });
+
+    const response = await callRoute(
+      foldersLoader,
+      adminRequest("http://localhost/api/cli/folders?slug=tower"),
+    );
+    const body = await response.json();
+    expect(body.folder).toMatchObject({
+      slug: "tower",
+      totalFileCount: 3,
+      source: { provider: "scmapdb", author: "Larry", game: "Sven Co-op" },
+    });
+    expect(body.folder.children.map((folder: { slug: string }) => folder.slug)).toEqual([
+      "tower/textures",
+    ]);
+  });
+
   test("creates folders and returns their IDs", async () => {
     const db = setupDatabase();
     await seedAdminSession(db);
@@ -319,6 +414,174 @@ describe("/api/cli/folders", () => {
     // Verify nothing was created in DB
     const all = await db.query.folders.findMany();
     expect(all).toHaveLength(0);
+  });
+});
+
+describe("/api/cli/folder/manage", () => {
+  test("previews a recursive rename without changing data", async () => {
+    const db = setupDatabase();
+    await seedAdminSession(db);
+    await db.insert(folders).values([
+      { id: "maps", name: "Maps", slug: "maps" },
+      { id: "tower", name: "Tower", slug: "maps/tower", parentId: "maps" },
+    ]);
+    await db.insert(files).values({
+      id: "file-1",
+      path: "maps/tower/tower.bsp",
+      name: "tower.bsp",
+      mimeType: "application/octet-stream",
+      size: 100,
+      kind: "map",
+      folderId: "tower",
+    });
+
+    const response = await callRoute(
+      manageFolderAction,
+      adminRequest("http://localhost/api/cli/folder/manage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          operation: "rename",
+          slug: "maps",
+          name: "GoldSource Maps",
+          dryRun: true,
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.plan).toMatchObject({
+      from: { slug: "maps" },
+      to: { slug: "goldsource-maps" },
+      affected: { folders: 2, files: 1 },
+    });
+    expect(await db.query.folders.findFirst({ where: eq(folders.id, "maps") })).toMatchObject({
+      name: "Maps",
+      slug: "maps",
+    });
+  });
+
+  test("applies a display-only rename", async () => {
+    const db = setupDatabase();
+    await seedAdminSession(db);
+    await db.insert(folders).values({ id: "maps", name: "Maps", slug: "maps" });
+
+    const response = await callRoute(
+      manageFolderAction,
+      adminRequest("http://localhost/api/cli/folder/manage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          operation: "rename",
+          slug: "maps",
+          name: "MAPS",
+          dryRun: false,
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await db.query.folders.findFirst({ where: eq(folders.id, "maps") })).toMatchObject({
+      name: "MAPS",
+      slug: "maps",
+    });
+  });
+
+  test("rejects mutations from non-admin users", async () => {
+    const db = setupDatabase();
+    await seedNonAdminSession(db);
+    await db.insert(folders).values({ id: "maps", name: "Maps", slug: "maps" });
+
+    const response = await callRoute(
+      manageFolderAction,
+      userRequest("http://localhost/api/cli/folder/manage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          operation: "move",
+          slug: "maps",
+          destinationSlug: null,
+          dryRun: true,
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ error: "Admin access required" });
+  });
+
+  test("rejects malformed mutation bodies", async () => {
+    const db = setupDatabase();
+    await seedAdminSession(db);
+    await db.insert(folders).values({ id: "maps", name: "Maps", slug: "maps" });
+
+    const response = await callRoute(
+      manageFolderAction,
+      adminRequest("http://localhost/api/cli/folder/manage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ operation: "move", slug: "maps" }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "Invalid folder operation" });
+  });
+
+  test("does not move public folders into system folders", async () => {
+    const db = setupDatabase();
+    await seedAdminSession(db);
+    await db.insert(folders).values([
+      { id: "maps", name: "Maps", slug: "maps" },
+      { id: "inbox", name: "Inbox", slug: "_inbox" },
+    ]);
+
+    const response = await callRoute(
+      manageFolderAction,
+      adminRequest("http://localhost/api/cli/folder/manage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          operation: "move",
+          slug: "maps",
+          destinationSlug: "_inbox",
+          dryRun: true,
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: "Cannot move a public folder into a system folder",
+    });
+  });
+});
+
+describe("/api/folder/download", () => {
+  test("requires authentication", async () => {
+    setupDatabase();
+    const response = await callRoute(
+      downloadFolderLoader,
+      new Request("http://localhost/api/folder/download/maps"),
+      { "*": "maps" },
+    );
+
+    expect(response.status).toBe(401);
+  });
+
+  test("hides system folders from non-admin users", async () => {
+    const db = setupDatabase();
+    await seedNonAdminSession(db);
+    await db.insert(folders).values({ id: "inbox", name: "Inbox", slug: "_inbox" });
+
+    const response = await callRoute(
+      downloadFolderLoader,
+      userRequest("http://localhost/api/folder/download/_inbox"),
+      { "*": "_inbox" },
+    );
+
+    expect(response.status).toBe(404);
   });
 });
 

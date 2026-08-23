@@ -1,5 +1,83 @@
 import type { Config } from "./config.ts";
 
+export interface FolderSummary {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  parentId: string | null;
+  parentSlug: string | null;
+  fileCount: number;
+  childCount: number;
+  descendantCount: number;
+  totalFileCount: number;
+  createdAt: string | null;
+}
+
+export interface FolderSource {
+  provider: "gamebanana" | "scmapdb" | "direct";
+  externalId: string;
+  sourceUrl: string;
+  title: string;
+  author: string | null;
+  game: string | null;
+}
+
+export interface FolderDetail extends FolderSummary {
+  children: FolderSummary[];
+  source: FolderSource | null;
+}
+
+export interface FolderPlan {
+  operation: "rename" | "move";
+  from: {
+    id: string;
+    name: string;
+    slug: string;
+    parentSlug: string | null;
+  };
+  to: {
+    name: string;
+    slug: string;
+    parentSlug: string | null;
+  };
+  affected: {
+    folders: number;
+    files: number;
+  };
+  noOp: boolean;
+}
+
+export type ManageFolderInput =
+  | { operation: "rename"; slug: string; name: string; dryRun: boolean }
+  | { operation: "move"; slug: string; destinationSlug: string | null; dryRun: boolean };
+
+export interface ManageFolderResponse {
+  success: true;
+  dryRun: boolean;
+  plan: FolderPlan;
+  result?: {
+    folder?: {
+      id: string;
+      name: string;
+      slug: string;
+      parentId: string | null;
+      fileCount: number | null;
+    };
+    renamedFolders?: number;
+    renamedFiles?: number;
+    movedFolders?: number;
+    movedFiles?: number;
+  };
+}
+
+function encodeSlugPath(slug: string): string {
+  return slug
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+}
+
 export class ApiClient {
   private serverUrl: string;
   private sessionId: string;
@@ -47,6 +125,56 @@ export class ApiClient {
       created: { slug: string; id: string }[];
       existing: { slug: string; id: string }[];
     };
+  }
+
+  async listFolders(options: { includeSystem?: boolean } = {}): Promise<{
+    folders: FolderSummary[];
+  }> {
+    const url = new URL(`${this.serverUrl}/api/cli/folders`);
+    if (options.includeSystem) url.searchParams.set("includeSystem", "true");
+
+    const res = await fetch(url, { headers: this.headers() });
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`List folders failed (${res.status}): ${body}`);
+    }
+    return (await res.json()) as { folders: FolderSummary[] };
+  }
+
+  async getFolder(slug: string): Promise<{ folder: FolderDetail }> {
+    const url = new URL(`${this.serverUrl}/api/cli/folders`);
+    url.searchParams.set("slug", slug);
+
+    const res = await fetch(url, { headers: this.headers() });
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`Get folder failed (${res.status}): ${body}`);
+    }
+    return (await res.json()) as { folder: FolderDetail };
+  }
+
+  async manageFolder(input: ManageFolderInput): Promise<ManageFolderResponse> {
+    const res = await fetch(`${this.serverUrl}/api/cli/folder/manage`, {
+      method: "POST",
+      headers: { ...this.headers(), "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`Manage folder failed (${res.status}): ${body}`);
+    }
+    return (await res.json()) as ManageFolderResponse;
+  }
+
+  async downloadFolder(slug: string): Promise<Response> {
+    const res = await fetch(`${this.serverUrl}/api/folder/download/${encodeSlugPath(slug)}`, {
+      headers: this.headers(),
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`Download folder failed (${res.status}): ${body}`);
+    }
+    return res;
   }
 
   async checkManifest(

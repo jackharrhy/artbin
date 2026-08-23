@@ -1,8 +1,8 @@
 import type { Route } from "./+types/api.cli.whoami";
-import { requireCliAdmin } from "~/lib/cli-auth.server";
+import { requireCliAuth } from "~/lib/cli-auth.server";
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const user = await requireCliAdmin(request);
+  const user = await requireCliAuth(request);
   return Response.json({
     user: {
       id: user.id,

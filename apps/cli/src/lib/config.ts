@@ -12,6 +12,12 @@ export interface Config {
 }
 
 export async function loadConfig(): Promise<Config | null> {
+  const environmentServerUrl = process.env.ARTBIN_SERVER_URL;
+  const environmentSessionId = process.env.ARTBIN_SESSION_ID;
+  if (environmentServerUrl && environmentSessionId) {
+    return { serverUrl: environmentServerUrl, sessionId: environmentSessionId };
+  }
+
   try {
     const raw = await readFile(CONFIG_FILE, "utf-8");
     const data = JSON.parse(raw);

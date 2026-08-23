@@ -81,9 +81,8 @@ export function startBrowseServer(
       if (req.method === "GET" && pathname === "/api/info") {
         let folders: { slug: string; id: string }[] = [];
         try {
-          // createFolders with an empty array returns existing folders
-          const result = await api.createFolders([]);
-          folders = [...result.created, ...result.existing];
+          const result = await api.listFolders();
+          folders = result.folders.map(({ slug, id }) => ({ slug, id }));
         } catch {
           // Folders fetch failed, return empty list
         }

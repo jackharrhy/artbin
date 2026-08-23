@@ -34,6 +34,7 @@ export default [
   route("api/folder/move", "routes/api.folder.move.tsx"),
   route("api/cli/whoami", "routes/api.cli.whoami.tsx"),
   route("api/cli/folders", "routes/api.cli.folders.tsx"),
+  route("api/cli/folder/manage", "routes/api.cli.folder.manage.tsx"),
   route("api/cli/manifest", "routes/api.cli.manifest.tsx"),
   route("api/cli/upload", "routes/api.cli.upload.tsx"),
   route("api/cli/finalize", "routes/api.cli.finalize.tsx"),

@@ -14,7 +14,8 @@ asset bin for game development resources. textures first, with support for other
 
 ```
 apps/web/        # React Router web app (the main thing)
-packages/core/   # shared parsers and file detection (used by web, future CLI)
+apps/cli/        # installable CLI for local imports and server folder management
+packages/core/   # shared parsers and file detection
 ```
 
 ## stack
@@ -55,6 +56,49 @@ contain the imported collections. The background importer:
 
 Re-importing the same source into the same destination is idempotent: existing asset paths are
 kept, while newly added paths are imported.
+
+## CLI
+
+Build and install the repository version locally:
+
+```bash
+just cli-install
+artbin login
+```
+
+The CLI defaults to the production server. Pass a server URL to `artbin login` to use another
+instance. Automated and local test environments can provide `ARTBIN_SERVER_URL` and
+`ARTBIN_SESSION_ID` instead of writing a config file.
+
+```bash
+artbin scan <path>
+artbin import <path> [--folder <slug>] [--dry-run]
+artbin add <path> [--folder <slug>] [--dry-run]
+
+artbin folders list [--tree] [--all] [--json]
+artbin folders show <slug> [--json]
+artbin pull <slug> [destination] [--force] [--json]
+artbin folders rename <slug> <new-name> [--dry-run] [--yes] [--json]
+artbin folders move <slug> --to <destination-or-root> [--dry-run] [--yes] [--json]
+```
+
+All authenticated users can inspect public folders and download folder ZIPs. Uploads from regular
+users go through the review inbox. Creating, renaming, and moving folders requires an administrator
+account. Folder mutations show a server-generated preview before confirmation; use `--dry-run` to
+inspect it without making changes.
+
+### Publishing the CLI
+
+CLI releases are published from `apps/cli`. Prepare and push the version change first, then run:
+
+```bash
+cd apps/cli
+npm login
+pnpm run release
+```
+
+The release command requires a clean Git checkout, reruns CLI checks, shows the npm package dry run,
+asks for confirmation, publishes the current version, and pushes its `artbin@<version>` Git tag.
 
 ## commands
 

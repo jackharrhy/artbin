@@ -1,13 +1,19 @@
 {
   "name": "artbin",
-  "version": "0.0.3",
-  "description": "CLI tool for scanning game directories and uploading assets to artbin",
+  "version": "0.1.0",
+  "description": "CLI for scanning, uploading, downloading, and organizing game assets in artbin",
   "keywords": [
     "cli",
     "game-assets",
+    "goldsource",
+    "maps",
     "quake",
     "textures"
   ],
+  "homepage": "https://github.com/jackharrhy/artbin#readme",
+  "bugs": {
+    "url": "https://github.com/jackharrhy/artbin/issues"
+  },
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -25,7 +31,9 @@
     "build": "pnpm run build:ui && tsup",
     "build:ui": "vite build --config ui.vite.config.ts",
     "dev": "tsup --watch",
-    "ci": "tsc --noEmit",
+    "ci": "tsc --noEmit && vitest run",
+    "test": "vitest run",
+    "release": "node scripts/release.mjs",
     "prepublishOnly": "pnpm run build"
   },
   "devDependencies": {
@@ -45,7 +53,8 @@
     "tsup": "^8.5.1",
     "typescript": "^7.0.2",
     "vite": "^8.2.2",
-    "vite-plugin-singlefile": "^2.3.3"
+    "vite-plugin-singlefile": "^2.3.3",
+    "vitest": "^4.1.11"
   },
   "engines": {
     "node": ">=20"

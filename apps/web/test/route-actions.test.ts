@@ -35,6 +35,7 @@ async function seedSession() {
 
     username: "user",
     fourmId: "fourm-user-1",
+    isAdmin: true,
   });
   await db.insert(sessions).values({
     id: "session-1",
@@ -44,7 +45,58 @@ async function seedSession() {
   return db;
 }
 
+async function seedNonAdminSession() {
+  const db = setupDatabase();
+  await db.insert(users).values({
+    id: "regular-user",
+    username: "regular",
+    fourmId: "fourm-regular",
+    isAdmin: false,
+  });
+  await db.insert(sessions).values({
+    id: "regular-session",
+    userId: "regular-user",
+    expiresAt: new Date(Date.now() + 60_000),
+  });
+  return db;
+}
+
 describe("folder API action Result mapping", () => {
+  test("rejects folder creation from non-admin users", async () => {
+    await seedNonAdminSession();
+    const request = new Request("http://localhost/api/folder", {
+      method: "POST",
+      headers: {
+        Cookie: "artbin_session=regular-session",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ name: "Maps", slug: "maps", parentId: null }),
+    });
+
+    const response = await createFolderAction({ request, params: {}, context: {} } as any);
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ error: "Admin access required" });
+  });
+
+  test("rejects folder moves from non-admin users", async () => {
+    await seedNonAdminSession();
+    const formData = new FormData();
+    formData.set("_action", "move");
+    formData.set("folderId", "folder-1");
+    formData.set("newParentId", "root");
+    const request = new Request("http://localhost/api/folder/move", {
+      method: "POST",
+      headers: { Cookie: "artbin_session=regular-session" },
+      body: formData,
+    });
+
+    const response = await moveFolderAction({ request, params: {}, context: {} } as any);
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ error: "Admin access required" });
+  });
+
   test("maps createFolder validation errors to a JSON error envelope", async () => {
     await seedSession();
     const request = new Request("http://localhost/api/folder", {

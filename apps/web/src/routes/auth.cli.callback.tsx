@@ -89,11 +89,6 @@ export async function loader({ request, context }: Route.LoaderArgs) {
     }
   }
 
-  if (!localUser.isAdmin && !userinfo.is_admin) {
-    log.set({ auth: { channel: "cli", denied: true, userId: localUser.id, reason: "not-admin" } });
-    return new Response("CLI access requires admin privileges", { status: 403 });
-  }
-
   log.set({
     auth: {
       channel: "cli",

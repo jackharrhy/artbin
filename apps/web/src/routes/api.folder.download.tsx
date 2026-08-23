@@ -6,6 +6,7 @@ import { db } from "~/db/connection.server";
 import { folders } from "~/db";
 import { eq } from "drizzle-orm";
 import { slugToPath } from "~/lib/files.server";
+import { requireCliAuth } from "~/lib/cli-auth.server";
 
 /**
  * GET /api/folder/download/:slug/*
@@ -14,14 +15,15 @@ import { slugToPath } from "~/lib/files.server";
  * and pipes through archiver directly to the response -- no buffering
  * the entire archive in memory.
  */
-export async function loader({ params }: Route.LoaderArgs) {
+export async function loader({ request, params }: Route.LoaderArgs) {
+  const user = await requireCliAuth(request);
   const slug = params["*"]!;
 
   const folder = await db.query.folders.findFirst({
     where: eq(folders.slug, slug),
   });
 
-  if (!folder) {
+  if (!folder || (folder.slug.startsWith("_") && !user.isAdmin)) {
     return new Response("Folder not found", { status: 404 });
   }
 

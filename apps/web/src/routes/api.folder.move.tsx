@@ -10,6 +10,9 @@ export async function action({ request }: Route.ActionArgs) {
   if (!user) {
     return Response.json({ error: "Not authenticated" }, { status: 401 });
   }
+  if (!user.isAdmin) {
+    return Response.json({ error: "Admin access required" }, { status: 403 });
+  }
 
   const formData = await request.formData();
   const actionType = formData.get("_action") as string;
