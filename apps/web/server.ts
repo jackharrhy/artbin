@@ -19,6 +19,7 @@ const server = http.createServer(
     try {
       return await router.fetch(request);
     } catch (error) {
+      if (error instanceof Response) return error;
       if (!(request.signal.aborted && error === request.signal.reason)) {
         console.error(error);
       }

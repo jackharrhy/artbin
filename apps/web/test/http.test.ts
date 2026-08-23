@@ -176,6 +176,13 @@ describe("HTTP integration tests", () => {
   });
 
   describe("API routes", () => {
+    test("/api/cli/whoami preserves the unauthenticated response", async () => {
+      const res = await fetch(`${BASE}/api/cli/whoami`, { redirect: "manual" });
+
+      expect(res.status).toBe(401);
+      await expect(res.json()).resolves.toEqual({ error: "Not authenticated" });
+    });
+
     test("/api/upload returns 401 when not authenticated", async () => {
       const res = await fetch(`${BASE}/api/upload`, {
         method: "POST",
