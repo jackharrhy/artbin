@@ -1,6 +1,7 @@
 {
   "name": "artbin",
   "private": true,
+  "packageManager": "pnpm@11.9.0",
   "scripts": {
     "dev": "pnpm run --filter @artbin/web dev",
     "build": "pnpm run --filter @artbin/web build",
