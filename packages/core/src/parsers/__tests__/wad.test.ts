@@ -1,7 +1,14 @@
 import sharp from "sharp";
 import { describe, expect, test } from "vitest";
 
-import { extractTexturesFromWAD, isWADFile, parseWADHeader, parseWADLumps } from "../wad";
+import {
+  extractTextureFromWAD,
+  extractTexturesFromWAD,
+  inspectWAD,
+  isWADFile,
+  parseWADHeader,
+  parseWADLumps,
+} from "../wad";
 
 function makeWad3Texture(name = "BRICK", masked = false): Buffer {
   const width = 8;
@@ -60,7 +67,14 @@ describe("WAD parser", () => {
   });
 
   test("extracts WAD3 palette textures as PNG", async () => {
-    const [texture] = await extractTexturesFromWAD(makeWad3Texture());
+    const wad = makeWad3Texture();
+    expect(inspectWAD(wad)).toEqual({
+      version: "WAD3",
+      lumpCount: 1,
+      textures: [{ index: 0, name: "BRICK", width: 8, height: 8, isTransparent: false }],
+    });
+
+    const [texture] = await extractTexturesFromWAD(wad);
 
     expect(texture).toMatchObject({ name: "BRICK", width: 8, height: 8 });
     const { data, info } = await sharp(texture.pngBuffer)
@@ -72,6 +86,20 @@ describe("WAD parser", () => {
     expect([...data.subarray(0, 4)]).toEqual([0, 255, 0, 255]);
     expect([...data.subarray(4, 8)]).toEqual([0, 0, 255, 255]);
     expect([...data.subarray(8, 12)]).toEqual([255, 0, 0, 255]);
+  });
+
+  test("renders one virtual texture by directory index", async () => {
+    const wad = makeWad3Texture("VIRTUAL");
+    const texture = await extractTextureFromWAD(wad, 0);
+
+    expect(texture).toMatchObject({ name: "VIRTUAL", width: 8, height: 8 });
+    expect(await sharp(texture!.pngBuffer).metadata()).toMatchObject({
+      format: "png",
+      width: 8,
+      height: 8,
+    });
+    await expect(extractTextureFromWAD(wad, 1)).resolves.toBeNull();
+    await expect(extractTextureFromWAD(wad, -1)).resolves.toBeNull();
   });
 
   test("makes palette index 255 transparent for masked GoldSource textures", async () => {

@@ -52,7 +52,8 @@ contain the imported collections. The background importer:
 - verifies GameBanana file sizes and MD5 checksums when supplied;
 - safely inspects ZIP, 7z, and RAR files with entry-count and expanded-size limits;
 - skips executables, HTML, host scripts, and unknown file types; and
-- extracts embedded BSP textures and WAD2/WAD3 textures into browsable PNG subfolders.
+- extracts embedded BSP textures and exposes WAD2/WAD3 contents as virtual folders at their
+  original paths, with file-like pages for individual textures.
 
 Re-importing the same source into the same destination is idempotent: existing asset paths are
 kept, while newly added paths are imported.

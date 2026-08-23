@@ -161,6 +161,24 @@ export async function getDescendantFolderIds(folderId: string): Promise<string[]
   return result.map((r) => r.id);
 }
 
+/** Return a folder and its ancestors in breadcrumb order. */
+export async function getFolderTrail(folderId: string) {
+  const folder = await db.query.folders.findFirst({
+    where: eq(folders.id, folderId),
+    columns: { id: true, name: true, slug: true },
+  });
+  if (!folder) return [];
+
+  const slugParts = folder.slug.split("/");
+  const trailSlugs = slugParts.map((_, index) => slugParts.slice(0, index + 1).join("/"));
+  const trail = await db.query.folders.findMany({
+    where: inArray(folders.slug, trailSlugs),
+    columns: { id: true, name: true, slug: true },
+  });
+  trail.sort((a, b) => a.slug.split("/").length - b.slug.split("/").length);
+  return trail;
+}
+
 /**
  * Get all ancestor folder IDs by walking up the parent chain using a recursive CTE.
  * Includes the input folder IDs themselves.

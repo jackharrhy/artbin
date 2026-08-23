@@ -17,7 +17,12 @@ import {
   TEMP_DIR,
 } from "../files.server";
 import { registerJobHandler, updateJobProgress } from "../jobs.server";
-import { extractSafeArchiveEntry, listSafeArchiveEntries } from "../archive-reader.server";
+import {
+  extractSafeArchiveEntry,
+  findRedundantArchiveRoot,
+  listSafeArchiveEntries,
+  stripArchiveRoot,
+} from "../archive-reader.server";
 import { extractGoldSourceTextures } from "../goldsource-assets.server";
 import { fetchRemoteImportManifest, type RemoteImportProvider } from "../import-sources.server";
 import { downloadRemoteFile } from "../remote-download.server";
@@ -282,13 +287,22 @@ async function handleRemoteImport(
       (file) => isArchiveName(file.name) && isFirstArchiveVolume(file.name),
     );
     const directFiles = downloaded.filter((file) => !isArchiveName(file.name));
-    const archiveEntries = new Map<string, Awaited<ReturnType<typeof listSafeArchiveEntries>>>();
+    const archiveEntries = new Map<
+      string,
+      {
+        entries: Awaited<ReturnType<typeof listSafeArchiveEntries>>;
+        redundantRoot: string | null;
+      }
+    >();
     let totalWork = directFiles.length;
 
     for (const archive of archives) {
       await updateJobProgress(job.id, 20, `Inspecting ${archive.name}...`);
       const entries = await listSafeArchiveEntries(archive.path);
-      archiveEntries.set(archive.path, entries);
+      archiveEntries.set(archive.path, {
+        entries,
+        redundantRoot: findRedundantArchiveRoot(entries, manifest.title, archive.name),
+      });
       totalWork += entries.length;
     }
 
@@ -361,11 +375,13 @@ async function handleRemoteImport(
     }
 
     for (const archive of archives) {
-      for (const entry of archiveEntries.get(archive.path) ?? []) {
+      const inspectedArchive = archiveEntries.get(archive.path);
+      for (const entry of inspectedArchive?.entries ?? []) {
+        const importPath = stripArchiveRoot(entry.path, inspectedArchive?.redundantRoot ?? null);
         try {
-          if (isSafeRemoteAssetPath(entry.path)) {
+          if (isSafeRemoteAssetPath(importPath)) {
             const buffer = await extractSafeArchiveEntry(archive.path, entry);
-            await ingestAsset(buffer, entry.path, archive.name);
+            await ingestAsset(buffer, importPath, archive.name);
           } else {
             skippedFiles++;
           }

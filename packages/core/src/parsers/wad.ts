@@ -25,6 +25,20 @@ export interface WADLump {
   compression: number;
 }
 
+export interface WADTextureInfo {
+  index: number;
+  name: string;
+  width: number;
+  height: number;
+  isTransparent: boolean;
+}
+
+export interface WADContents {
+  version: WADVersion;
+  lumpCount: number;
+  textures: WADTextureInfo[];
+}
+
 function readNullTerminatedAscii(buffer: Buffer, start: number, length: number): string {
   const bytes = buffer.subarray(start, start + length);
   const nullIndex = bytes.indexOf(0);
@@ -153,8 +167,70 @@ function parseMipTexture(
   };
 }
 
+async function renderMipTexture(
+  texture: NonNullable<ReturnType<typeof parseMipTexture>>,
+): Promise<ExtractedTexture> {
+  const rgba = indexedToRGBA(
+    texture.pixels,
+    texture.width,
+    texture.height,
+    texture.palette,
+    texture.isTransparent,
+    texture.hasEmbeddedPalette,
+  );
+  const pngBuffer = await sharp(rgba, {
+    raw: { width: texture.width, height: texture.height, channels: 4 },
+  })
+    .png()
+    .toBuffer();
+
+  return {
+    name: texture.name,
+    width: texture.width,
+    height: texture.height,
+    pngBuffer,
+  };
+}
+
 export function isWADFile(buffer: Buffer): boolean {
   return parseWADHeader(buffer) !== null;
+}
+
+/** Inspect the texture directory without rendering browser previews. */
+export function inspectWAD(buffer: Buffer): WADContents | null {
+  const header = parseWADHeader(buffer);
+  if (!header) return null;
+
+  const textures: WADTextureInfo[] = [];
+  const lumps = parseWADLumps(buffer, header);
+  for (let index = 0; index < lumps.length; index++) {
+    const texture = parseMipTexture(buffer, header.version, lumps[index]);
+    if (!texture) continue;
+    textures.push({
+      index,
+      name: texture.name,
+      width: texture.width,
+      height: texture.height,
+      isTransparent: texture.isTransparent,
+    });
+  }
+
+  return { version: header.version, lumpCount: header.lumpCount, textures };
+}
+
+/** Render one texture by its stable index in the validated WAD directory. */
+export async function extractTextureFromWAD(
+  buffer: Buffer,
+  textureIndex: number,
+): Promise<ExtractedTexture | null> {
+  if (!Number.isSafeInteger(textureIndex) || textureIndex < 0) return null;
+  const header = parseWADHeader(buffer);
+  if (!header) return null;
+
+  const lump = parseWADLumps(buffer, header)[textureIndex];
+  if (!lump) return null;
+  const texture = parseMipTexture(buffer, header.version, lump);
+  return texture ? renderMipTexture(texture) : null;
 }
 
 /** Extract WAD2/WAD3 MIP textures as browser-viewable PNGs. */
@@ -166,27 +242,7 @@ export async function extractTexturesFromWAD(buffer: Buffer): Promise<ExtractedT
   for (const lump of parseWADLumps(buffer, header)) {
     const texture = parseMipTexture(buffer, header.version, lump);
     if (!texture) continue;
-
-    const rgba = indexedToRGBA(
-      texture.pixels,
-      texture.width,
-      texture.height,
-      texture.palette,
-      texture.isTransparent,
-      texture.hasEmbeddedPalette,
-    );
-    const pngBuffer = await sharp(rgba, {
-      raw: { width: texture.width, height: texture.height, channels: 4 },
-    })
-      .png()
-      .toBuffer();
-
-    results.push({
-      name: texture.name,
-      width: texture.width,
-      height: texture.height,
-      pngBuffer,
-    });
+    results.push(await renderMipTexture(texture));
   }
 
   return results;

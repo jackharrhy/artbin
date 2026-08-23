@@ -24,6 +24,7 @@ import {
 import { ingestFile, finalizeFolders, getOrCreateFolder, ROOT_FOLDER } from "../files.server";
 import { isBSPFile, extractTexturesFromBSP } from "../bsp.server";
 import { extractGoldSourceTextures } from "../goldsource-assets.server";
+import { findRedundantArchiveRoot, stripArchiveRoot } from "../archive-reader.server";
 
 export interface ExtractJobInput {
   tempFile: string; // Path to uploaded archive in temp dir
@@ -146,6 +147,24 @@ function pathToSlug(path: string): string {
     .replace(/-+/g, "-");
 }
 
+function collapseRedundantArchiveRoot(
+  entries: ArchiveEntry[],
+  importTitle: string,
+  archiveName: string,
+): ArchiveEntry[] {
+  const files = getFileEntries(entries);
+  const root = findRedundantArchiveRoot(
+    files.map((entry) => ({ path: entry.name, size: entry.size })),
+    importTitle,
+    archiveName,
+  );
+  if (!root) return entries;
+
+  return entries
+    .filter((entry) => !(entry.isDirectory && entry.name === root))
+    .map((entry) => ({ ...entry, name: stripArchiveRoot(entry.name, root) }));
+}
+
 async function getFolderSlug(folderId: string): Promise<string | null> {
   const folder = await db.query.folders.findFirst({
     where: eq(folders.id, folderId),
@@ -203,8 +222,13 @@ async function handleExtractJob(
   await updateJobProgress(job.id, 5, "Parsing archive...");
 
   const archive = await parseArchive(tempFile);
-  const fileEntries = getFileEntries(archive.entries);
-  const dirPaths = getDirectoryPaths(archive.entries);
+  const importEntries = collapseRedundantArchiveRoot(
+    archive.entries,
+    targetFolderName,
+    originalName,
+  );
+  const fileEntries = getFileEntries(importEntries);
+  const dirPaths = getDirectoryPaths(importEntries);
 
   await updateJobProgress(
     job.id,
@@ -253,7 +277,7 @@ async function handleExtractJob(
       filesByKind[ingested.value.kind] = (filesByKind[ingested.value.kind] || 0) + 1;
       processedFiles++;
 
-      // Extract textures from Quake/Half-Life BSP and WAD assets.
+      // Extract textures embedded in Quake and Half-Life BSP assets.
       if (/\.(?:bsp|wad)$/i.test(ingested.value.name)) {
         const { textureCount } = await extractAssetTextures(
           buffer,
@@ -356,8 +380,13 @@ async function handleBatchExtractJob(
     try {
       // Parse archive
       const archive = await parseArchive(archiveInfo.path);
-      const fileEntries = getFileEntries(archive.entries);
-      const dirPaths = getDirectoryPaths(archive.entries);
+      const importEntries = collapseRedundantArchiveRoot(
+        archive.entries,
+        subfolderName,
+        archiveName,
+      );
+      const fileEntries = getFileEntries(importEntries);
+      const dirPaths = getDirectoryPaths(importEntries);
 
       // Create subfolder structure under the parent
       const folderMap = await createFolderStructure(
@@ -395,7 +424,7 @@ async function handleBatchExtractJob(
 
           filesExtracted++;
 
-          // Extract textures from Quake/Half-Life BSP and WAD assets.
+          // Extract textures embedded in Quake and Half-Life BSP assets.
           if (/\.(?:bsp|wad)$/i.test(ingested.value.name)) {
             const { textureCount } = await extractAssetTextures(
               buffer,

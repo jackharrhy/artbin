@@ -1,7 +1,6 @@
 import { basename, extname } from "node:path";
 
 import { extractTexturesFromBSP, isBSPFile } from "@artbin/core/parsers/bsp";
-import { extractTexturesFromWAD, isWADFile } from "@artbin/core/parsers/wad";
 import { eq } from "drizzle-orm";
 
 import { db } from "~/db/connection.server";
@@ -35,19 +34,12 @@ export async function extractGoldSourceTextures(
   input: GoldSourceTextureExtractionInput,
 ): Promise<GoldSourceTextureExtractionResult> {
   const extension = extname(input.fileName).toLowerCase();
-  let source: "bsp-extracted" | "wad-extracted";
-  let textures;
-
-  if (extension === ".bsp" && isBSPFile(input.buffer)) {
-    source = "bsp-extracted";
-    textures = await extractTexturesFromBSP(input.buffer);
-  } else if (extension === ".wad" && isWADFile(input.buffer)) {
-    source = "wad-extracted";
-    textures = await extractTexturesFromWAD(input.buffer);
-  } else {
+  if (extension !== ".bsp" || !isBSPFile(input.buffer)) {
     return { textureCount: 0, folderId: null, errors: [] };
   }
 
+  const source = "bsp-extracted";
+  const textures = await extractTexturesFromBSP(input.buffer);
   if (textures.length === 0) return { textureCount: 0, folderId: null, errors: [] };
 
   const baseName = basename(input.fileName, extension);

@@ -7,6 +7,8 @@ export default [
     route("my-uploads", "routes/my-uploads.tsx"),
     route("folders", "routes/folders.tsx"),
     route("folder/:slug/*", "routes/folder.$slug.tsx"),
+    route("wad/:fileId", "routes/wad.$fileId.tsx"),
+    route("wad/:fileId/texture/:textureIndex", "routes/wad.$fileId.texture.$textureIndex.tsx"),
     route("file/*", "routes/file.$.tsx"),
     route("admin", "routes/admin.tsx", [
       index("routes/admin.jobs.tsx"),
@@ -38,5 +40,6 @@ export default [
   route("api/cli/manifest", "routes/api.cli.manifest.tsx"),
   route("api/cli/upload", "routes/api.cli.upload.tsx"),
   route("api/cli/finalize", "routes/api.cli.finalize.tsx"),
+  route("api/wad/:fileId/texture/:textureIndex", "routes/api.wad-texture.tsx"),
   route("api/folder/download/*", "routes/api.folder.download.tsx"),
 ] satisfies RouteConfig;

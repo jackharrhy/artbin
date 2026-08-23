@@ -5,7 +5,11 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, test, vi } from "vitest";
 
-import { normalizeArchiveEntryPath } from "~/lib/archive-reader.server";
+import {
+  findRedundantArchiveRoot,
+  normalizeArchiveEntryPath,
+  stripArchiveRoot,
+} from "~/lib/archive-reader.server";
 import {
   fetchRemoteImportManifest,
   isAllowedRemoteDownloadUrl,
@@ -202,6 +206,37 @@ describe("remote archive safety", () => {
     expect(normalizeArchiveEntryPath("/absolute/map.bsp")).toBeNull();
     expect(normalizeArchiveEntryPath("C:\\maps\\map.bsp")).toBeNull();
     expect(normalizeArchiveEntryPath("maps//map.bsp")).toBeNull();
+  });
+
+  test("strips only a common wrapper matching the import or archive name", () => {
+    const acidtabEntries = [
+      { path: "de_acidtab/maps/de_acidtab.bsp", size: 100 },
+      { path: "de_acidtab/acidtab.wad", size: 200 },
+      { path: "de_acidtab/sound/ambient.wav", size: 300 },
+    ];
+    const root = findRedundantArchiveRoot(acidtabEntries, "de_acidtab", "de_acidtab.zip");
+
+    expect(root).toBe("de_acidtab");
+    expect(stripArchiveRoot(acidtabEntries[0].path, root)).toBe("maps/de_acidtab.bsp");
+    expect(stripArchiveRoot(acidtabEntries[1].path, root)).toBe("acidtab.wad");
+
+    expect(
+      findRedundantArchiveRoot(
+        [{ path: "release/maps/example.bsp", size: 1 }],
+        "Example Map",
+        "example-map.zip",
+      ),
+    ).toBeNull();
+    expect(
+      findRedundantArchiveRoot(
+        [
+          { path: "maps/example.bsp", size: 1 },
+          { path: "readme.txt", size: 1 },
+        ],
+        "Example Map",
+        "example-map.zip",
+      ),
+    ).toBeNull();
   });
 
   test("streams trusted redirects and verifies the expected checksum", async () => {

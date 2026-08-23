@@ -330,7 +330,8 @@ export default function AdminImport() {
           <p className="text-sm text-text-muted mb-4">
             Paste links to GameBanana or SCMapDB pages. Direct HTTPS links to ZIP, 7z, and RAR
             archives also work. Each URL creates a collection at the destination you choose. The
-            importer extracts BSP and WAD textures into folders of PNG files.
+            importer preserves the archive layout, extracts embedded BSP textures, and makes WAD
+            textures browsable without copying them into folders.
           </p>
 
           <Form method="post">

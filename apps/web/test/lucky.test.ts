@@ -1,15 +1,20 @@
+import { mkdir, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
 import { files, folders, sessions, users } from "~/db/schema";
 import { setDbForTesting } from "~/db/connection.server";
 import { action as luckyAction } from "~/routes/api.lucky";
 import { getLuckyContext } from "~/components/LuckyButton";
 import { applyMigrations, createTestDatabase, type TestDatabase } from "./db";
+import { makeWAD3Texture } from "./wad-fixture";
 
 let currentDb: TestDatabase | undefined;
+const uploadDirectory = join(process.cwd(), "public", "uploads", "_lucky-test");
 
-afterEach(() => {
+afterEach(async () => {
   currentDb?.close();
   currentDb = undefined;
+  await rm(uploadDirectory, { recursive: true, force: true });
 });
 
 function setupDatabase() {
@@ -78,7 +83,7 @@ describe("Lucky API", () => {
     const response = await callLucky(luckyRequest());
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ path: "folder/approved.png" });
+    expect(await response.json()).toEqual({ href: "/file/folder/approved.png" });
   });
 
   test("keeps folder-scoped requests inside the folder tree", async () => {
@@ -112,7 +117,7 @@ describe("Lucky API", () => {
 
     const response = await callLucky(luckyRequest({ folderId: "parent" }));
 
-    expect(await response.json()).toEqual({ path: "parent/child/inside.bsp" });
+    expect(await response.json()).toEqual({ href: "/file/parent/child/inside.bsp" });
   });
 
   test("avoids returning the current asset when another one is available", async () => {
@@ -141,10 +146,10 @@ describe("Lucky API", () => {
     ]);
 
     const response = await callLucky(
-      luckyRequest({ folderId: "folder-1", excludePath: "folder/current.png" }),
+      luckyRequest({ folderId: "folder-1", excludeHref: "/file/folder/current.png" }),
     );
 
-    expect(await response.json()).toEqual({ path: "folder/next.wav" });
+    expect(await response.json()).toEqual({ href: "/file/folder/next.wav" });
   });
 
   test("falls back to the current asset when it is the only match", async () => {
@@ -162,10 +167,59 @@ describe("Lucky API", () => {
     });
 
     const response = await callLucky(
-      luckyRequest({ folderId: "folder-1", excludePath: "folder/only.png" }),
+      luckyRequest({ folderId: "folder-1", excludeHref: "/file/folder/only.png" }),
     );
 
-    expect(await response.json()).toEqual({ path: "folder/only.png" });
+    expect(await response.json()).toEqual({ href: "/file/folder/only.png" });
+  });
+
+  test("treats a WAD texture as a folder-scoped Lucky asset", async () => {
+    const db = setupDatabase();
+    await seedSession(db);
+    await mkdir(uploadDirectory, { recursive: true });
+    const wad = makeWAD3Texture("WOODS");
+    await writeFile(join(uploadDirectory, "library.wad"), wad);
+    await db.insert(folders).values({ id: "folder-1", name: "Folder", slug: "folder" });
+    await db.insert(files).values({
+      id: "wad-1",
+      path: "_lucky-test/library.wad",
+      name: "library.wad",
+      mimeType: "application/octet-stream",
+      size: wad.length,
+      kind: "other",
+      folderId: "folder-1",
+    });
+
+    const response = await callLucky(luckyRequest({ folderId: "folder-1" }));
+
+    expect(await response.json()).toEqual({ href: "/file/_lucky-test/library.wad/WOODS.png" });
+  });
+
+  test("keeps WAD-scoped Lucky requests inside that virtual folder", async () => {
+    const db = setupDatabase();
+    await seedSession(db);
+    await mkdir(uploadDirectory, { recursive: true });
+    const wad = makeWAD3Texture("WOODS");
+    await writeFile(join(uploadDirectory, "library.wad"), wad);
+    await db.insert(folders).values({ id: "folder-1", name: "Folder", slug: "folder" });
+    await db.insert(files).values({
+      id: "wad-1",
+      path: "_lucky-test/library.wad",
+      name: "library.wad",
+      mimeType: "application/octet-stream",
+      size: wad.length,
+      kind: "other",
+      folderId: "folder-1",
+    });
+
+    const response = await callLucky(
+      luckyRequest({
+        wadFileId: "wad-1",
+        excludeHref: "/file/_lucky-test/library.wad/WOODS.png",
+      }),
+    );
+
+    expect(await response.json()).toEqual({ href: "/file/_lucky-test/library.wad/WOODS.png" });
   });
 
   test("requires authentication outside development mode", async () => {
@@ -185,12 +239,14 @@ describe("Lucky history state", () => {
           sourceHref: "/folder/maps?view=all",
           sourceLabel: "Maps",
           folderId: "maps",
+          wadFileId: "wad-1",
         },
       }),
     ).toEqual({
       sourceHref: "/folder/maps?view=all",
       sourceLabel: "Maps",
       folderId: "maps",
+      wadFileId: "wad-1",
     });
   });
 

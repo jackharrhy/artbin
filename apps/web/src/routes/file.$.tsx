@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLoaderData, useLocation } from "react-router";
+import { redirect, useLoaderData, useLocation } from "react-router";
 import type { Route } from "./+types/file.$";
 import { userContext } from "~/lib/auth-context.server";
 import { db } from "~/db/connection.server";
@@ -7,8 +7,12 @@ import { files, folders, fileTags, tags } from "~/db";
 import { eq } from "drizzle-orm";
 import { ModelViewer } from "~/components/ModelViewer";
 import { getLuckyContext, LuckyButton } from "~/components/LuckyButton";
+import { WADTexturePage } from "~/components/WADTexturePage";
 import { readFile } from "fs/promises";
 import { getFilePath } from "~/lib/files.server";
+import { getFolderTrail } from "~/lib/file-queries.server";
+import { getVisibleWADTextureByPath, inspectWADFile, isWADFilename } from "~/lib/wad-assets.server";
+import { getWADLibraryHref } from "~/lib/wad-paths";
 
 // Audio formats that browsers can play natively
 const WEB_PLAYABLE_AUDIO = new Set(["mp3", "ogg", "wav", "m4a", "webm", "aac"]);
@@ -81,6 +85,11 @@ export async function loader({ params, context }: Route.LoaderArgs) {
   });
 
   if (!file) {
+    const virtualTexture = await getVisibleWADTextureByPath(filePath, user);
+    if (virtualTexture) {
+      const folderTrail = await getFolderTrail(virtualTexture.file.folderId);
+      return { page: "wad-texture" as const, ...virtualTexture, folderTrail };
+    }
     throw new Response("File not found", { status: 404 });
   }
 
@@ -90,6 +99,17 @@ export async function loader({ params, context }: Route.LoaderArgs) {
     const isAdmin = user?.isAdmin;
     if (!isOwner && !isAdmin) {
       throw new Response("Not found", { status: 404 });
+    }
+  }
+
+  // Keep old and copied file URLs useful now that WADs behave as virtual folders.
+  if (isWADFilename(file.name)) {
+    try {
+      if (await inspectWADFile(file.path, file.sha256)) {
+        return redirect(getWADLibraryHref(file.path));
+      }
+    } catch {
+      // Invalid or missing WAD files retain the ordinary file view.
     }
   }
 
@@ -263,6 +283,7 @@ export async function loader({ params, context }: Route.LoaderArgs) {
     }));
 
     return {
+      page: "file" as const,
       user,
       file,
       folder,
@@ -278,6 +299,7 @@ export async function loader({ params, context }: Route.LoaderArgs) {
   }
 
   return {
+    page: "file" as const,
     user,
     file,
     folder,
@@ -293,7 +315,9 @@ export async function loader({ params, context }: Route.LoaderArgs) {
 }
 
 export function meta({ loaderData }: Route.MetaArgs) {
-  return [{ title: `${loaderData?.file?.name || "File"} - artbin` }];
+  const name =
+    loaderData?.page === "wad-texture" ? loaderData.texture.name : loaderData?.file.name || "File";
+  return [{ title: `${name} - artbin` }];
 }
 
 function getDisplayUrl(file: { path: string; hasPreview: boolean | null }): string {
@@ -334,7 +358,24 @@ function getAspectRatio(width: number, height: number): string {
   return (width / height).toFixed(2);
 }
 
+type FilePageData = Extract<Awaited<ReturnType<typeof loader>>, { page: "file" }>;
+
 export default function FileView() {
+  const data = useLoaderData<typeof loader>();
+  if (data.page === "wad-texture") {
+    return (
+      <WADTexturePage
+        file={data.file}
+        contents={data.contents}
+        texture={data.texture}
+        folderTrail={data.folderTrail}
+      />
+    );
+  }
+  return <FilePage data={data} />;
+}
+
+function FilePage({ data }: { data: FilePageData }) {
   const {
     user,
     file,
@@ -347,7 +388,7 @@ export default function FileView() {
     modelMtl,
     availableTextures,
     modelAnimations,
-  } = useLoaderData<typeof loader>();
+  } = data;
   const location = useLocation();
   const luckyContext = getLuckyContext(location.state);
   const [selectedTexture, setSelectedTexture] = useState<string | undefined>(
@@ -375,9 +416,10 @@ export default function FileView() {
           </span>
           <LuckyButton
             folderId={luckyContext.folderId}
+            wadFileId={luckyContext.wadFileId}
             sourceLabel={luckyContext.sourceLabel}
             context={luckyContext}
-            excludePath={file.path}
+            excludeHref={`/file/${file.path}`}
             replace
             label="Lucky again"
             className="btn btn-primary btn-sm"

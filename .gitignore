@@ -11,5 +11,6 @@ dist-ui/
 
 *.db
 *.db-journal
+apps/web/data/cache/
 tmp
 .vite/

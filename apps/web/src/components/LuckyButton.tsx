@@ -5,18 +5,20 @@ export interface LuckyContext {
   sourceHref: string;
   sourceLabel: string;
   folderId?: string;
+  wadFileId?: string;
 }
 
 interface LuckyResponse {
-  path?: string;
+  href?: string;
   error?: string;
 }
 
 interface LuckyButtonProps {
   folderId?: string;
+  wadFileId?: string;
   sourceLabel: string;
   context?: LuckyContext;
-  excludePath?: string;
+  excludeHref?: string;
   replace?: boolean;
   label?: string;
   className?: string;
@@ -33,7 +35,8 @@ export function getLuckyContext(state: unknown): LuckyContext | null {
     typeof candidate.sourceHref !== "string" ||
     !candidate.sourceHref.startsWith("/") ||
     typeof candidate.sourceLabel !== "string" ||
-    (candidate.folderId !== undefined && typeof candidate.folderId !== "string")
+    (candidate.folderId !== undefined && typeof candidate.folderId !== "string") ||
+    (candidate.wadFileId !== undefined && typeof candidate.wadFileId !== "string")
   ) {
     return null;
   }
@@ -42,14 +45,16 @@ export function getLuckyContext(state: unknown): LuckyContext | null {
     sourceHref: candidate.sourceHref,
     sourceLabel: candidate.sourceLabel,
     folderId: candidate.folderId,
+    wadFileId: candidate.wadFileId,
   };
 }
 
 export function LuckyButton({
   folderId,
+  wadFileId,
   sourceLabel,
   context,
-  excludePath,
+  excludeHref,
   replace = false,
   label = "I'm feeling lucky",
   className = "text-sm text-text-muted hover:text-text bg-transparent border-0 p-0 cursor-pointer whitespace-nowrap",
@@ -65,21 +70,22 @@ export function LuckyButton({
         sourceHref: `${location.pathname}${location.search}`,
         sourceLabel,
         folderId,
+        wadFileId,
       },
-    [context, folderId, location.pathname, location.search, sourceLabel],
+    [context, folderId, location.pathname, location.search, sourceLabel, wadFileId],
   );
 
   useEffect(() => {
     if (
       fetcher.state !== "idle" ||
-      !fetcher.data?.path ||
+      !fetcher.data?.href ||
       handledResponse.current === fetcher.data
     ) {
       return;
     }
 
     handledResponse.current = fetcher.data;
-    navigate(`/file/${fetcher.data.path}`, {
+    navigate(fetcher.data.href, {
       replace,
       state: { lucky: luckyContext },
     });
@@ -91,7 +97,8 @@ export function LuckyButton({
     <span className="inline-flex items-center gap-2">
       <fetcher.Form method="post" action="/api/lucky" className="inline">
         {folderId && <input type="hidden" name="folderId" value={folderId} />}
-        {excludePath && <input type="hidden" name="excludePath" value={excludePath} />}
+        {wadFileId && <input type="hidden" name="wadFileId" value={wadFileId} />}
+        {excludeHref && <input type="hidden" name="excludeHref" value={excludeHref} />}
         <button type="submit" className={className} disabled={isLoading}>
           {isLoading ? "Finding something…" : label}
         </button>

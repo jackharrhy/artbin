@@ -19,13 +19,26 @@ import { FileList } from "~/components/FileList";
 import { UploadModal } from "~/components/UploadModal";
 import { MoveFolderModal } from "~/components/MoveFolderModal";
 import { LuckyButton } from "~/components/LuckyButton";
+import { WADLibraryPage } from "~/components/WADLibraryPage";
 import { deleteFile, deleteFolder } from "~/lib/files.server";
 import { renameFolder } from "~/lib/folders.server";
+import { getVisibleWADLibraryByPath, inspectWADFile, isWADFilename } from "~/lib/wad-assets.server";
+import { getWADLibraryHref } from "~/lib/wad-paths";
 import {
   searchFiles,
   getDescendantFolderIds,
   getFileCountsByKind,
+  getFolderTrail,
 } from "~/lib/file-queries.server";
+
+interface VirtualWADLibrary {
+  id: string;
+  path: string;
+  name: string;
+  version: "WAD2" | "WAD3";
+  textureCount: number;
+  previewTextures: Array<{ index: number; name: string }>;
+}
 
 export async function loader({ request, params, context }: Route.LoaderArgs) {
   const user = context.get(userContext);
@@ -37,7 +50,16 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
     where: eq(folders.slug, slug),
   });
 
-  if (!folder || folder.slug.startsWith("_")) {
+  if (!folder) {
+    const library = await getVisibleWADLibraryByPath(slug, user);
+    if (library) {
+      const folderTrail = await getFolderTrail(library.file.folderId);
+      return { page: "wad" as const, ...library, folderTrail };
+    }
+    throw new Response("Folder not found", { status: 404 });
+  }
+
+  if (folder.slug.startsWith("_")) {
     throw new Response("Folder not found", { status: 404 });
   }
 
@@ -108,13 +130,40 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
         width: files.width,
         height: files.height,
         hasPreview: files.hasPreview,
+        sha256: files.sha256,
       })
       .from(files)
       .where(and(eq(files.folderId, folder.id), eq(files.status, "approved")))
       .orderBy(desc(files.createdAt))
       .limit(100);
 
+    const wadLibraries = (
+      await Promise.all(
+        folderFiles
+          .filter((file) => isWADFilename(file.name))
+          .map(async (file) => {
+            try {
+              const contents = await inspectWADFile(file.path, file.sha256);
+              if (!contents) return null;
+              return {
+                id: file.id,
+                path: file.path,
+                name: file.name,
+                version: contents.version,
+                textureCount: contents.textures.length,
+                previewTextures: contents.textures
+                  .slice(0, 4)
+                  .map(({ index, name }) => ({ index, name })),
+              } satisfies VirtualWADLibrary;
+            } catch {
+              return null;
+            }
+          }),
+      )
+    ).filter((library): library is VirtualWADLibrary => library !== null);
+
     return {
+      page: "folder" as const,
       user,
       folder,
       remoteImport,
@@ -124,9 +173,13 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
       view,
       query,
       tagSlug,
-      fileCounts: { ...fileCounts, folders: childFolders.length } as Record<string, number>,
+      fileCounts: {
+        ...fileCounts,
+        folders: childFolders.length + wadLibraries.length,
+      } as Record<string, number>,
       tags: allTags,
       files: folderFiles,
+      wadLibraries,
       searchResults: null as any,
     };
   }
@@ -151,6 +204,7 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
   });
 
   return {
+    page: "folder" as const,
     user,
     folder,
     remoteImport,
@@ -163,6 +217,7 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
     fileCounts: { ...fileCounts, folders: childFolders.length } as Record<string, number>,
     tags: allTags,
     files: [] as any[],
+    wadLibraries: [] as VirtualWADLibrary[],
     searchResults,
   };
 }
@@ -239,7 +294,9 @@ export async function action({ request, params, context }: Route.ActionArgs) {
 }
 
 export function meta({ loaderData }: Route.MetaArgs) {
-  return [{ title: `${loaderData?.folder?.name || "Folder"} - artbin` }];
+  const name =
+    loaderData?.page === "wad" ? loaderData.file.name : loaderData?.folder.name || "Folder";
+  return [{ title: `${name} - artbin` }];
 }
 
 function getFileDisplayUrl(file: {
@@ -277,8 +334,19 @@ function getFileIcon(kind: string | null): string {
   }
 }
 
+type FolderPageData = Extract<Awaited<ReturnType<typeof loader>>, { page: "folder" }>;
+
 export default function FolderView() {
   const data = useLoaderData<typeof loader>();
+  if (data.page === "wad") {
+    return (
+      <WADLibraryPage file={data.file} contents={data.contents} folderTrail={data.folderTrail} />
+    );
+  }
+  return <FolderPage data={data} />;
+}
+
+function FolderPage({ data }: { data: FolderPageData }) {
   const {
     user,
     folder,
@@ -292,6 +360,7 @@ export default function FolderView() {
     fileCounts,
     tags,
     files: folderFiles,
+    wadLibraries,
   } = data;
 
   // State for modals
@@ -351,7 +420,10 @@ export default function FolderView() {
   // Separate files by kind for folder view display
   const textures = folderFiles.filter((f) => f.kind === "texture");
   const models = folderFiles.filter((f) => f.kind === "model");
-  const otherFiles = folderFiles.filter((f) => f.kind !== "texture" && f.kind !== "model");
+  const virtualWADIds = new Set(wadLibraries.map((library) => library.id));
+  const otherFiles = folderFiles.filter(
+    (f) => f.kind !== "texture" && f.kind !== "model" && !virtualWADIds.has(f.id),
+  );
 
   const isTextureView = view === "textures";
   const isModelView = view === "models";
@@ -572,10 +644,14 @@ export default function FolderView() {
         {view === "folders" && (
           <>
             {/* Child Folders */}
-            {childFolders.length > 0 && (
+            {(childFolders.length > 0 || wadLibraries.length > 0) && (
               <section className="mb-8">
                 <h2 className="text-sm font-medium uppercase tracking-wide text-text-muted mb-3">
-                  Subfolders
+                  {childFolders.length > 0 && wadLibraries.length > 0
+                    ? "Folders and WADs"
+                    : wadLibraries.length > 0
+                      ? "WAD libraries"
+                      : "Subfolders"}
                 </h2>
                 <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-2">
                   {childFolders.map((child) => (
@@ -600,6 +676,43 @@ export default function FolderView() {
                       )}
                       <div className="px-3 py-2 border-t border-border-light">
                         <div className="font-medium mb-1">{child.name}</div>
+                      </div>
+                    </a>
+                  ))}
+                  {wadLibraries.map((library) => (
+                    <a
+                      key={library.id}
+                      href={getWADLibraryHref(library.path)}
+                      className="block p-0 border border-border-light bg-bg no-underline transition-colors hover:border-border hover:no-underline overflow-hidden"
+                    >
+                      {library.previewTextures.length > 0 ? (
+                        <div className="aspect-square grid grid-cols-2 bg-bg-hover">
+                          {library.previewTextures.map((texture) => (
+                            <div
+                              key={texture.index}
+                              className="overflow-hidden border-r border-b border-border-light last:border-r-0"
+                            >
+                              <img
+                                className="w-full h-full object-cover block"
+                                src={`/api/wad/${library.id}/texture/${texture.index}`}
+                                alt={texture.name}
+                                loading="lazy"
+                                style={{ imageRendering: "pixelated" }}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="aspect-square flex items-center justify-center text-5xl text-border-light">
+                          <span>▦</span>
+                        </div>
+                      )}
+                      <div className="px-3 py-2 border-t border-border-light">
+                        <div className="font-medium mb-1">{library.name}</div>
+                        <div className="text-xs text-text-muted">
+                          {library.version} · {library.textureCount}{" "}
+                          {library.textureCount === 1 ? "texture" : "textures"}
+                        </div>
                       </div>
                     </a>
                   ))}

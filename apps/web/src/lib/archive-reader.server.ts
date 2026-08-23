@@ -19,6 +19,40 @@ export interface SafeArchiveEntry {
   size: number;
 }
 
+function comparableArchiveName(value: string): string {
+  return value
+    .replace(/\.(?:zip|7z|rar|pk3|pk4|pak)$/i, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+/**
+ * Return a single archive wrapper directory only when every file is beneath it
+ * and its name matches the import title or downloaded archive name.
+ */
+export function findRedundantArchiveRoot(
+  entries: SafeArchiveEntry[],
+  importTitle: string,
+  archiveName: string,
+): string | null {
+  if (entries.length === 0) return null;
+  const firstSegments = entries.map((entry) => entry.path.split("/"));
+  if (firstSegments.some((segments) => segments.length < 2)) return null;
+
+  const root = firstSegments[0][0];
+  if (firstSegments.some((segments) => segments[0] !== root)) return null;
+
+  const rootKey = comparableArchiveName(root);
+  const matchesTitle = rootKey === comparableArchiveName(importTitle);
+  const matchesArchive = rootKey === comparableArchiveName(archiveName);
+  return matchesTitle || matchesArchive ? root : null;
+}
+
+export function stripArchiveRoot(path: string, root: string | null): string {
+  return root && path.startsWith(`${root}/`) ? path.slice(root.length + 1) : path;
+}
+
 interface SevenZipRecord {
   [key: string]: string;
 }
