@@ -7,3 +7,8 @@ allowBuilds:
   better-sqlite3: true
   esbuild: true
   sharp: true
+overrides:
+  esbuild@<=0.24.2: 0.25.12
+  esbuild@>=0.27.3 <0.28.1: 0.28.2
+minimumReleaseAgeExclude:
+  - esbuild@0.25.12 || 0.28.2
