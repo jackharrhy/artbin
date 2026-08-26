@@ -1,6 +1,6 @@
-import { mkdir, writeFile, unlink, rename, stat, readdir, readFile } from "fs/promises";
+import { mkdir, writeFile, unlink, rename, stat, readdir, readFile, rm } from "fs/promises";
 import { createReadStream, existsSync } from "fs";
-import { join, dirname, basename, extname } from "path";
+import { join, dirname, basename, extname, isAbsolute, relative, resolve, sep } from "path";
 import { exec } from "child_process";
 import { promisify } from "util";
 import { createHash } from "crypto";
@@ -40,15 +40,30 @@ export const UPLOADS_DIR = join(process.cwd(), "public", "uploads");
 export const TEMP_DIR = join(process.cwd(), "tmp", "uploads");
 
 export function slugToPath(slug: string): string {
-  return join(UPLOADS_DIR, slug);
+  return resolveWithin(UPLOADS_DIR, slug);
 }
 
 export function getFilePath(filePath: string): string {
-  return join(UPLOADS_DIR, filePath);
+  return resolveWithin(UPLOADS_DIR, filePath);
 }
 
 export function getPreviewPath(filePath: string): string {
-  return join(UPLOADS_DIR, filePath + ".preview.png");
+  return resolveWithin(UPLOADS_DIR, filePath + ".preview.png");
+}
+
+function resolveWithin(root: string, untrustedPath: string): string {
+  if (!untrustedPath || isAbsolute(untrustedPath)) throw new Error("Invalid upload path");
+  const target = resolve(root, untrustedPath);
+  const relativePath = relative(root, target);
+  if (
+    !relativePath ||
+    relativePath === ".." ||
+    relativePath.startsWith(`..${sep}`) ||
+    isAbsolute(relativePath)
+  ) {
+    throw new Error("Invalid upload path");
+  }
+  return target;
 }
 
 /** Compute sha256 hex digest from a Buffer. */
@@ -154,13 +169,7 @@ export async function moveFile(fromPath: string, toPath: string): Promise<void> 
 
 export async function deleteFolder(folderSlug: string): Promise<void> {
   const dirPath = slugToPath(folderSlug);
-
-  if (!existsSync(dirPath)) {
-    return;
-  }
-
-  // Use rm -rf for simplicity
-  await execAsync(`rm -rf "${dirPath}"`);
+  await rm(dirPath, { recursive: true, force: true });
 }
 
 export async function getImageDimensions(

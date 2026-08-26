@@ -5,10 +5,12 @@ import { setDbForTesting } from "#db/connection.server";
 import {
   deleteFileRecord,
   generatePreview,
+  getFilePath,
   getImageDimensions,
   insertFileRecord,
   processImage,
   recalculateFolderCounts,
+  slugToPath,
 } from "#lib/files.server";
 import { applyMigrations, createTestDatabase, type TestDatabase } from "./db";
 
@@ -25,6 +27,16 @@ function setupDatabase() {
   setDbForTesting(currentDb.db);
   return currentDb.db;
 }
+
+describe("upload path boundaries", () => {
+  test("rejects empty, absolute, and traversal paths", () => {
+    for (const path of ["", "/etc/passwd", "../outside", "folder/../../outside"]) {
+      expect(() => getFilePath(path)).toThrow("Invalid upload path");
+      expect(() => slugToPath(path)).toThrow("Invalid upload path");
+    }
+    expect(getFilePath("folder/file.png")).toMatch(/public\/uploads\/folder\/file\.png$/);
+  });
+});
 
 describe("file record count sync", () => {
   test("inserting and deleting file records keeps parent folder file_count in sync", async () => {

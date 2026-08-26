@@ -9,7 +9,13 @@ import { css, type Handle } from "remix/ui";
 
 import { files, folders } from "#db";
 import { db } from "#db/connection.server";
-import { deleteFile, deleteFileRecord, deleteFolder, UPLOADS_DIR } from "#lib/files.server";
+import {
+  deleteFile,
+  deleteFileRecord,
+  deleteFolder,
+  getFilePath,
+  UPLOADS_DIR,
+} from "#lib/files.server";
 import { createJob } from "#lib/jobs.server";
 
 import { requireAdmin } from "../../../middleware/auth.ts";
@@ -156,8 +162,14 @@ export default createController(routes.admin.orphans, {
       if (intent === "delete-orphans") {
         const paths = parseArray<string>(form.get("paths"));
         for (const path of paths) {
+          let fullPath: string;
           try {
-            await unlink(join(UPLOADS_DIR, path));
+            fullPath = getFilePath(path);
+          } catch {
+            return new Response("Invalid orphan path", { status: 400 });
+          }
+          try {
+            await unlink(fullPath);
             deleted++;
           } catch {
             // A concurrently removed orphan is already clean.
