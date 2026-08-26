@@ -22,6 +22,7 @@ const adminCookie = "artbin_session=admin-session";
 const memberCookie = "artbin_session=member-session";
 
 let database: TestDatabase;
+const originalFetch = globalThis.fetch;
 
 beforeEach(async () => {
   process.env.NODE_ENV = "test";
@@ -41,6 +42,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
+  globalThis.fetch = originalFetch;
   database.close();
   await rm(uploadsRoot, { recursive: true, force: true });
   await rm(inboxUploadRoot, { recursive: true, force: true });
@@ -53,6 +55,69 @@ describe("native Remix router", () => {
     assert.equal(response.status, 200);
     const html = await response.text();
     assert.match(html, /href="\/auth\/4orm"[^>]*rmx-document=""/);
+  });
+
+  it("completes OAuth through the router and creates a session", async () => {
+    const start = await router.fetch(request(routes.auth.fourm.href()));
+    assert.equal(start.status, 302);
+
+    const authorizeUrl = new URL(start.headers.get("location")!);
+    assert.equal(authorizeUrl.pathname, "/oauth/authorize");
+    assert.equal(authorizeUrl.searchParams.get("client_id"), "artbin");
+    assert.equal(authorizeUrl.searchParams.get("code_challenge_method"), "S256");
+    assert.ok(authorizeUrl.searchParams.get("code_challenge"));
+
+    const oauthCookie = start.headers.get("set-cookie")!;
+    assert.match(oauthCookie, /^artbin_oauth=/);
+    assert.match(oauthCookie, /HttpOnly/);
+    assert.match(oauthCookie, /SameSite=Lax/);
+
+    const tokenRequests: URLSearchParams[] = [];
+    globalThis.fetch = async (input, init) => {
+      const url = String(input);
+      if (url.endsWith("/oauth/token")) {
+        tokenRequests.push(new URLSearchParams(String(init?.body)));
+        return Response.json({
+          access_token: "access-token",
+          token_type: "bearer",
+          expires_in: 3600,
+        });
+      }
+      if (url.endsWith("/oauth/userinfo")) {
+        assert.equal(new Headers(init?.headers).get("authorization"), "Bearer access-token");
+        return Response.json({
+          sub: "fourm-member",
+          username: "member",
+          display_name: "Member",
+          is_admin: false,
+        });
+      }
+      throw new Error(`Unexpected OAuth request: ${url}`);
+    };
+
+    const callbackUrl = new URL(routes.auth.fourmCallback.href(), origin);
+    callbackUrl.searchParams.set("code", "authorization-code");
+    callbackUrl.searchParams.set("state", authorizeUrl.searchParams.get("state")!);
+    const callback = await router.fetch(
+      new Request(callbackUrl, { headers: { Cookie: oauthCookie.split(";", 1)[0]! } }),
+    );
+
+    assert.equal(callback.status, 302);
+    assert.equal(callback.headers.get("location"), routes.folders.href());
+    const cookies = callback.headers.getSetCookie();
+    assert.equal(cookies.length, 2);
+    assert.ok(
+      cookies.some((cookie) => cookie.startsWith("artbin_oauth=") && cookie.includes("Max-Age=0")),
+    );
+    assert.ok(
+      cookies.some((cookie) => cookie.startsWith("artbin_session=") && cookie.includes("HttpOnly")),
+    );
+
+    assert.equal(tokenRequests.length, 1);
+    assert.equal(tokenRequests[0]!.get("code"), "authorization-code");
+    assert.equal(tokenRequests[0]!.get("client_id"), "artbin");
+    assert.ok(tokenRequests[0]!.get("code_verifier"));
+    assert.equal((await database.db.select().from(sessions)).length, 3);
   });
 
   it("redirects protected pages to login", async () => {
