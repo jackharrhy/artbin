@@ -1,0 +1,8 @@
+[tools]
+node = "25"
+
+[settings]
+idiomatic_version_file_enable_tools = ["pnpm"]
+
+[env]
+_.path = ["{{config_root}}/node_modules/.bin"]

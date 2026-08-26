@@ -48,6 +48,13 @@ afterEach(async () => {
 });
 
 describe("native Remix router", () => {
+  it("uses a document navigation to start cross-origin OAuth", async () => {
+    const response = await router.fetch(request(routes.login.href()));
+    assert.equal(response.status, 200);
+    const html = await response.text();
+    assert.match(html, /href="\/auth\/4orm"[^>]*rmx-document=""/);
+  });
+
   it("redirects protected pages to login", async () => {
     const response = await router.fetch(request(routes.folders.href()));
     assert.equal(response.status, 303);

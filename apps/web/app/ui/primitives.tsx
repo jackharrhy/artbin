@@ -244,6 +244,7 @@ export function ButtonLink(
     target?: string;
     rel?: string;
     title?: string;
+    document?: boolean;
   }>,
 ) {
   return () => {
@@ -257,6 +258,7 @@ export function ButtonLink(
       target,
       rel,
       title,
+      document = false,
     } = handle.props;
     return (
       <a
@@ -265,6 +267,7 @@ export function ButtonLink(
         target={target}
         rel={rel}
         title={title}
+        rmx-document={document ? "" : undefined}
         mix={buttonMix(variant, size, block)}
       >
         {children}

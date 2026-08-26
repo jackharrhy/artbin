@@ -49,7 +49,7 @@ export default createController(routes, {
           <main mix={loginPageStyle}>
             <h1 mix={loginTitleStyle}>Login</h1>
             {errorMessage ? <Alert tone="danger">{errorMessage}</Alert> : null}
-            <ButtonLink href={routes.auth.fourm.href()} variant="primary" block>
+            <ButtonLink href={routes.auth.fourm.href()} variant="primary" block document>
               Login with 4orm
             </ButtonLink>
             <p mix={[loginNoteStyle, mutedTextStyle]}>You need a 4orm account to use artbin.</p>
