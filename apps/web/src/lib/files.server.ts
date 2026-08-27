@@ -390,6 +390,72 @@ export interface IngestFileResult {
   hasPreview: boolean;
 }
 
+export interface AdoptFileOptions {
+  path: string;
+  folderId: string;
+  source: string;
+  uploaderId?: string | null;
+}
+
+/** Register a file that already exists beneath uploads without rewriting its contents. */
+export async function adoptFile(opts: AdoptFileOptions): Promise<Result<IngestFileResult, Error>> {
+  try {
+    const fullPath = getFilePath(opts.path);
+    const buffer = await readFile(fullPath);
+    const name = basename(opts.path);
+    const kind = detectKind(name);
+    const mimeType = await getMimeType(name, buffer);
+    let width: number | null = null;
+    let height: number | null = null;
+    let hasPreview = false;
+
+    if (isImageKind(kind)) {
+      const imageInfo = await processImage(opts.path);
+      if (imageInfo.isOk()) {
+        width = imageInfo.value.width;
+        height = imageInfo.value.height;
+        hasPreview = imageInfo.value.hasPreview;
+      }
+    } else if (kind === "model" && canGenerateModelPreview(name)) {
+      const preview = await generateModelPreview(buffer, `${fullPath}.preview.png`);
+      if (preview.isOk()) hasPreview = preview.value;
+    }
+
+    const sha256 = computeSha256(buffer);
+    const fileId = nanoid();
+    const inserted = await insertFileRecord({
+      id: fileId,
+      path: opts.path,
+      name,
+      mimeType,
+      size: buffer.length,
+      kind,
+      width,
+      height,
+      hasPreview,
+      folderId: opts.folderId,
+      uploaderId: opts.uploaderId ?? null,
+      source: opts.source,
+      sha256,
+      status: "approved",
+    });
+    if (inserted.isErr()) return Result.err(inserted.error);
+    return Result.ok({
+      fileId,
+      path: opts.path,
+      name,
+      kind,
+      mimeType,
+      sha256,
+      width,
+      height,
+      hasPreview,
+    });
+  } catch (error) {
+    return Result.err(toError(error));
+  }
+}
+
 /**
  * Unified file ingestion: save to disk, detect type, process images, hash, and insert DB record.
  * Orchestrates the 6 common steps every file upload pathway performs.

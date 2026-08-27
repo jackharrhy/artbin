@@ -10,10 +10,14 @@ import { css, type Handle } from "remix/ui";
 import { files, folders } from "#db";
 import { db } from "#db/connection.server";
 import {
+  adoptFile,
   deleteFile,
   deleteFileRecord,
   deleteFolder,
+  finalizeFolders,
   getFilePath,
+  getOrCreateFolder,
+  ROOT_FOLDER,
   UPLOADS_DIR,
 } from "#lib/files.server";
 import { createJob } from "#lib/jobs.server";
@@ -175,6 +179,30 @@ export default createController(routes.admin.orphans, {
             // A concurrently removed orphan is already clean.
           }
         }
+      } else if (intent === "adopt-orphans") {
+        const requested = parseArray<string>(form.get("paths"));
+        const currentOrphans = new Set((await performScan()).orphanedFiles);
+        const paths = requested.filter((path) => currentOrphans.has(path));
+        const affectedFolders = new Set<string>();
+        for (const path of paths) {
+          const folderId = await ensureFolderTreeForFile(path);
+          if (!folderId) continue;
+          const adopted = await adoptFile({
+            path,
+            folderId,
+            source: "filesystem-adopted",
+            uploaderId: context.user.id,
+          });
+          if (adopted.isErr()) {
+            return new Response(`Unable to adopt ${path}: ${adopted.error.message}`, {
+              status: 400,
+            });
+          }
+          affectedFolders.add(folderId);
+          deleted++;
+        }
+        await finalizeFolders([...affectedFolders]);
+        return redirect(withNotice(`Adopted ${deleted} file${deleted === 1 ? "" : "s"}.`), 303);
       } else if (intent === "delete-missing") {
         for (const id of parseArray<string>(form.get("ids"))) {
           if ((await deleteFileRecord(id)).isOk()) deleted++;
@@ -250,6 +278,7 @@ function ScanResultsPanel(handle: Handle<{ results: ScanResults }>) {
           intent="delete-orphans"
           field="paths"
           value={JSON.stringify(results.orphanedFiles)}
+          secondary={{ button: "Adopt orphan files", intent: "adopt-orphans" }}
         />
         <CleanupRow
           count={results.missingFiles.length}
@@ -288,6 +317,7 @@ function CleanupRow(
     intent: string;
     field: string;
     value: string;
+    secondary?: { button: string; intent: string };
   }>,
 ) {
   return () => (
@@ -298,17 +328,40 @@ function CleanupRow(
           {handle.props.count === 1 ? "" : "s"}
         </span>
         {handle.props.count ? (
-          <form method="post" action={routes.admin.orphans.action.href()}>
-            <input type="hidden" name="intent" value={handle.props.intent} />
-            <input type="hidden" name={handle.props.field} value={handle.props.value} />
-            <Button type="submit" variant="danger" size="small">
-              {handle.props.button}
-            </Button>
-          </form>
+          <div mix={cleanupRowStyle}>
+            {handle.props.secondary ? (
+              <form method="post" action={routes.admin.orphans.action.href()}>
+                <input type="hidden" name="intent" value={handle.props.secondary.intent} />
+                <input type="hidden" name={handle.props.field} value={handle.props.value} />
+                <Button type="submit" variant="primary" size="small">
+                  {handle.props.secondary.button}
+                </Button>
+              </form>
+            ) : null}
+            <form method="post" action={routes.admin.orphans.action.href()}>
+              <input type="hidden" name="intent" value={handle.props.intent} />
+              <input type="hidden" name={handle.props.field} value={handle.props.value} />
+              <Button type="submit" variant="danger" size="small">
+                {handle.props.button}
+              </Button>
+            </form>
+          </div>
         ) : null}
       </div>
     </Panel>
   );
+}
+
+async function ensureFolderTreeForFile(filePath: string): Promise<string | null> {
+  const directory = filePath.replaceAll("\\", "/").split("/").slice(0, -1);
+  if (directory.length === 0) return null;
+  let parentId: typeof ROOT_FOLDER | string = ROOT_FOLDER;
+  const slugs: string[] = [];
+  for (const segment of directory) {
+    slugs.push(segment);
+    parentId = await getOrCreateFolder(slugs.join("/"), segment, parentId);
+  }
+  return typeof parentId === "string" ? parentId : null;
 }
 
 function HashPanel(

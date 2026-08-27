@@ -18,10 +18,15 @@ const origin = "http://artbin.test";
 const uploadsRoot = join(process.cwd(), "public", "uploads", "_remix-router-test");
 const inboxUploadRoot = join(process.cwd(), "public", "uploads", "_inbox", "_remix-router-test");
 const inboxDestinationRoot = join(process.cwd(), "public", "uploads", "remix-router-destination");
-const providedAssetsRoot = join(process.cwd(), "tmp", "bsp-assets-router-test");
+const providedAssetsRoot = join(
+  process.cwd(),
+  "public",
+  "uploads",
+  "_provided",
+  "_remix-router-test",
+);
 const adminCookie = "artbin_session=admin-session";
 const memberCookie = "artbin_session=member-session";
-const originalBspAssetDirectory = process.env.ARTBIN_BSP_ASSET_DIR;
 
 let database: TestDatabase;
 const originalFetch = globalThis.fetch;
@@ -29,7 +34,6 @@ const originalFetch = globalThis.fetch;
 beforeEach(async () => {
   process.env.NODE_ENV = "test";
   process.env.ARTBIN_REQUIRE_AUTH = "1";
-  process.env.ARTBIN_BSP_ASSET_DIR = providedAssetsRoot;
   database = createTestDatabase();
   applyMigrations(database.sqlite);
   setDbForTesting(database.db);
@@ -51,8 +55,6 @@ afterEach(async () => {
   await rm(inboxUploadRoot, { recursive: true, force: true });
   await rm(inboxDestinationRoot, { recursive: true, force: true });
   await rm(providedAssetsRoot, { recursive: true, force: true });
-  if (originalBspAssetDirectory === undefined) delete process.env.ARTBIN_BSP_ASSET_DIR;
-  else process.env.ARTBIN_BSP_ASSET_DIR = originalBspAssetDirectory;
 });
 
 describe("native Remix router", () => {
@@ -297,6 +299,16 @@ describe("native Remix router", () => {
         mimeType: "application/octet-stream",
         size: palette.length,
         kind: "other",
+        folderId: folder.id,
+        status: "approved",
+      },
+      {
+        id: "provided-bsp-wad",
+        path: "_provided/_remix-router-test/goldsrc/halflife.wad",
+        name: "halflife.wad",
+        mimeType: "application/x-wad",
+        size: providedWad.length,
+        kind: "archive",
         folderId: folder.id,
         status: "approved",
       },

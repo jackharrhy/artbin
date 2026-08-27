@@ -1,5 +1,5 @@
-import { readFile, readdir } from "node:fs/promises";
-import { basename, dirname, join, relative } from "node:path";
+import { readFile } from "node:fs/promises";
+import { basename, dirname } from "node:path";
 
 import { and, eq, or, sql } from "drizzle-orm";
 
@@ -17,10 +17,6 @@ export interface BspAsset {
 
 const providedAssetRoot = "_provided";
 
-function getProvidedAssetDirectory(): string {
-  return process.env.ARTBIN_BSP_ASSET_DIR ?? join(process.cwd(), "data", "bsp-assets");
-}
-
 export async function getVisibleBspFile(fileId: string, user: User): Promise<AssetFile | null> {
   const file = await db.query.files.findFirst({ where: eq(files.id, fileId) });
   return file && isVisible(file, user) && file.name.toLowerCase().endsWith(".bsp") ? file : null;
@@ -32,18 +28,12 @@ export async function resolveBspWad(
   user: User,
 ): Promise<BspAsset | null> {
   if (!isSafeLeafName(requestedName) || !requestedName.toLowerCase().endsWith(".wad")) return null;
-  const candidates = [
-    ...(await findVisibleNamedFiles(requestedName, user)).map(uploadAsset),
-    ...(await findProvidedNamedFiles(requestedName)),
-  ];
+  const candidates = (await findVisibleNamedFiles(requestedName, user)).map(uploadAsset);
   return selectBspAsset(bsp.path, candidates);
 }
 
 export async function resolveBspPalette(bsp: AssetFile, user: User): Promise<BspAsset | null> {
-  const candidates = [
-    ...(await findVisibleNamedFiles("palette.lmp", user)).map(uploadAsset),
-    ...(await findProvidedNamedFiles("palette.lmp")),
-  ];
+  const candidates = (await findVisibleNamedFiles("palette.lmp", user)).map(uploadAsset);
   return selectBspAsset(bsp.path, candidates);
 }
 
@@ -131,33 +121,4 @@ async function findVisibleNamedFiles(name: string, user: User): Promise<AssetFil
 
 function uploadAsset(file: AssetFile): BspAsset {
   return { path: file.path, absolutePath: getFilePath(file.path) };
-}
-
-async function findProvidedNamedFiles(name: string): Promise<BspAsset[]> {
-  const root = getProvidedAssetDirectory();
-  const matches: BspAsset[] = [];
-
-  async function visit(directory: string): Promise<void> {
-    let entries;
-    try {
-      entries = await readdir(directory, { withFileTypes: true });
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
-      throw error;
-    }
-    await Promise.all(
-      entries.map(async (entry) => {
-        const absolutePath = join(directory, entry.name);
-        if (entry.isDirectory()) return visit(absolutePath);
-        if (!entry.isFile() || entry.name.toLowerCase() !== name.toLowerCase()) return;
-        matches.push({
-          path: `${providedAssetRoot}/${relative(root, absolutePath).replaceAll("\\", "/")}`,
-          absolutePath,
-        });
-      }),
-    );
-  }
-
-  await visit(root);
-  return matches.sort((left, right) => left.path.localeCompare(right.path));
 }
