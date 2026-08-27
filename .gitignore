@@ -13,3 +13,4 @@ apps/web/public/
 apps/web/data/cache/
 apps/web/.coverage/
 tmp
+artifacts/verification/

@@ -625,7 +625,7 @@ export const UploadControl = clientEntry(
                   <input
                     name="slug"
                     value={folderSlug}
-                    pattern="[a-z0-9-]+"
+                    pattern="[a-z0-9\-]+"
                     required
                     mix={[
                       inputStyle,
@@ -698,7 +698,7 @@ export const UploadControl = clientEntry(
                   <label mix={formLabelStyle}>Folder URL slug (from the folder name)</label>
                   <input
                     value={archiveSlug}
-                    pattern="[a-z0-9-]+"
+                    pattern="[a-z0-9\-]+"
                     required
                     mix={[
                       inputStyle,

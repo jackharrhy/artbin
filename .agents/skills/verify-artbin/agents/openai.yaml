@@ -1,0 +1,4 @@
+interface:
+  display_name: "Verify Artbin"
+  short_description: "Drive Artbin user flows and capture evidence"
+  default_prompt: "Use $verify-artbin to validate the affected Artbin flows and preserve evidence."

@@ -23,7 +23,7 @@ import { routes } from "./routes.ts";
 export const router = createRouter({
   middleware: [
     compression(),
-    staticFiles("./public", {
+    staticFiles(process.env.ARTBIN_PUBLIC_DIR ?? "./public", {
       index: false,
       filter: (path) => !path.split("/").some((segment) => segment.startsWith(".")),
     }),

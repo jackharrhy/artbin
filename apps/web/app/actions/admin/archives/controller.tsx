@@ -308,7 +308,7 @@ function BatchArchiveForm(handle: Handle<{ archives: FoundArchive[] }>) {
             <TextInput
               id="batch-folder-slug"
               name="folderSlug"
-              pattern="[a-z0-9-]+"
+              pattern="[a-z0-9\-]+"
               required
               fullWidth
               mono
@@ -361,7 +361,7 @@ function ArchiveCard(handle: Handle<{ archive: FoundArchive }>) {
                 id={`${fieldPrefix}-slug`}
                 name="folderSlug"
                 value={slug(defaultName)}
-                pattern="[a-z0-9-]+"
+                pattern="[a-z0-9\-]+"
                 required
                 fullWidth
                 mono

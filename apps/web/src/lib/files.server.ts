@@ -35,9 +35,13 @@ export {
   type FileKind,
 };
 
-// Base directories
-export const UPLOADS_DIR = join(process.cwd(), "public", "uploads");
-export const TEMP_DIR = join(process.cwd(), "tmp", "uploads");
+// Base directories. The overrides let verification runs isolate every mutation
+// without touching a developer's real library.
+export const PUBLIC_DIR = resolve(process.env.ARTBIN_PUBLIC_DIR ?? join(process.cwd(), "public"));
+export const UPLOADS_DIR = join(PUBLIC_DIR, "uploads");
+export const TEMP_DIR = resolve(
+  process.env.ARTBIN_TEMP_DIR ?? join(process.cwd(), "tmp", "uploads"),
+);
 
 export function slugToPath(slug: string): string {
   return resolveWithin(UPLOADS_DIR, slug);
