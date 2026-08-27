@@ -173,6 +173,18 @@ describe("HTTP integration tests", () => {
       expect(packageRes.status).toBe(200);
       expect(packageRes.headers.get("content-type")).toContain("javascript");
     });
+
+    test("replaces Node environment references in browser dependencies", async () => {
+      const typeGpuEnv = await fetch(
+        `${BASE}/assets/node_modules/.pnpm/typegpu%400.12.1/node_modules/typegpu/shared/env.js`,
+      );
+
+      expect(typeGpuEnv.status).toBe(200);
+      const source = await typeGpuEnv.text();
+      expect(source).not.toContain("process.env");
+      expect(source).toMatch(/DEV\s*=\s*(?:false|!1)/);
+      expect(source).toMatch(/TEST\s*=\s*(?:false|!1)/);
+    });
   });
 
   describe("API routes", () => {

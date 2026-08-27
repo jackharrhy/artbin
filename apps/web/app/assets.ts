@@ -33,7 +33,12 @@ export const assetServer = createAssetServer({
   hmr: isHmr
     ? async () => (await import("remix/node-hmr/runtime")).createBrowserHmrChannel()
     : undefined,
-  scripts: { loaders: isHmr ? [uiHmr()] : undefined },
+  scripts: {
+    define: {
+      "process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV ?? "development"),
+    },
+    loaders: isHmr ? [uiHmr()] : undefined,
+  },
 });
 
 const entry = "apps/web/app/actions/public/entry.ts";
