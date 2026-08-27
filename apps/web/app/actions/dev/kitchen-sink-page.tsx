@@ -394,7 +394,7 @@ export function KitchenSinkPage(handle: Handle<{ user: User | null }>) {
               <BrowseTabs
                 baseUrl={routes.folders.href()}
                 currentView="textures"
-                counts={{ folders: 4, textures: 187, models: 2, sounds: 12, all: 205 }}
+                counts={{ folders: 4, textures: 187, models: 2, maps: 4, sounds: 12, all: 205 }}
               />
             </Stack>
           </Panel>

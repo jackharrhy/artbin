@@ -7,7 +7,7 @@ import type { FileKind } from "@artbin/core/detection/kind";
 
 import type { ViewMode } from "../ui/browse-tabs.tsx";
 
-const views = new Set<ViewMode>(["folders", "textures", "models", "sounds", "all"]);
+const views = new Set<ViewMode>(["folders", "textures", "models", "maps", "sounds", "all"]);
 
 export async function loadFoldersPage(url: URL) {
   const candidateView = url.searchParams.get("view") ?? "folders";
@@ -62,6 +62,7 @@ export async function loadFoldersPage(url: URL) {
         folders: folderCount,
         textures: fileCounts.texture,
         models: fileCounts.model,
+        maps: fileCounts.map,
         sounds: fileCounts.audio,
         all: fileCounts.all,
       },
@@ -73,6 +74,7 @@ export async function loadFoldersPage(url: URL) {
   const kindMap: Record<Exclude<ViewMode, "folders">, FileKind | FileKind[]> = {
     textures: "texture",
     models: "model",
+    maps: "map",
     sounds: "audio",
     all: ["texture", "model", "audio", "map", "archive", "config", "other"],
   };
@@ -94,6 +96,7 @@ export async function loadFoldersPage(url: URL) {
       folders: folderCount,
       textures: fileCounts.texture,
       models: fileCounts.model,
+      maps: fileCounts.map,
       sounds: fileCounts.audio,
       all: fileCounts.all,
     },

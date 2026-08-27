@@ -14,7 +14,7 @@ import { getVisibleWADLibraryByPath, inspectWADFile, isWADFilename } from "#lib/
 
 import type { ViewMode } from "../ui/browse-tabs.tsx";
 
-const views = new Set<ViewMode>(["folders", "textures", "models", "sounds", "all"]);
+const views = new Set<ViewMode>(["folders", "textures", "models", "maps", "sounds", "all"]);
 
 export interface VirtualWadLibrary {
   id: string;
@@ -164,6 +164,7 @@ export async function loadFolderPage(url: URL, path: string, user: User) {
   const kindMap: Record<Exclude<ViewMode, "folders">, FileKind | FileKind[]> = {
     textures: "texture",
     models: "model",
+    maps: "map",
     sounds: "audio",
     all: ["texture", "model", "audio", "map", "archive", "config", "other"],
   };

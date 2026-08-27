@@ -182,6 +182,7 @@ function DirectoryPage(handle: Handle<{ data: DirectoryPageData; user: User }>) 
                 folders: fileCounts.folders,
                 textures: fileCounts.texture,
                 models: fileCounts.model,
+                maps: fileCounts.map,
                 sounds: fileCounts.audio,
                 all: fileCounts.all,
               }}

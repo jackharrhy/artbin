@@ -2,7 +2,7 @@ import { type Handle } from "remix/ui";
 
 import { Tabs } from "./navigation.tsx";
 
-export type ViewMode = "folders" | "textures" | "models" | "sounds" | "all";
+export type ViewMode = "folders" | "textures" | "models" | "maps" | "sounds" | "all";
 
 interface BrowseTabsProps {
   baseUrl: string;
@@ -14,6 +14,7 @@ const tabs: { id: ViewMode; label: string }[] = [
   { id: "folders", label: "Folders" },
   { id: "textures", label: "Textures" },
   { id: "models", label: "Models" },
+  { id: "maps", label: "Maps" },
   { id: "sounds", label: "Sounds" },
   { id: "all", label: "All files" },
 ];

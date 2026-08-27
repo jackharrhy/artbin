@@ -136,16 +136,28 @@ describe("native Remix router", () => {
 
   it("renders the folders page with hydrated Remix controls", async () => {
     const folder = await seedFolder();
-    await database.db.insert(files).values({
-      id: "browse-texture",
-      path: "test/browse.png",
-      name: "browse.png",
-      mimeType: "image/png",
-      size: 12,
-      kind: "texture",
-      folderId: folder.id,
-      status: "approved",
-    });
+    await database.db.insert(files).values([
+      {
+        id: "browse-texture",
+        path: "test/browse.png",
+        name: "browse.png",
+        mimeType: "image/png",
+        size: 12,
+        kind: "texture",
+        folderId: folder.id,
+        status: "approved",
+      },
+      {
+        id: "browse-map",
+        path: "test/de_example.bsp",
+        name: "de_example.bsp",
+        mimeType: "application/x-bsp",
+        size: 24,
+        kind: "map",
+        folderId: folder.id,
+        status: "approved",
+      },
+    ]);
     await database.db.insert(remoteImports).values({
       id: "browse-source",
       provider: "scmapdb",
@@ -169,6 +181,21 @@ describe("native Remix router", () => {
     assert.match(html, /href="https:\/\/scmapdb\.wikidot\.com\/map:test"/);
     assert.match(html, /SCMapDB<\/a> by Mapper for Sven Co-op\./);
     assert.doesNotMatch(html, /react-router/);
+
+    const folderMaps = await router.fetch(
+      request(`${routes.folder.index.href({ path: folder.slug })}?view=maps`, adminCookie),
+    );
+    assert.equal(folderMaps.status, 200);
+    const folderMapsHtml = await folderMaps.text();
+    assert.match(folderMapsHtml, /href="\/folder\/test\?view=maps"[^>]*>Maps<span[^>]*>1<\/span>/);
+    assert.match(folderMapsHtml, /de_example\.bsp/);
+    assert.doesNotMatch(folderMapsHtml, /browse\.png/);
+
+    const allMaps = await router.fetch(request(`${routes.folders.href()}?view=maps`, adminCookie));
+    assert.equal(allMaps.status, 200);
+    const allMapsHtml = await allMaps.text();
+    assert.match(allMapsHtml, /de_example\.bsp/);
+    assert.doesNotMatch(allMapsHtml, /browse\.png/);
   });
 
   it("serves indexed media and previews without exposing the uploads tree", async () => {

@@ -182,6 +182,8 @@ try {
   const folderSlug = `verification-${nonce}`;
   const uploadName = `proof-${nonce}.txt`;
   const uploadBody = `Artbin verification ${nonce}\n`;
+  const mapName = `map-${nonce}.bsp`;
+  const mapBody = await readFile(join(webDirectory, "test/fixtures/dm_barraco2.bsp"));
   const orphanFolder = `orphan-${nonce}`;
   const orphanName = `{loose-${nonce}.png`;
   const orphanPath = `${orphanFolder}/${orphanName}`;
@@ -212,13 +214,21 @@ try {
   await flow("upload and search", async () => {
     await page.getByText(folderName, { exact: true }).click();
     await page.getByRole("button", { name: "Upload", exact: true }).click();
-    await page.locator('input[type="file"]').first().setInputFiles({
-      name: uploadName,
-      mimeType: "text/plain",
-      buffer: Buffer.from(uploadBody),
-    });
-    await page.getByRole("button", { name: "Upload 1 file", exact: true }).click();
+    await page.locator('input[type="file"]').first().setInputFiles([
+      {
+        name: uploadName,
+        mimeType: "text/plain",
+        buffer: Buffer.from(uploadBody),
+      },
+      {
+        name: mapName,
+        mimeType: "application/x-bsp",
+        buffer: mapBody,
+      },
+    ]);
+    await page.getByRole("button", { name: "Upload 2 files", exact: true }).click();
     await page.getByText(uploadName, { exact: true }).waitFor();
+    await page.getByText(mapName, { exact: true }).waitFor();
     await shot(page, "03-file-uploaded.png");
     await page.getByRole("button", { name: "Close", exact: true }).click();
     const folderUrl = new URL(page.url());
@@ -230,7 +240,17 @@ try {
     await page.getByText(uploadName, { exact: true }).waitFor();
     check(new URL(page.url()).searchParams.get("q") === uploadName, "Search query was not reflected in the URL");
     await shot(page, "04-search-result.png");
-    return ["file upload completed", "uploaded file returned by search"];
+    const mapsUrl = new URL(page.url());
+    mapsUrl.search = "?view=maps";
+    await page.goto(mapsUrl.href, { waitUntil: "networkidle" });
+    await page.getByText(mapName, { exact: true }).waitFor();
+    check((await page.getByText(uploadName, { exact: true }).count()) === 0, "Maps included a non-map file");
+    await shot(page, "05-maps-tab.png");
+    return [
+      "file upload completed",
+      "uploaded file returned by search",
+      "BSP appears exclusively in the folder Maps view",
+    ];
   });
 
   await flow("scan and adopt orphan", async () => {
@@ -239,10 +259,10 @@ try {
     await page.goto(`${baseUrl}/admin/orphans`, { waitUntil: "networkidle" });
     await page.getByRole("link", { name: "Scan uploads", exact: true }).click();
     await page.getByRole("button", { name: "Adopt orphan files", exact: true }).waitFor();
-    await shot(page, "05-orphan-scanned.png");
+    await shot(page, "06-orphan-scanned.png");
     await page.getByRole("button", { name: "Adopt orphan files", exact: true }).click();
     await page.getByText("Adopted 1 file.", { exact: true }).waitFor();
-    await shot(page, "06-orphan-adopted.png");
+    await shot(page, "07-orphan-adopted.png");
     await page.goto(`${baseUrl}/file/${orphanFolder}/${encodeURIComponent(orphanName)}`, {
       waitUntil: "networkidle",
     });
@@ -252,7 +272,7 @@ try {
       await image.evaluate((element) => element.naturalWidth === 1 && element.naturalHeight === 1),
       "Special-character image did not load through indexed media",
     );
-    await shot(page, "07-special-character-media.png");
+    await shot(page, "08-special-character-media.png");
     return [
       "isolated disk-only file detected",
       "orphan adopted through admin UI",
@@ -263,19 +283,32 @@ try {
   await flow("database and filesystem state", async () => {
     const database = new Database(databasePath, { readonly: true });
     const rows = database
-      .prepare("select path, source from files where path in (?, ?) order by path")
-      .all(`${folderSlug}/${uploadName}`, orphanPath);
+      .prepare("select path, source from files where path in (?, ?, ?) order by path")
+      .all(`${folderSlug}/${uploadName}`, `${folderSlug}/${mapName}`, orphanPath);
     database.close();
-    check(rows.length === 2, `Expected two indexed files, found ${rows.length}`);
+    check(rows.length === 3, `Expected three indexed files, found ${rows.length}`);
     check(rows.some((row) => row.path === orphanPath && row.source === "filesystem-adopted"), "Adopted orphan database row is missing or has the wrong source");
     const bytes = await readFile(join(uploadsDirectory, folderSlug, uploadName), "utf8");
     check(bytes === uploadBody, "Uploaded bytes differ from the selected file");
     check(
+      (await readFile(join(uploadsDirectory, folderSlug, mapName))).equals(mapBody),
+      "Uploaded BSP bytes differ from the selected file",
+    );
+    check(
       (await readFile(join(uploadsDirectory, orphanPath))).equals(orphanBody),
       "Adopted file was unexpectedly changed",
     );
-    report.state = { indexedFiles: rows, uploadPath: `${folderSlug}/${uploadName}`, orphanPath };
-    return ["both files indexed", "uploaded bytes preserved", "adoption did not rewrite orphan bytes"];
+    report.state = {
+      indexedFiles: rows,
+      uploadPath: `${folderSlug}/${uploadName}`,
+      mapPath: `${folderSlug}/${mapName}`,
+      orphanPath,
+    };
+    return [
+      "all files indexed",
+      "uploaded bytes preserved",
+      "adoption did not rewrite orphan bytes",
+    ];
   });
 
   const unexpectedErrors = consoleEvents.filter((event) => event.type !== "console:warning");
