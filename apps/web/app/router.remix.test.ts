@@ -1,4 +1,4 @@
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import * as assert from "remix/assert";
@@ -18,8 +18,10 @@ const origin = "http://artbin.test";
 const uploadsRoot = join(process.cwd(), "public", "uploads", "_remix-router-test");
 const inboxUploadRoot = join(process.cwd(), "public", "uploads", "_inbox", "_remix-router-test");
 const inboxDestinationRoot = join(process.cwd(), "public", "uploads", "remix-router-destination");
+const providedAssetsRoot = join(process.cwd(), "tmp", "bsp-assets-router-test");
 const adminCookie = "artbin_session=admin-session";
 const memberCookie = "artbin_session=member-session";
+const originalBspAssetDirectory = process.env.ARTBIN_BSP_ASSET_DIR;
 
 let database: TestDatabase;
 const originalFetch = globalThis.fetch;
@@ -27,6 +29,7 @@ const originalFetch = globalThis.fetch;
 beforeEach(async () => {
   process.env.NODE_ENV = "test";
   process.env.ARTBIN_REQUIRE_AUTH = "1";
+  process.env.ARTBIN_BSP_ASSET_DIR = providedAssetsRoot;
   database = createTestDatabase();
   applyMigrations(database.sqlite);
   setDbForTesting(database.db);
@@ -47,6 +50,9 @@ afterEach(async () => {
   await rm(uploadsRoot, { recursive: true, force: true });
   await rm(inboxUploadRoot, { recursive: true, force: true });
   await rm(inboxDestinationRoot, { recursive: true, force: true });
+  await rm(providedAssetsRoot, { recursive: true, force: true });
+  if (originalBspAssetDirectory === undefined) delete process.env.ARTBIN_BSP_ASSET_DIR;
+  else process.env.ARTBIN_BSP_ASSET_DIR = originalBspAssetDirectory;
 });
 
 describe("native Remix router", () => {
@@ -246,6 +252,83 @@ describe("native Remix router", () => {
     const html = await response.text();
     assert.match(html, /ModelViewer/);
     assert.match(html, /Loading model/);
+  });
+
+  it("renders BSP maps and serves nearby WAD and palette dependencies", async () => {
+    const folder = await seedFolder();
+    const bsp = await readFile(join(process.cwd(), "test/fixtures/dm_barraco2.bsp"));
+    const wad = makeWAD3Texture("REDWALL");
+    const providedWad = makeWAD3Texture("SITEWALL");
+    const palette = Buffer.alloc(768, 42);
+    await mkdir(join(uploadsRoot, "maps"), { recursive: true });
+    await Promise.all([
+      writeFile(join(uploadsRoot, "maps/example.bsp"), bsp),
+      writeFile(join(uploadsRoot, "textures.wad"), wad),
+      writeFile(join(uploadsRoot, "palette.lmp"), palette),
+      mkdir(join(providedAssetsRoot, "goldsrc"), { recursive: true }).then(() =>
+        writeFile(join(providedAssetsRoot, "goldsrc/halflife.wad"), providedWad),
+      ),
+    ]);
+    await database.db.insert(files).values([
+      {
+        id: "bsp-map",
+        path: "_remix-router-test/maps/example.bsp",
+        name: "example.bsp",
+        mimeType: "application/x-bsp",
+        size: bsp.length,
+        kind: "map",
+        folderId: folder.id,
+        status: "approved",
+      },
+      {
+        id: "bsp-wad",
+        path: "_remix-router-test/textures.wad",
+        name: "textures.wad",
+        mimeType: "application/x-wad",
+        size: wad.length,
+        kind: "archive",
+        folderId: folder.id,
+        status: "approved",
+      },
+      {
+        id: "bsp-palette",
+        path: "_remix-router-test/palette.lmp",
+        name: "palette.lmp",
+        mimeType: "application/octet-stream",
+        size: palette.length,
+        kind: "other",
+        folderId: folder.id,
+        status: "approved",
+      },
+    ]);
+
+    const page = await router.fetch(
+      request(routes.file.href({ path: "_remix-router-test/maps/example.bsp" }), memberCookie),
+    );
+    assert.equal(page.status, 200);
+    const html = await page.text();
+    assert.match(html, /BspViewer/);
+    assert.match(html, /Interactive BSP map/);
+    assert.match(html, /\/api\/bsp\/bsp-map\/palette/);
+
+    const wadResponse = await router.fetch(
+      request(routes.api.bspWad.href({ fileId: "bsp-map", wadName: "textures.wad" }), memberCookie),
+    );
+    assert.equal(wadResponse.status, 200);
+    assert.equal(wadResponse.headers.get("content-type"), "application/x-wad");
+    assert.deepEqual(Buffer.from(await wadResponse.arrayBuffer()), wad);
+
+    const providedWadResponse = await router.fetch(
+      request(routes.api.bspWad.href({ fileId: "bsp-map", wadName: "halflife.wad" }), memberCookie),
+    );
+    assert.equal(providedWadResponse.status, 200);
+    assert.deepEqual(Buffer.from(await providedWadResponse.arrayBuffer()), providedWad);
+
+    const paletteResponse = await router.fetch(
+      request(routes.api.bspPalette.href({ fileId: "bsp-map" }), memberCookie),
+    );
+    assert.equal(paletteResponse.status, 200);
+    assert.deepEqual(Buffer.from(await paletteResponse.arrayBuffer()), palette);
   });
 
   it("serves WADs as path-based virtual folders and files", async () => {

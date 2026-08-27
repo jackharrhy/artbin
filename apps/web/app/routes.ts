@@ -37,6 +37,8 @@ export const routes = route({
     folderMove: post("/folder/move"),
     folderDownload: get("/folder/download/*path"),
     wadTexture: get("/wad/:fileId/texture/:textureIndex"),
+    bspWad: get("/bsp/:fileId/wad/:wadName"),
+    bspPalette: get("/bsp/:fileId/palette"),
     cli: route("/cli", {
       whoami: get("/whoami"),
       foldersGet: get("/folders"),

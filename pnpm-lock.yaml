@@ -74,7 +74,7 @@ importers:
         version: 2.3.3(rollup@4.63.0)(vite@8.2.2(@types/node@26.3.0)(esbuild@0.28.2)(tsx@4.23.12))
       vitest:
         specifier: ^4.1.11
-        version: 4.1.11(@types/node@26.3.0)(vite@8.2.2(@types/node@26.3.0)(esbuild@0.28.2)(tsx@4.23.12))
+        version: 4.1.11(@types/node@26.3.0)(esbuild@0.28.2)(tsx@4.23.12)
 
   apps/web:
     dependencies:
@@ -84,6 +84,9 @@ importers:
       '@artbin/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@jackharrhy/worldview':
+        specifier: ^0.1.0
+        version: 0.1.0
       '@tscircuit/alphabet':
         specifier: ^0.0.26
         version: 0.0.26(typescript@7.0.2)
@@ -141,7 +144,7 @@ importers:
         version: 7.0.2
       vitest:
         specifier: ^4.1.11
-        version: 4.1.11(@types/node@26.3.0)(vite@8.2.2(@types/node@26.3.0)(esbuild@0.28.2)(tsx@4.23.12))
+        version: 4.1.11(@types/node@26.3.0)(esbuild@0.28.2)(tsx@4.23.12)
 
   packages/core:
     dependencies:
@@ -166,7 +169,7 @@ importers:
         version: 7.0.2
       vitest:
         specifier: ^4.1.11
-        version: 4.1.11(@types/node@26.3.0)(vite@8.2.2(@types/node@26.3.0)(esbuild@0.28.2)(tsx@4.23.12))
+        version: 4.1.11(@types/node@26.3.0)(esbuild@0.28.2)(tsx@4.23.12)
 
   packages/ui:
     devDependencies:
@@ -698,6 +701,10 @@ packages:
     engines: {node: '>=20.9.0'}
     cpu: [x64]
     os: [win32]
+
+  '@jackharrhy/worldview@0.1.0':
+    resolution: {integrity: sha512-vPr7FSgFEglOJwVE0Yd3hynz6eeMGFdI7ulmpajqWnUcmGZYcxnbPc33ri170E6JZ+b2NaFNWPdgQp6yh3MM3w==}
+    engines: {node: '>=24'}
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -3044,6 +3051,10 @@ packages:
   tinybench@2.9.0:
     resolution: {integrity: sha512-0+DUvqWMValLmha6lr4kD8iAMK1HzV0/aKnCtWb9v9641TnP/MFb7Pc2bxoxQjTXAErryXVgUOfv2YqNllqGeg==}
 
+  tinyest@0.3.2:
+    resolution: {integrity: sha512-1wqSt97RLezWzeogLSVXHr+E3jpYO8jxyaK2AIdJeGoZZTCubwNxQ9IqU5gbQpJVcxlbPugPAsII+m9/gqpPSA==}
+    engines: {node: '>=12.20.0'}
+
   tinyexec@0.3.2:
     resolution: {integrity: sha512-KQQR9yN7R5+OSwaK0XQoj22pwHoTlgYqmUscPYoknOoWCWfj/5/ABTMRi69FrKU5ffPVh5QcFikpWJI/P1ocHA==}
 
@@ -3081,6 +3092,9 @@ packages:
   tslib@2.8.1:
     resolution: {integrity: sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w==}
 
+  tsover-runtime@0.0.7:
+    resolution: {integrity: sha512-FHHwMJzZbnP23+fU1PxXljy7j0RRRosL2r1/CRUNTqfW+l7m35JsUkM615x/cAzw4GqRdXPIl3axKMj9qzpZtQ==}
+
   tsup@8.5.1:
     resolution: {integrity: sha512-xtgkqwdhpKWr3tKPmCkvYmS9xnQK3m3XgxZHwSUjvfTjp7YfXe5tT3GgWi0F2N+ZSMsOeWeZFh7ZZFg5iPhing==}
     engines: {node: '>=18'}
@@ -3103,6 +3117,14 @@ packages:
   tsx@4.23.12:
     resolution: {integrity: sha512-FDf4L4sYzKtzWYhU/Xm0AQFdTjdIxNo9ElTf2mxXM6k8YMHXzYUe4yODVaXP4V9uMFbVg8c0qyBccK2OOxb45Q==}
     engines: {node: '>=18.0.0'}
+    hasBin: true
+
+  typed-binary@4.3.3:
+    resolution: {integrity: sha512-W2hLsSzt3k/tg38gDE4Fn/QiwcoqGuUHBc2cb3mXuH7KcYxe/GM57vzW14s2/bawB4R5knGgGq8Xb57vsaJ4Sg==}
+
+  typegpu@0.12.1:
+    resolution: {integrity: sha512-pFestGQCPsLpeyeRdRIZd8LzONTOya2mJzf1eYg7dvX4UeslVU3XohYTP89C2gUH6n/xPsZv6/Qj1OlTwDsY6A==}
+    engines: {node: '>=12.20.0'}
     hasBin: true
 
   typescript@7.0.2:
@@ -3196,7 +3218,6 @@ packages:
       '@vitest/ui': 4.1.11
       happy-dom: '*'
       jsdom: '*'
-      vite: ^6.0.0 || ^7.0.0 || ^8.0.0
     peerDependenciesMeta:
       '@edge-runtime/vm':
         optional: true
@@ -3220,6 +3241,9 @@ packages:
         optional: true
       jsdom:
         optional: true
+
+  wgpu-matrix@3.4.2:
+    resolution: {integrity: sha512-IfZFbG7olEYBD76VCZy2TzqM57GKy3LT++AZh37tMHPPByO6R2h61zXGBZFNPi2IzxNivNi8y5dvze5PjaczjA==}
 
   why-is-node-running@2.3.0:
     resolution: {integrity: sha512-hUrmaWBdVDcxvYqnyh09zunKzROWjbZTiNy8dBEjkS7ehEDQibXJ7XvlmtbwuTclUiIyN+CyXQD4Vmko8fNm8w==}
@@ -3554,6 +3578,11 @@ snapshots:
 
   '@img/sharp-win32-x64@0.35.3':
     optional: true
+
+  '@jackharrhy/worldview@0.1.0':
+    dependencies:
+      typegpu: 0.12.1
+      wgpu-matrix: 3.4.2
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:
@@ -5473,6 +5502,8 @@ snapshots:
 
   tinybench@2.9.0: {}
 
+  tinyest@0.3.2: {}
+
   tinyexec@0.3.2: {}
 
   tinyexec@1.3.0: {}
@@ -5502,6 +5533,8 @@ snapshots:
 
   tslib@2.8.1:
     optional: true
+
+  tsover-runtime@0.0.7: {}
 
   tsup@8.5.1(postcss@8.5.26)(tsx@4.23.12)(typescript@7.0.2):
     dependencies:
@@ -5536,6 +5569,14 @@ snapshots:
       esbuild: 0.28.2
     optionalDependencies:
       fsevents: 2.3.3
+
+  typed-binary@4.3.3: {}
+
+  typegpu@0.12.1:
+    dependencies:
+      tinyest: 0.3.2
+      tsover-runtime: 0.0.7
+      typed-binary: 4.3.3
 
   typescript@7.0.2:
     optionalDependencies:
@@ -5594,7 +5635,7 @@ snapshots:
       fsevents: 2.3.3
       tsx: 4.23.12
 
-  vitest@4.1.11(@types/node@26.3.0)(vite@8.2.2(@types/node@26.3.0)(esbuild@0.28.2)(tsx@4.23.12)):
+  vitest@4.1.11(@types/node@26.3.0)(esbuild@0.28.2)(tsx@4.23.12):
     dependencies:
       '@vitest/expect': 4.1.11
       '@vitest/mocker': 4.1.11(vite@8.2.2(@types/node@26.3.0)(esbuild@0.28.2)(tsx@4.23.12))
@@ -5619,7 +5660,20 @@ snapshots:
     optionalDependencies:
       '@types/node': 26.3.0
     transitivePeerDependencies:
+      - '@vitejs/devtools'
+      - esbuild
+      - jiti
+      - less
       - msw
+      - sass
+      - sass-embedded
+      - stylus
+      - sugarss
+      - terser
+      - tsx
+      - yaml
+
+  wgpu-matrix@3.4.2: {}
 
   why-is-node-running@2.3.0:
     dependencies:

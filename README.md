@@ -24,7 +24,7 @@ packages/core/   # shared parsers and file detection
 - Node.js HTTP server + Tailwind CSS v4
 - TypeScript, Drizzle ORM + SQLite
 - pnpm workspaces
-- three.js for 3D model viewer
+- three.js for 3D model previews and `@jackharrhy/worldview` for WebGPU BSP previews
 
 ## quick start
 
@@ -59,6 +59,27 @@ contain the imported collections. The background importer:
 
 Re-importing the same source into the same destination is idempotent: existing asset paths are
 kept, while newly added paths are imported.
+
+## BSP previews
+
+Quake BSP29 and GoldSrc BSP30 files open in an interactive Worldview preview. For external textures,
+Artbin first looks for a matching WAD in the same imported collection as the BSP. It then falls back
+to the private site asset directory at `data/bsp-assets`, searched recursively by basename. Quake
+BSP29 maps use the same lookup for `palette.lmp`.
+
+A production library can therefore use a layout such as:
+
+```text
+data/bsp-assets/
+  quake/palette.lmp
+  goldsrc/halflife.wad
+  cstrike/cstrike.wad
+```
+
+Set `ARTBIN_BSP_ASSET_DIR` to use another directory. These game assets are intentionally not bundled
+with Artbin or Worldview; the operator must provide assets they are permitted to host. The resolver
+routes are authenticated, and uploaded WADs outside the BSP's collection are not used as global
+fallbacks.
 
 ## CLI
 

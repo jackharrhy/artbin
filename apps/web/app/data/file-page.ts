@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { open, readFile } from "node:fs/promises";
 
 import { eq } from "drizzle-orm";
 
@@ -62,6 +62,9 @@ export async function loadFilePage(path: string, user: User) {
   let modelMtl: string | null = null;
   let availableTextures: Array<{ name: string; url: string }> = [];
   let modelAnimations: Array<{ name: string; url: string }> = [];
+  const bspVersion = file.name.toLowerCase().endsWith(".bsp")
+    ? await readBspVersion(file.path)
+    : null;
 
   if (file.kind === "model") {
     const siblings = await db.query.files.findMany({ where: eq(files.folderId, file.folderId) });
@@ -113,7 +116,25 @@ export async function loadFilePage(path: string, user: User) {
     modelMtl,
     availableTextures,
     modelAnimations,
+    bspVersion,
   };
+}
+
+async function readBspVersion(filePath: string): Promise<29 | 30 | null> {
+  try {
+    const handle = await open(getFilePath(filePath), "r");
+    try {
+      const header = Buffer.allocUnsafe(4);
+      const { bytesRead } = await handle.read(header, 0, header.length, 0);
+      if (bytesRead !== header.length) return null;
+      const version = header.readInt32LE(0);
+      return version === 29 || version === 30 ? version : null;
+    } finally {
+      await handle.close();
+    }
+  } catch {
+    return null;
+  }
 }
 
 function textureUrl(file: { path: string; hasPreview: boolean | null }): string {

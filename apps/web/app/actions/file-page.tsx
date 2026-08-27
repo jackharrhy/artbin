@@ -14,6 +14,7 @@ import { Breadcrumbs } from "../ui/navigation.tsx";
 import { Badge, ButtonLink, Detail, DetailList, Disclosure } from "../ui/primitives.tsx";
 import { LuckyButton } from "../ui/public/lucky-button.tsx";
 import { ModelViewer, type ModelFormat } from "../ui/public/model-viewer.tsx";
+import { BspViewer } from "../ui/public/bsp-viewer.tsx";
 import { Page } from "../ui/page.tsx";
 import { cardStyle, theme } from "../ui/styles.ts";
 
@@ -151,6 +152,7 @@ function StandardFilePage(handle: Handle<{ data: StandardFilePageData; user: Use
     const audio = file.kind === "audio";
     const text = isTextMimeType(file.mimeType);
     const modelFormat = getModelFormat(file.name);
+    const bsp = file.kind === "map" && file.name.toLowerCase().endsWith(".bsp");
 
     return (
       <Page title={`${file.name} - artbin`} user={user}>
@@ -165,7 +167,18 @@ function StandardFilePage(handle: Handle<{ data: StandardFilePageData; user: Use
           <FileBreadcrumb data={data} />
           <div mix={contentGridStyle}>
             <div mix={previewStyle}>
-              {image ? (
+              {bsp ? (
+                <BspViewer
+                  bspUrl={downloadUrl}
+                  fileId={file.id}
+                  paletteUrl={
+                    data.bspVersion === 29
+                      ? routes.api.bspPalette.href({ fileId: file.id })
+                      : undefined
+                  }
+                  height={560}
+                />
+              ) : image ? (
                 <a href={downloadUrl} target="_blank" rel="noopener">
                   <img
                     src={displayUrl}

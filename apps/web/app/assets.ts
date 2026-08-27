@@ -22,7 +22,7 @@ export const assetServer = createAssetServer({
     "apps/web/app/ui/primitives.tsx",
     "apps/web/app/**/public/**",
   ],
-  allowPackages: ["remix", "three"],
+  allowPackages: ["@jackharrhy/worldview", "remix", "three"],
   denyFiles: ["apps/web/app/**/*.test.*"],
   files: {
     extensions: [".svg", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".woff", ".woff2"],
