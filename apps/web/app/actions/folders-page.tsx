@@ -3,7 +3,7 @@ import { css, type Handle } from "remix/ui";
 import type { User } from "#db";
 
 import type { FoldersPageData } from "../data/folders-page.ts";
-import { routes } from "../routes.ts";
+import { mediaFolderPreviewHref, routes } from "../routes.ts";
 import { BrowseTabs } from "../ui/browse-tabs.tsx";
 import { FileCollection } from "../ui/file-collection.tsx";
 import { MediaCard } from "../ui/media-card.tsx";
@@ -86,7 +86,14 @@ export function FoldersPage(handle: Handle<FoldersPageProps>) {
                     <MediaCard
                       key={folder.id}
                       href={routes.folder.index.href({ path: folder.slug })}
-                      imageSrc={folder.previewPath ? `/uploads/${folder.previewPath}` : undefined}
+                      imageSrc={
+                        folder.previewPath
+                          ? mediaFolderPreviewHref({
+                              id: folder.id,
+                              previewPath: folder.previewPath,
+                            })
+                          : undefined
+                      }
                       imageAlt=""
                       title={folder.name}
                       meta={`${count} ${count === 1 ? "file" : "files"}`}

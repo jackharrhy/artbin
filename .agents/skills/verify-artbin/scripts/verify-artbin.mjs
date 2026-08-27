@@ -183,8 +183,12 @@ try {
   const uploadName = `proof-${nonce}.txt`;
   const uploadBody = `Artbin verification ${nonce}\n`;
   const orphanFolder = `orphan-${nonce}`;
-  const orphanName = `loose-${nonce}.wad`;
+  const orphanName = `{loose-${nonce}.png`;
   const orphanPath = `${orphanFolder}/${orphanName}`;
+  const orphanBody = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAF/gL+X1S8AAAAAElFTkSuQmCC",
+    "base64",
+  );
 
   await flow("library and admin readiness", async () => {
     await page.goto(`${baseUrl}/folders`, { waitUntil: "networkidle" });
@@ -231,7 +235,7 @@ try {
 
   await flow("scan and adopt orphan", async () => {
     await mkdir(join(uploadsDirectory, orphanFolder), { recursive: true });
-    await writeFile(join(uploadsDirectory, orphanPath), Buffer.from("WAD3 verification fixture\n"));
+    await writeFile(join(uploadsDirectory, orphanPath), orphanBody);
     await page.goto(`${baseUrl}/admin/orphans`, { waitUntil: "networkidle" });
     await page.getByRole("link", { name: "Scan uploads", exact: true }).click();
     await page.getByRole("button", { name: "Adopt orphan files", exact: true }).waitFor();
@@ -239,7 +243,21 @@ try {
     await page.getByRole("button", { name: "Adopt orphan files", exact: true }).click();
     await page.getByText("Adopted 1 file.", { exact: true }).waitFor();
     await shot(page, "06-orphan-adopted.png");
-    return ["isolated disk-only file detected", "orphan adopted through admin UI"];
+    await page.goto(`${baseUrl}/file/${orphanFolder}/${encodeURIComponent(orphanName)}`, {
+      waitUntil: "networkidle",
+    });
+    const image = page.getByRole("img", { name: orphanName, exact: true });
+    await image.waitFor();
+    check(
+      await image.evaluate((element) => element.naturalWidth === 1 && element.naturalHeight === 1),
+      "Special-character image did not load through indexed media",
+    );
+    await shot(page, "07-special-character-media.png");
+    return [
+      "isolated disk-only file detected",
+      "orphan adopted through admin UI",
+      "special-character image loaded through indexed media",
+    ];
   });
 
   await flow("database and filesystem state", async () => {
@@ -252,7 +270,10 @@ try {
     check(rows.some((row) => row.path === orphanPath && row.source === "filesystem-adopted"), "Adopted orphan database row is missing or has the wrong source");
     const bytes = await readFile(join(uploadsDirectory, folderSlug, uploadName), "utf8");
     check(bytes === uploadBody, "Uploaded bytes differ from the selected file");
-    check((await readFile(join(uploadsDirectory, orphanPath), "utf8")).startsWith("WAD3"), "Adopted file was unexpectedly changed");
+    check(
+      (await readFile(join(uploadsDirectory, orphanPath))).equals(orphanBody),
+      "Adopted file was unexpectedly changed",
+    );
     report.state = { indexedFiles: rows, uploadPath: `${folderSlug}/${uploadName}`, orphanPath };
     return ["both files indexed", "uploaded bytes preserved", "adoption did not rewrite orphan bytes"];
   });

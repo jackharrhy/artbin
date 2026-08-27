@@ -13,6 +13,7 @@ import { loadMyUploadsPage } from "../data/my-uploads-page.ts";
 import { MyUploadsPage } from "./my-uploads-page.tsx";
 import { Alert, ButtonLink } from "../ui/primitives.tsx";
 import { mutedTextStyle, theme } from "../ui/styles.ts";
+import { serveFolderPreview, serveMediaFile } from "./media.ts";
 
 const loginPageStyle = css({
   backgroundColor: theme.color.background,
@@ -28,6 +29,22 @@ export default createController(routes, {
   actions: {
     async assets({ request }) {
       return (await assetServer.fetch(request)) ?? new Response("Not Found", { status: 404 });
+    },
+    mediaFile({ request, params, user }) {
+      return serveMediaFile({
+        request,
+        fileId: params.fileId,
+        filename: params.filename,
+        user,
+      });
+    },
+    mediaFolderPreview({ request, params, user }) {
+      return serveFolderPreview({
+        request,
+        folderId: params.folderId,
+        filename: params.filename,
+        user,
+      });
     },
     home(context) {
       return redirect(context.user ? routes.folders.href() : routes.login.href(), 302);

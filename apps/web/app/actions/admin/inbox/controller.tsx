@@ -8,7 +8,7 @@ import { db } from "#db/connection.server";
 import { approveSession, getPendingSessionsWithFiles, rejectSession } from "#lib/inbox.server";
 
 import { requireAdmin } from "../../../middleware/auth.ts";
-import { routes } from "../../../routes.ts";
+import { mediaFileHref, routes } from "../../../routes.ts";
 import { AdminPage } from "../../../ui/admin-page.tsx";
 import { formatSize } from "../../../ui/file-collection.tsx";
 import { MediaCard } from "../../../ui/media-card.tsx";
@@ -364,6 +364,8 @@ function formatDate(value: Date | null): string {
 }
 
 function thumbnailUrl(file: {
+  id: string;
+  name: string;
   path: string;
   mimeType: string;
   hasPreview: boolean | null;
@@ -371,7 +373,7 @@ function thumbnailUrl(file: {
   if (
     ["image/png", "image/jpeg", "image/gif", "image/webp", "image/svg+xml"].includes(file.mimeType)
   ) {
-    return `/uploads/${file.path}`;
+    return mediaFileHref(file);
   }
-  return file.hasPreview ? `/uploads/${file.path}.preview.png` : null;
+  return file.hasPreview ? mediaFileHref(file, { preview: true }) : null;
 }

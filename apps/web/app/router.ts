@@ -25,7 +25,10 @@ export const router = createRouter({
     compression(),
     staticFiles(process.env.ARTBIN_PUBLIC_DIR ?? "./public", {
       index: false,
-      filter: (path) => !path.split("/").some((segment) => segment.startsWith(".")),
+      filter: (path) => {
+        const segments = path.split("/").filter(Boolean);
+        return segments[0] !== "uploads" && !segments.some((segment) => segment.startsWith("."));
+      },
     }),
     loadUser(),
     render(),

@@ -1,12 +1,11 @@
 import type * as Route from "./types.ts";
 
+import { redirect } from "remix/response/redirect";
+
 import { requireCliAuth } from "#lib/cli-auth.server";
-import {
-  getVisibleBspFile,
-  readBspAsset,
-  resolveBspPalette,
-  resolveBspWad,
-} from "#lib/bsp-assets.server";
+import { getVisibleBspFile, resolveBspPalette, resolveBspWad } from "#lib/bsp-assets.server";
+
+import { mediaFileHref } from "../../../routes.ts";
 
 export async function wadLoader({
   request,
@@ -16,7 +15,7 @@ export async function wadLoader({
   const bsp = await getVisibleBspFile(params.fileId, user);
   if (!bsp) return notFound();
   const wad = await resolveBspWad(bsp, params.wadName, user);
-  return wad ? assetResponse(wad, "application/x-wad") : notFound();
+  return wad ? redirect(mediaFileHref(wad), 302) : notFound();
 }
 
 export async function paletteLoader({
@@ -27,22 +26,7 @@ export async function paletteLoader({
   const bsp = await getVisibleBspFile(params.fileId, user);
   if (!bsp) return notFound();
   const palette = await resolveBspPalette(bsp, user);
-  return palette ? assetResponse(palette, "application/octet-stream") : notFound();
-}
-
-async function assetResponse(
-  file: Parameters<typeof readBspAsset>[0],
-  contentType: string,
-): Promise<Response> {
-  const body = await readBspAsset(file);
-  if (!body) return notFound();
-  return new Response(Uint8Array.from(body), {
-    headers: {
-      "Cache-Control": "private, max-age=3600",
-      "Content-Length": String(body.length),
-      "Content-Type": contentType,
-    },
-  });
+  return palette ? redirect(mediaFileHref(palette), 302) : notFound();
 }
 
 function notFound(): Response {

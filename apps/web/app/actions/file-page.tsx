@@ -8,7 +8,7 @@ import {
   type StandardFilePageData,
   type WadTexturePageData,
 } from "../data/file-page.ts";
-import { routes } from "../routes.ts";
+import { mediaFileHref, routes } from "../routes.ts";
 import { formatSize } from "../ui/file-collection.tsx";
 import { Breadcrumbs } from "../ui/navigation.tsx";
 import { Badge, ButtonLink, Detail, DetailList, Disclosure } from "../ui/primitives.tsx";
@@ -145,8 +145,8 @@ function StandardFilePage(handle: Handle<{ data: StandardFilePageData; user: Use
   return () => {
     const { data, user } = handle.props;
     const { file } = data;
-    const downloadUrl = `/uploads/${file.path}`;
-    const displayUrl = `${downloadUrl}${file.hasPreview ? ".preview.png" : ""}`;
+    const downloadUrl = mediaFileHref(file);
+    const displayUrl = mediaFileHref(file, { preview: Boolean(file.hasPreview) });
     const image = file.kind === "texture";
     const model = file.kind === "model";
     const audio = file.kind === "audio";
@@ -411,7 +411,7 @@ function WadTexturePage(handle: Handle<{ data: WadTexturePageData; user: User }>
                 <ButtonLink href={imageUrl} variant="primary" block download>
                   Download PNG
                 </ButtonLink>
-                <ButtonLink href={`/uploads/${data.file.path}`} block download>
+                <ButtonLink href={mediaFileHref(data.file)} block download>
                   Download original WAD
                 </ButtonLink>
               </div>

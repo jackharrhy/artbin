@@ -12,7 +12,7 @@ import { setDbForTesting } from "#db/connection.server";
 import { applyMigrations, createTestDatabase, type TestDatabase } from "../test/db.ts";
 import { makeWAD3Texture } from "../test/wad-fixture.ts";
 import { router } from "./router.ts";
-import { routes } from "./routes.ts";
+import { mediaFileHref, mediaFolderPreviewHref, routes } from "./routes.ts";
 
 const origin = "http://artbin.test";
 const uploadsRoot = join(process.cwd(), "public", "uploads", "_remix-router-test");
@@ -171,6 +171,67 @@ describe("native Remix router", () => {
     assert.doesNotMatch(html, /react-router/);
   });
 
+  it("serves indexed media and previews without exposing the uploads tree", async () => {
+    const folder = await seedFolder();
+    const image = Buffer.from("indexed-media");
+    const preview = Buffer.from("indexed-preview");
+    const folderPreview = Buffer.from("folder-preview");
+    const path = "_remix-router-test/{h2k.png";
+    const folderPreviewPath = "_remix-router-test/_folder-preview.png";
+    await Promise.all([
+      writeFile(join(uploadsRoot, "{h2k.png"), image),
+      writeFile(join(uploadsRoot, "{h2k.png.preview.png"), preview),
+      writeFile(join(uploadsRoot, "_folder-preview.png"), folderPreview),
+    ]);
+    await database.db.insert(files).values({
+      id: "special-media",
+      path,
+      name: "{h2k.png",
+      mimeType: "image/png",
+      size: image.length,
+      kind: "texture",
+      folderId: folder.id,
+      hasPreview: true,
+      status: "approved",
+    });
+    await database.db
+      .update(folders)
+      .set({ previewPath: folderPreviewPath })
+      .where(eq(folders.id, folder.id));
+
+    const original = await router.fetch(
+      request(mediaFileHref({ id: "special-media", name: "{h2k.png" }), memberCookie),
+    );
+    assert.equal(original.status, 200);
+    assert.equal(original.headers.get("content-type"), "image/png");
+    assert.deepEqual(Buffer.from(await original.arrayBuffer()), image);
+
+    const generatedPreview = await router.fetch(
+      request(
+        mediaFileHref({ id: "special-media", name: "{h2k.png" }, { preview: true }),
+        memberCookie,
+      ),
+    );
+    assert.equal(generatedPreview.status, 200);
+    assert.deepEqual(Buffer.from(await generatedPreview.arrayBuffer()), preview);
+
+    const renderedFolderPreview = await router.fetch(
+      request(
+        mediaFolderPreviewHref({ id: folder.id, previewPath: folderPreviewPath }),
+        memberCookie,
+      ),
+    );
+    assert.equal(renderedFolderPreview.status, 200);
+    assert.deepEqual(Buffer.from(await renderedFolderPreview.arrayBuffer()), folderPreview);
+
+    const unauthenticated = await router.fetch(
+      request(mediaFileHref({ id: "special-media", name: "{h2k.png" })),
+    );
+    assert.equal(unauthenticated.status, 401);
+    const rawUpload = await router.fetch(request(`/uploads/${path}`, memberCookie));
+    assert.equal(rawUpload.status, 404);
+  });
+
   it("renders the kitchen sink from the shared design system", async () => {
     const response = await router.fetch(request(routes.dev.kitchenSink.href(), adminCookie));
     assert.equal(response.status, 200);
@@ -326,21 +387,33 @@ describe("native Remix router", () => {
     const wadResponse = await router.fetch(
       request(routes.api.bspWad.href({ fileId: "bsp-map", wadName: "textures.wad" }), memberCookie),
     );
-    assert.equal(wadResponse.status, 200);
-    assert.equal(wadResponse.headers.get("content-type"), "application/x-wad");
-    assert.deepEqual(Buffer.from(await wadResponse.arrayBuffer()), wad);
+    assert.equal(wadResponse.status, 302);
+    const wadMedia = await router.fetch(
+      request(wadResponse.headers.get("location")!, memberCookie),
+    );
+    assert.equal(wadMedia.status, 200);
+    assert.equal(wadMedia.headers.get("content-type"), "application/x-wad");
+    assert.deepEqual(Buffer.from(await wadMedia.arrayBuffer()), wad);
 
     const providedWadResponse = await router.fetch(
       request(routes.api.bspWad.href({ fileId: "bsp-map", wadName: "halflife.wad" }), memberCookie),
     );
-    assert.equal(providedWadResponse.status, 200);
-    assert.deepEqual(Buffer.from(await providedWadResponse.arrayBuffer()), providedWad);
+    assert.equal(providedWadResponse.status, 302);
+    const providedWadMedia = await router.fetch(
+      request(providedWadResponse.headers.get("location")!, memberCookie),
+    );
+    assert.equal(providedWadMedia.status, 200);
+    assert.deepEqual(Buffer.from(await providedWadMedia.arrayBuffer()), providedWad);
 
     const paletteResponse = await router.fetch(
       request(routes.api.bspPalette.href({ fileId: "bsp-map" }), memberCookie),
     );
-    assert.equal(paletteResponse.status, 200);
-    assert.deepEqual(Buffer.from(await paletteResponse.arrayBuffer()), palette);
+    assert.equal(paletteResponse.status, 302);
+    const paletteMedia = await router.fetch(
+      request(paletteResponse.headers.get("location")!, memberCookie),
+    );
+    assert.equal(paletteMedia.status, 200);
+    assert.deepEqual(Buffer.from(await paletteMedia.arrayBuffer()), palette);
   });
 
   it("serves WADs as path-based virtual folders and files", async () => {

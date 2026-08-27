@@ -69,24 +69,9 @@ describe("HTTP integration tests", () => {
   });
 
   describe("static file serving", () => {
-    test("serves regular files from public/uploads", async () => {
+    test("does not expose database-backed uploads as static files", async () => {
       const res = await fetch(`${BASE}/uploads/_test/sample.txt`);
-      expect(res.status).toBe(200);
-      const body = await res.text();
-      expect(body.trim()).toBe("test-asset-content");
-    });
-
-    test("serves underscore-prefixed files (like _folder-preview.png)", async () => {
-      const res = await fetch(`${BASE}/uploads/_test/_underscored.txt`);
-      expect(res.status).toBe(200);
-      const body = await res.text();
-      expect(body.trim()).toBe("_test-file-content");
-    });
-
-    test("does NOT serve dotfiles (this is expected server behavior)", async () => {
-      const res = await fetch(`${BASE}/uploads/_test/.dotfile.txt`);
-      // Dotfiles are intentionally hidden; previews use an underscore prefix instead.
-      expect(res.status).not.toBe(200);
+      expect(res.status).toBe(404);
     });
   });
 

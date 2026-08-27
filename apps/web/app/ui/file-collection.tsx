@@ -1,6 +1,6 @@
 import { css, type Handle } from "remix/ui";
 
-import { routes } from "../routes.ts";
+import { mediaFileHref, routes } from "../routes.ts";
 import { MediaCard } from "./media-card.tsx";
 import { EmptyState } from "./primitives.tsx";
 import { buttonStyle, theme } from "./styles.ts";
@@ -82,7 +82,7 @@ export function FileCollection(handle: Handle<FileCollectionProps>) {
               <MediaCard
                 key={file.id}
                 href={routes.file.href({ path: file.path })}
-                imageSrc={`/uploads/${file.path}${file.hasPreview ? ".preview.png" : ""}`}
+                imageSrc={mediaFileHref(file, { preview: Boolean(file.hasPreview) })}
                 imageAlt={file.name}
                 title={file.name}
                 meta={
@@ -112,12 +112,7 @@ export function FileCollection(handle: Handle<FileCollectionProps>) {
                   </a>
                   {canPlay ? (
                     <div mix={playerStyle}>
-                      <audio
-                        controls
-                        src={`/uploads/${file.path}`}
-                        preload="none"
-                        mix={audioStyle}
-                      />
+                      <audio controls src={mediaFileHref(file)} preload="none" mix={audioStyle} />
                     </div>
                   ) : null}
                 </div>

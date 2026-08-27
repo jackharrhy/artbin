@@ -3,7 +3,7 @@ import { css, type Handle } from "remix/ui";
 import type { User } from "#db";
 
 import type { MyUploadsPageData } from "../data/my-uploads-page.ts";
-import { routes } from "../routes.ts";
+import { mediaFileHref, routes } from "../routes.ts";
 import { formatSize } from "../ui/file-collection.tsx";
 import { MediaCard } from "../ui/media-card.tsx";
 import { Tabs } from "../ui/navigation.tsx";
@@ -126,7 +126,7 @@ function UploadFiles(handle: Handle<{ files: MyUploadsPageData["files"]; linkabl
               <MediaCard
                 key={file.id}
                 href={linkable ? routes.file.href({ path: file.path }) : undefined}
-                imageSrc={`/uploads/${file.path}${file.hasPreview ? ".preview.png" : ""}`}
+                imageSrc={mediaFileHref(file, { preview: Boolean(file.hasPreview) })}
                 imageAlt={file.name}
                 title={file.name}
                 meta={formatSize(file.size)}

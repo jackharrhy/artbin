@@ -9,6 +9,8 @@ import { getFilePath } from "#lib/files.server";
 import { getFolderTrail } from "#lib/file-queries.server";
 import { getVisibleWADTextureByPath, inspectWADFile, isWADFilename } from "#lib/wad-assets.server";
 
+import { mediaFileHref } from "../routes.ts";
+
 const maxTextPreviewSize = 100 * 1_024;
 
 export async function loadFilePage(path: string, user: User) {
@@ -92,14 +94,14 @@ export async function loadFilePage(path: string, user: User) {
         (candidate) =>
           candidate.path.toLowerCase() === file.path.replace(/\.obj$/i, ".mtl").toLowerCase(),
       );
-      if (mtl) modelMtl = `/uploads/${mtl.path}`;
+      if (mtl) modelMtl = mediaFileHref(mtl);
     }
     if (file.name.toLowerCase().endsWith(".md5mesh")) {
       modelAnimations = siblings
         .filter((candidate) => candidate.name.toLowerCase().endsWith(".md5anim"))
         .map((candidate) => ({
           name: candidate.name.replace(/\.md5anim$/i, ""),
-          url: `/uploads/${candidate.path}`,
+          url: mediaFileHref(candidate),
         }));
     }
   }
@@ -137,8 +139,8 @@ async function readBspVersion(filePath: string): Promise<29 | 30 | null> {
   }
 }
 
-function textureUrl(file: { path: string; hasPreview: boolean | null }): string {
-  return `/uploads/${file.path}${file.hasPreview ? ".preview.png" : ""}`;
+function textureUrl(file: { id: string; name: string; hasPreview: boolean | null }): string {
+  return mediaFileHref(file, { preview: Boolean(file.hasPreview) });
 }
 
 export function isTextMimeType(mimeType: string): boolean {

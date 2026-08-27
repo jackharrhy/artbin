@@ -86,10 +86,6 @@ export function computeSha256FromFile(absolutePath: string): Promise<string> {
   });
 }
 
-export function filePathToUrl(filePath: string): string {
-  return `/uploads/${filePath}`;
-}
-
 export async function ensureDir(dirPath: string): Promise<void> {
   await mkdir(dirPath, { recursive: true });
 }

@@ -2,6 +2,8 @@ import { form, get, post, route } from "remix/routes";
 
 export const routes = route({
   assets: get("/assets/*path"),
+  mediaFile: get("/media/:fileId/*filename"),
+  mediaFolderPreview: get("/media/folder/:folderId/*filename"),
   home: get("/"),
   login: get("/login"),
   settings: form("/settings"),
@@ -50,3 +52,20 @@ export const routes = route({
     }),
   }),
 });
+
+export function mediaFileHref(
+  file: { id: string; name: string },
+  options: { preview?: boolean } = {},
+): string {
+  const preview = options.preview === true;
+  const href = routes.mediaFile.href({
+    fileId: file.id,
+    filename: preview ? `${file.name}.preview.png` : file.name,
+  });
+  return preview ? `${href}?preview=1` : href;
+}
+
+export function mediaFolderPreviewHref(folder: { id: string; previewPath: string }): string {
+  const filename = folder.previewPath.replaceAll("\\", "/").split("/").at(-1)!;
+  return routes.mediaFolderPreview.href({ folderId: folder.id, filename });
+}

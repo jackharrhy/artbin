@@ -1,4 +1,3 @@
-import { readFile } from "node:fs/promises";
 import { basename, dirname } from "node:path";
 
 import { and, eq, or, sql } from "drizzle-orm";
@@ -6,13 +5,13 @@ import { and, eq, or, sql } from "drizzle-orm";
 import type { User } from "#db";
 import { files } from "#db";
 import { db } from "#db/connection.server";
-import { getFilePath } from "#lib/files.server";
 
 type AssetFile = typeof files.$inferSelect;
 
 export interface BspAsset {
+  readonly id: string;
+  readonly name: string;
   readonly path: string;
-  readonly absolutePath: string;
 }
 
 const providedAssetRoot = "_provided";
@@ -35,14 +34,6 @@ export async function resolveBspWad(
 export async function resolveBspPalette(bsp: AssetFile, user: User): Promise<BspAsset | null> {
   const candidates = (await findVisibleNamedFiles("palette.lmp", user)).map(uploadAsset);
   return selectBspAsset(bsp.path, candidates);
-}
-
-export async function readBspAsset(file: BspAsset): Promise<Buffer | null> {
-  try {
-    return await readFile(file.absolutePath);
-  } catch {
-    return null;
-  }
 }
 
 export function selectBspAsset<T extends Pick<AssetFile, "path">>(
@@ -120,5 +111,5 @@ async function findVisibleNamedFiles(name: string, user: User): Promise<AssetFil
 }
 
 function uploadAsset(file: AssetFile): BspAsset {
-  return { path: file.path, absolutePath: getFilePath(file.path) };
+  return { id: file.id, name: file.name, path: file.path };
 }

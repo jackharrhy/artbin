@@ -3,7 +3,7 @@ import { css, type Handle, type RemixNode } from "remix/ui";
 import type { User } from "#db";
 
 import type { DirectoryPageData, FolderPageData, WadPageData } from "../../data/folder-page.ts";
-import { routes } from "../../routes.ts";
+import { mediaFileHref, mediaFolderPreviewHref, routes } from "../../routes.ts";
 import { BrowseTabs } from "../../ui/browse-tabs.tsx";
 import { FileCollection, formatSize } from "../../ui/file-collection.tsx";
 import { MediaCard } from "../../ui/media-card.tsx";
@@ -349,6 +349,7 @@ function FolderContents(
               {data.childFolders.map((child) => (
                 <FolderCard
                   key={child.id}
+                  id={child.id}
                   href={routes.folder.index.href({ path: child.slug })}
                   name={child.name}
                   previewPath={child.previewPath}
@@ -444,12 +445,21 @@ function AssetSection(
   );
 }
 
-function FolderCard(handle: Handle<{ href: string; name: string; previewPath: string | null }>) {
+function FolderCard(
+  handle: Handle<{ id: string; href: string; name: string; previewPath: string | null }>,
+) {
   return () => (
     <MediaCard
       href={handle.props.href}
       title={handle.props.name}
-      imageSrc={handle.props.previewPath ? `/uploads/${handle.props.previewPath}` : undefined}
+      imageSrc={
+        handle.props.previewPath
+          ? mediaFolderPreviewHref({
+              id: handle.props.id,
+              previewPath: handle.props.previewPath,
+            })
+          : undefined
+      }
       imageAlt=""
       placeholder="📁"
     />
@@ -481,7 +491,7 @@ function WadLibraryPage(handle: Handle<{ data: WadPageData; user: User }>) {
                     label="Random texture"
                   />
                 ) : null}
-                <ButtonLink href={`/uploads/${data.file.path}`} variant="primary" download>
+                <ButtonLink href={mediaFileHref(data.file)} variant="primary" download>
                   Download WAD
                 </ButtonLink>
               </div>
