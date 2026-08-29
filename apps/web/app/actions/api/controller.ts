@@ -9,9 +9,22 @@ import { action as upload } from "./handlers/api.upload.ts";
 import { loader as wadTexture } from "./handlers/api.wad-texture.ts";
 import { paletteLoader as bspPalette, wadLoader as bspWad } from "./handlers/api.bsp-assets.ts";
 import { routes } from "../../routes.ts";
+import { assetContent, assetMetadata, searchAssets, wadMetadata } from "./handlers/api.assets.ts";
 
 export default createController(routes.api, {
   actions: {
+    assets({ request }) {
+      return searchAssets(request);
+    },
+    asset({ request, params }) {
+      return assetMetadata(request, params.assetId);
+    },
+    assetContent({ request, params }) {
+      return assetContent(request, params.assetId);
+    },
+    assetWad({ request, params }) {
+      return wadMetadata(request, params.assetId);
+    },
     upload({ request }) {
       return upload({ request });
     },

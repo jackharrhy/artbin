@@ -32,6 +32,10 @@ export const routes = route({
     orphans: form("/orphans"),
   }),
   api: route("/api", {
+    assets: get("/assets"),
+    asset: get("/assets/:assetId"),
+    assetContent: get("/assets/:assetId/content"),
+    assetWad: get("/assets/:assetId/wad"),
     upload: post("/upload"),
     import: post("/import"),
     lucky: post("/lucky"),
