@@ -1,5 +1,7 @@
-import { describe, expect, test } from "vitest";
-import { generateCodeVerifier, generateCodeChallenge } from "#lib/oauth.server";
+import { afterEach, describe, expect, test, vi } from "vitest";
+import { exchangeCode, generateCodeVerifier, generateCodeChallenge } from "#lib/oauth.server";
+
+afterEach(() => vi.unstubAllGlobals());
 
 describe("PKCE code generation", () => {
   test("generateCodeVerifier produces a base64url string of expected length", () => {
@@ -42,5 +44,33 @@ describe("PKCE code generation", () => {
     const verifier = generateCodeVerifier();
     const challenge = generateCodeChallenge(verifier);
     expect(challenge).not.toBe(verifier);
+  });
+});
+
+describe("OAuth token response validation", () => {
+  test.each([
+    [{ token_type: "Bearer", expires_in: 3600 }, "access_token"],
+    [{ access_token: "token", token_type: "MAC", expires_in: 3600 }, "token_type"],
+    [{ access_token: "token", token_type: "Bearer", expires_in: 0 }, "expires_in"],
+    [{ access_token: "token", token_type: "Bearer", expires_in: "3600" }, "expires_in"],
+  ])("rejects malformed token payloads", async (payload, expectedField) => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json(payload)));
+    await expect(exchangeCode("code", "verifier")).rejects.toThrow(expectedField);
+  });
+
+  test("accepts a case-insensitive Bearer token type", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue(
+          Response.json({ access_token: "token", token_type: "bearer", expires_in: 3600 }),
+        ),
+    );
+    await expect(exchangeCode("code", "verifier")).resolves.toEqual({
+      access_token: "token",
+      token_type: "bearer",
+      expires_in: 3600,
+    });
   });
 });

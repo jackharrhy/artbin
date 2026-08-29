@@ -27,7 +27,7 @@ export async function login(args: Record<string, unknown>) {
     }
   }
 
-  const sessionId = await new Promise<string>((resolve, reject) => {
+  const handoffCode = await new Promise<string>((resolve, reject) => {
     const timeout = setTimeout(() => {
       server.close();
       reject(new Error("Login timed out after 2 minutes"));
@@ -36,18 +36,18 @@ export async function login(args: Record<string, unknown>) {
     const server = createServer((req, res) => {
       const url = new URL(req.url!, `http://localhost`);
       if (url.pathname === "/callback") {
-        const session = url.searchParams.get("session");
-        if (session) {
+        const code = url.searchParams.get("code");
+        if (code) {
           res.writeHead(200, { "Content-Type": "text/html" });
           res.end(
             "<html><body><h1>Login successful!</h1><p>You can close this tab.</p></body></html>",
           );
           clearTimeout(timeout);
           server.close();
-          resolve(session);
+          resolve(code);
         } else {
           res.writeHead(400, { "Content-Type": "text/plain" });
-          res.end("Missing session parameter");
+          res.end("Missing handoff code");
         }
       } else {
         res.writeHead(404);
@@ -73,7 +73,17 @@ export async function login(args: Record<string, unknown>) {
   });
 
   const spinner = p.spinner();
-  spinner.start("Verifying session...");
+  spinner.start("Completing login...");
+
+  let sessionId: string;
+  try {
+    sessionId = await redeemCliHandoff(serverUrl, handoffCode);
+  } catch (err) {
+    spinner.stop("Login failed");
+    p.log.error(String(err));
+    process.exitCode = 1;
+    return;
+  }
 
   const config = { serverUrl, sessionId };
   const api = new ApiClient(config);
@@ -88,4 +98,22 @@ export async function login(args: Record<string, unknown>) {
     p.log.error(String(err));
     process.exit(1);
   }
+}
+
+export async function redeemCliHandoff(serverUrl: string, code: string): Promise<string> {
+  const response = await fetch(new URL("/auth/cli/redeem", serverUrl), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code }),
+  });
+  if (!response.ok) throw new Error(`Login redemption failed (${response.status})`);
+  const payload: unknown = await response.json();
+  const sessionId =
+    payload &&
+    typeof payload === "object" &&
+    typeof (payload as { session?: unknown }).session === "string"
+      ? (payload as { session: string }).session
+      : "";
+  if (!sessionId) throw new Error("Login redemption returned an invalid session");
+  return sessionId;
 }

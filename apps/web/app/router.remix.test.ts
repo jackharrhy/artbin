@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, it } from "remix/test";
 
 import { eq } from "drizzle-orm";
 
-import { files, folders, jobs, remoteImports, sessions, users } from "#db";
+import { cliLoginHandoffs, files, folders, jobs, remoteImports, sessions, users } from "#db";
 import { setDbForTesting } from "#db/connection.server";
 
 import { applyMigrations, createTestDatabase, type TestDatabase } from "../test/db.ts";
@@ -126,6 +126,123 @@ describe("native Remix router", () => {
     assert.equal(tokenRequests[0]!.get("client_id"), "artbin");
     assert.ok(tokenRequests[0]!.get("code_verifier"));
     assert.equal((await database.db.select().from(sessions)).length, 3);
+  });
+
+  it("validates state and clears the transaction cookie on OAuth errors", async () => {
+    const start = await router.fetch(request(routes.auth.fourm.href()));
+    const authorizeUrl = new URL(start.headers.get("location")!);
+    const oauthCookie = start.headers.get("set-cookie")!;
+
+    const mismatchedUrl = new URL(routes.auth.fourmCallback.href(), origin);
+    mismatchedUrl.searchParams.set("error", "access_denied");
+    mismatchedUrl.searchParams.set("state", "wrong-state");
+    const mismatched = await router.fetch(
+      new Request(mismatchedUrl, { headers: { Cookie: oauthCookie.split(";", 1)[0]! } }),
+    );
+    assert.equal(mismatched.status, 302);
+    assert.equal(mismatched.headers.get("location"), "/login?error=state_mismatch");
+    assert.match(mismatched.headers.get("set-cookie") ?? "", /artbin_oauth=.*Max-Age=0/);
+
+    const deniedUrl = new URL(routes.auth.fourmCallback.href(), origin);
+    deniedUrl.searchParams.set("error", "access_denied");
+    deniedUrl.searchParams.set("state", authorizeUrl.searchParams.get("state")!);
+    const denied = await router.fetch(
+      new Request(deniedUrl, { headers: { Cookie: oauthCookie.split(";", 1)[0]! } }),
+    );
+    assert.equal(denied.status, 302);
+    assert.equal(denied.headers.get("location"), "/login?error=access_denied");
+    assert.match(denied.headers.get("set-cookie") ?? "", /artbin_oauth=.*Max-Age=0/);
+  });
+
+  it("exchanges a CLI OAuth callback for a single-use session handoff", async () => {
+    const start = await router.fetch(request(`${routes.auth.cliAuthorize.href()}?port=43210`));
+    assert.equal(start.status, 302);
+    const authorizeUrl = new URL(start.headers.get("location")!);
+    const oauthCookie = start.headers.get("set-cookie")!;
+
+    globalThis.fetch = async (input, init) => {
+      const url = String(input);
+      if (url.endsWith("/oauth/token")) {
+        return Response.json({
+          access_token: "cli-access-token",
+          token_type: "Bearer",
+          expires_in: 3600,
+        });
+      }
+      if (url.endsWith("/oauth/userinfo")) {
+        assert.equal(new Headers(init?.headers).get("authorization"), "Bearer cli-access-token");
+        return Response.json({
+          sub: "fourm-member",
+          username: "member",
+          display_name: "Member",
+          is_admin: false,
+        });
+      }
+      throw new Error(`Unexpected OAuth request: ${url}`);
+    };
+
+    const callbackUrl = new URL(routes.auth.cliCallback.href(), origin);
+    callbackUrl.searchParams.set("code", "cli-authorization-code");
+    callbackUrl.searchParams.set("state", authorizeUrl.searchParams.get("state")!);
+    const callback = await router.fetch(
+      new Request(callbackUrl, { headers: { Cookie: oauthCookie.split(";", 1)[0]! } }),
+    );
+    assert.equal(callback.status, 302);
+    assert.match(callback.headers.get("set-cookie") ?? "", /artbin_cli_oauth=.*Max-Age=0/);
+
+    const loopbackUrl = new URL(callback.headers.get("location")!);
+    assert.equal(loopbackUrl.origin, "http://127.0.0.1:43210");
+    assert.equal(loopbackUrl.pathname, "/callback");
+    assert.equal(loopbackUrl.searchParams.has("session"), false);
+    const handoffCode = loopbackUrl.searchParams.get("code");
+    assert.ok(handoffCode);
+    assert.equal((await database.db.select().from(sessions)).length, 2);
+    assert.equal((await database.db.select().from(cliLoginHandoffs)).length, 1);
+
+    const redeem = await router.fetch(
+      request(routes.auth.cliRedeem.href(), undefined, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: handoffCode }),
+      }),
+    );
+    assert.equal(redeem.status, 200);
+    assert.equal(redeem.headers.get("cache-control"), "no-store");
+    const payload = (await redeem.json()) as { session: string };
+    assert.ok(payload.session);
+    assert.equal((await database.db.select().from(cliLoginHandoffs)).length, 0);
+    assert.equal((await database.db.select().from(sessions)).length, 3);
+
+    const replay = await router.fetch(
+      request(routes.auth.cliRedeem.href(), undefined, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: handoffCode }),
+      }),
+    );
+    assert.equal(replay.status, 400);
+    assert.equal(
+      ((await replay.json()) as { error: { code: string } }).error.code,
+      "invalid_grant",
+    );
+    assert.equal((await database.db.select().from(sessions)).length, 3);
+  });
+
+  it("rejects an expired CLI handoff without creating a session", async () => {
+    await database.db.insert(cliLoginHandoffs).values({
+      code: "expired-code",
+      userId: "member",
+      expiresAt: new Date(Date.now() - 1_000),
+    });
+    const response = await router.fetch(
+      request(routes.auth.cliRedeem.href(), undefined, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: "expired-code" }),
+      }),
+    );
+    assert.equal(response.status, 400);
+    assert.equal((await database.db.select().from(sessions)).length, 2);
   });
 
   it("redirects protected pages to login", async () => {

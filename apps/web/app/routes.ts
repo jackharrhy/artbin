@@ -21,6 +21,7 @@ export const routes = route({
     fourmCallback: get("/4orm/callback"),
     cliAuthorize: get("/cli/authorize"),
     cliCallback: get("/cli/callback"),
+    cliRedeem: post("/cli/redeem"),
   }),
   admin: route("/admin", {
     jobs: form("/"),

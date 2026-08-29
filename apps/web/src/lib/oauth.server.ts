@@ -47,7 +47,26 @@ export async function exchangeCode(
     throw new Error(`Token exchange failed (${response.status}): ${err}`);
   }
 
-  return response.json();
+  const payload: unknown = await response.json();
+  if (!payload || typeof payload !== "object") {
+    throw new Error("Token exchange returned an invalid response");
+  }
+
+  const { access_token, token_type, expires_in } = payload as Record<string, unknown>;
+  if (typeof access_token !== "string" || access_token.length === 0) {
+    throw new Error("Token exchange returned an invalid access_token");
+  }
+  if (
+    token_type !== undefined &&
+    (typeof token_type !== "string" || !/^bearer$/i.test(token_type))
+  ) {
+    throw new Error("Token exchange returned an unsupported token_type");
+  }
+  if (typeof expires_in !== "number" || !Number.isFinite(expires_in) || expires_in <= 0) {
+    throw new Error("Token exchange returned an invalid expires_in");
+  }
+
+  return { access_token, token_type: token_type ?? "Bearer", expires_in };
 }
 
 export async function fetchUserinfo(

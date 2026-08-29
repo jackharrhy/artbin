@@ -1,10 +1,10 @@
 import { nanoid } from "nanoid";
 import { createController } from "remix/router";
-import { eq } from "drizzle-orm";
+import { and, eq, gt } from "drizzle-orm";
 import { createRequestLogger } from "evlog";
 
 import { db } from "#db/connection.server";
-import { sessions, users, type User } from "#db";
+import { cliLoginHandoffs, sessions, users, type User } from "#db";
 import { getSessionCookie } from "#lib/auth.server";
 import {
   exchangeCode,
@@ -20,6 +20,7 @@ import {
 import { routes } from "../../routes.ts";
 
 const SESSION_MAX_AGE = 60 * 60 * 24 * 30;
+const CLI_HANDOFF_MAX_AGE_MS = 2 * 60 * 1_000;
 
 export default createController(routes.auth, {
   actions: {
@@ -51,15 +52,16 @@ export default createController(routes.auth, {
       const state = context.url.searchParams.get("state");
       const error = context.url.searchParams.get("error");
 
-      if (error) return loginError(error);
-      if (!code || !state) return loginError("missing_code");
-
       const oauthData = readOauthCookie<{ verifier: string; state: string }>(
         context.request,
         "artbin_oauth",
       );
-      if (!oauthData) return loginError("missing_oauth_state");
-      if (oauthData.state !== state) return loginError("state_mismatch");
+      if (!oauthData) return terminalLoginError("missing_oauth_state", "artbin_oauth");
+      if (!state || oauthData.state !== state) {
+        return terminalLoginError("state_mismatch", "artbin_oauth");
+      }
+      if (error) return terminalLoginError(error, "artbin_oauth");
+      if (!code) return terminalLoginError("missing_code", "artbin_oauth");
 
       try {
         const tokenData = await exchangeCode(code, oauthData.verifier);
@@ -81,7 +83,7 @@ export default createController(routes.auth, {
           step: "oauth-callback",
         });
         log.emit();
-        return loginError("oauth_failed");
+        return terminalLoginError("oauth_failed", "artbin_oauth");
       }
     },
 
@@ -115,24 +117,28 @@ export default createController(routes.auth, {
       const code = context.url.searchParams.get("code");
       const state = context.url.searchParams.get("state");
       const error = context.url.searchParams.get("error");
-      if (error) return new Response(`OAuth error: ${error}`, { status: 400 });
-      if (!code || !state) return new Response("Missing code or state", { status: 400 });
-
       const oauthData = readOauthCookie<{
         verifier: string;
         state: string;
         cliPort: number;
       }>(context.request, "artbin_cli_oauth");
       if (!oauthData || !parseCliPort(String(oauthData.cliPort))) {
-        return new Response("Missing or invalid OAuth state", { status: 400 });
+        return terminalCliError("Missing or invalid OAuth state");
       }
-      if (oauthData.state !== state) return new Response("State mismatch", { status: 400 });
+      if (!state || oauthData.state !== state) return terminalCliError("State mismatch");
+      if (error) return terminalCliError(`OAuth error: ${error}`);
+      if (!code) return terminalCliError("Missing code or state");
 
       try {
         const tokenData = await exchangeCode(code, oauthData.verifier, getCliRedirectUri());
         const userinfo = await fetchUserinfo(tokenData.access_token);
         const user = await upsertUser(userinfo);
-        const sessionId = await createSession(user.id);
+        const handoffCode = nanoid(48);
+        await db.insert(cliLoginHandoffs).values({
+          code: handoffCode,
+          userId: user.id,
+          expiresAt: new Date(Date.now() + CLI_HANDOFF_MAX_AGE_MS),
+        });
 
         log.set({
           auth: {
@@ -145,7 +151,7 @@ export default createController(routes.auth, {
         log.emit();
 
         return redirectWithHeaders(
-          `http://localhost:${oauthData.cliPort}/callback?session=${encodeURIComponent(sessionId)}`,
+          `http://127.0.0.1:${oauthData.cliPort}/callback?code=${encodeURIComponent(handoffCode)}`,
           { "Set-Cookie": clearOauthCookie("artbin_cli_oauth") },
         );
       } catch (error) {
@@ -154,8 +160,37 @@ export default createController(routes.auth, {
           channel: "cli",
         });
         log.emit();
-        return new Response("OAuth callback failed", { status: 500 });
+        return terminalCliError("OAuth callback failed", 500);
       }
+    },
+
+    async cliRedeem(context) {
+      let body: unknown;
+      try {
+        body = await context.request.json();
+      } catch {
+        return jsonError("invalid_request", "A JSON body containing a code is required", 400);
+      }
+      const code =
+        body && typeof body === "object" && typeof (body as { code?: unknown }).code === "string"
+          ? (body as { code: string }).code
+          : null;
+      if (!code) return jsonError("invalid_request", "A handoff code is required", 400);
+
+      const handoff = await db
+        .delete(cliLoginHandoffs)
+        .where(and(eq(cliLoginHandoffs.code, code), gt(cliLoginHandoffs.expiresAt, new Date())))
+        .returning({ userId: cliLoginHandoffs.userId })
+        .get();
+      if (!handoff) {
+        return jsonError("invalid_grant", "Handoff code is invalid, expired, or already used", 400);
+      }
+
+      const sessionId = await createSession(handoff.userId);
+      return Response.json(
+        { session: sessionId },
+        { headers: { "Cache-Control": "no-store", Pragma: "no-cache" } },
+      );
     },
   },
 });
@@ -229,8 +264,24 @@ function redirectWithHeaders(href: string, headersInit?: HeadersInit, status = 3
   return new Response(null, { status, headers });
 }
 
-function loginError(code: string): Response {
-  return redirectWithHeaders(`${routes.login.href()}?error=${encodeURIComponent(code)}`);
+function terminalLoginError(code: string, cookieName: string): Response {
+  return redirectWithHeaders(`${routes.login.href()}?error=${encodeURIComponent(code)}`, {
+    "Set-Cookie": clearOauthCookie(cookieName),
+  });
+}
+
+function terminalCliError(message: string, status = 400): Response {
+  return new Response(message, {
+    status,
+    headers: { "Set-Cookie": clearOauthCookie("artbin_cli_oauth") },
+  });
+}
+
+function jsonError(code: string, message: string, status: number): Response {
+  return Response.json(
+    { error: { code, message } },
+    { status, headers: { "Cache-Control": "no-store" } },
+  );
 }
 
 function parseCliPort(value: string | null): number | null {
