@@ -15,7 +15,7 @@ export function operationErrorResponse(error: unknown): Response {
       { status: error.status },
     );
   }
-  if (error instanceof SyntaxError || (error && typeof error === "object" && "issues" in error)) {
+  if (error instanceof ZodError) {
     return Response.json(
       { error: { code: "invalid_request", message: "Operation input is invalid" } },
       { status: 400 },
@@ -23,3 +23,15 @@ export function operationErrorResponse(error: unknown): Response {
   }
   throw error;
 }
+
+export async function readOperationJson(request: Request): Promise<unknown> {
+  try {
+    return await request.json();
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      throw new OperationError("Request body is not valid JSON", "invalid_request", 400);
+    }
+    throw error;
+  }
+}
+import { ZodError } from "zod";

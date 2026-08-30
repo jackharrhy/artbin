@@ -70,7 +70,10 @@ async function runMutation(args: Record<string, unknown>, input: PendingFolderMu
   const { api, user } = await getAuthenticatedClient();
   requireAdmin(user);
 
-  const preview = await api.manageFolder({ ...input, dryRun: true } as ManageFolderInput);
+  const preview = await api.manageFolder({
+    ...input,
+    execution: { mode: "plan" },
+  } as ManageFolderInput);
   if (args["dry-run"] || preview.plan.noOp) {
     if (args.json) printJson(preview);
     else console.log(formatFolderPlan(preview.plan));
@@ -82,7 +85,10 @@ async function runMutation(args: Record<string, unknown>, input: PendingFolderMu
     return;
   }
 
-  const result = await api.manageFolder({ ...input, dryRun: false } as ManageFolderInput);
+  const result = await api.manageFolder({
+    ...input,
+    execution: { mode: "apply", confirm: true },
+  } as ManageFolderInput);
   if (args.json) printJson(result);
   else
     p.log.success(

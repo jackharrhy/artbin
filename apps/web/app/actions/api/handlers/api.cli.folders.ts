@@ -3,7 +3,7 @@ import type * as Route from "./types.ts";
 import { requireCliAuth } from "#lib/cli-auth.server";
 
 import { operationCatalog } from "../../../operations/catalog.ts";
-import { operationErrorResponse } from "../../../operations/errors.ts";
+import { operationErrorResponse, readOperationJson } from "../../../operations/errors.ts";
 import { folderCreateInput, folderListInput } from "../../../operations/folders.ts";
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -25,7 +25,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 export async function action({ request }: Route.ActionArgs) {
   const user = await requireCliAuth(request);
   try {
-    const input = folderCreateInput.parse(await request.json());
+    const input = folderCreateInput.parse(await readOperationJson(request));
     return Response.json(
       await operationCatalog.foldersCreate.execute({ user, channel: "cli" }, input),
     );

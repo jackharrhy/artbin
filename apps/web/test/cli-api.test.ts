@@ -264,6 +264,7 @@ describe("/api/cli/folders", () => {
           { slug: "quake", name: "Quake" },
           { slug: "quake/id1", name: "id1", parentSlug: "quake" },
         ],
+        execution: { mode: "apply", confirm: true },
       }),
     });
 
@@ -300,6 +301,7 @@ describe("/api/cli/folders", () => {
           { slug: "quake", name: "Quake" },
           { slug: "quake/maps", name: "maps", parentSlug: "quake" },
         ],
+        execution: { mode: "apply", confirm: true },
       }),
     });
 
@@ -322,9 +324,10 @@ describe("/api/cli/folders", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         folders: [
-          { slug: "root", name: "Root" },
           { slug: "root/child", name: "Child", parentSlug: "root" },
+          { slug: "root", name: "Root" },
         ],
+        execution: { mode: "apply", confirm: true },
       }),
     });
 
@@ -339,13 +342,73 @@ describe("/api/cli/folders", () => {
     expect(child!.parentId).toBe(body.created[0].id);
   });
 
+  test("plans a batch without mutating and requires explicit apply confirmation", async () => {
+    const db = setupDatabase();
+    await seedAdminSession(db);
+    const planned = await callRoute(
+      foldersAction,
+      adminRequest("http://localhost/api/cli/folders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          folders: [{ slug: "planned", name: "Planned" }],
+          execution: { mode: "plan" },
+        }),
+      }),
+    );
+    expect(planned.status).toBe(200);
+    expect(await planned.json()).toMatchObject({
+      applied: false,
+      plan: { create: [{ slug: "planned" }] },
+    });
+    expect(await db.query.folders.findFirst()).toBeUndefined();
+
+    const unconfirmed = await callRoute(
+      foldersAction,
+      adminRequest("http://localhost/api/cli/folders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          folders: [{ slug: "planned", name: "Planned" }],
+          execution: { mode: "apply" },
+        }),
+      }),
+    );
+    expect(unconfirmed.status).toBe(400);
+    expect(await db.query.folders.findFirst()).toBeUndefined();
+  });
+
+  test("rejects a mismatched hierarchy before creating any folder", async () => {
+    const db = setupDatabase();
+    await seedAdminSession(db);
+    const response = await callRoute(
+      foldersAction,
+      adminRequest("http://localhost/api/cli/folders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          folders: [
+            { slug: "valid", name: "Valid" },
+            { slug: "valid/child", name: "Child", parentSlug: "somewhere-else" },
+          ],
+          execution: { mode: "apply", confirm: true },
+        }),
+      }),
+    );
+    expect(response.status).toBe(400);
+    expect(await db.query.folders.findMany()).toHaveLength(0);
+  });
+
   test("rejects unauthenticated request", async () => {
     setupDatabase();
 
     const request = new Request("http://localhost/api/cli/folders", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ folders: [{ slug: "test", name: "Test" }] }),
+      body: JSON.stringify({
+        folders: [{ slug: "test", name: "Test" }],
+        execution: { mode: "apply", confirm: true },
+      }),
     });
 
     const response = await callRoute(foldersAction, request);
@@ -371,6 +434,7 @@ describe("/api/cli/folders", () => {
           { slug: "quake", name: "Quake" },
           { slug: "quake/maps", name: "Maps", parentSlug: "quake" },
         ],
+        execution: { mode: "apply", confirm: true },
       }),
     });
 
@@ -390,6 +454,7 @@ describe("/api/cli/folders", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         folders: [{ slug: "new-folder", name: "New Folder" }],
+        execution: { mode: "apply", confirm: true },
       }),
     });
 
@@ -429,7 +494,7 @@ describe("/api/cli/folder/manage", () => {
           operation: "rename",
           slug: "maps",
           name: "GoldSource Maps",
-          dryRun: true,
+          execution: { mode: "plan" },
         }),
       }),
     );
@@ -461,7 +526,7 @@ describe("/api/cli/folder/manage", () => {
           operation: "rename",
           slug: "maps",
           name: "MAPS",
-          dryRun: false,
+          execution: { mode: "apply", confirm: true },
         }),
       }),
     );
@@ -487,7 +552,7 @@ describe("/api/cli/folder/manage", () => {
           operation: "move",
           slug: "maps",
           destinationSlug: null,
-          dryRun: true,
+          execution: { mode: "plan" },
         }),
       }),
     );
@@ -533,7 +598,7 @@ describe("/api/cli/folder/manage", () => {
           operation: "move",
           slug: "maps",
           destinationSlug: "_inbox",
-          dryRun: true,
+          execution: { mode: "plan" },
         }),
       }),
     );
@@ -1005,6 +1070,7 @@ describe("/api/cli/upload", () => {
           },
           { slug: "game/aviaozin3/id1/gfx", name: "gfx", parentSlug: "game/aviaozin3/id1" },
         ],
+        execution: { mode: "apply", confirm: true },
       }),
     });
 
@@ -1048,7 +1114,10 @@ describe("/api/cli/upload", () => {
       adminRequest("http://localhost/api/cli/folders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ folders: [{ slug: "Dirty Folder", name: "Dirty Folder" }] }),
+        body: JSON.stringify({
+          folders: [{ slug: "Dirty Folder", name: "Dirty Folder" }],
+          execution: { mode: "apply", confirm: true },
+        }),
       }),
     );
     expect(response.status).toBe(400);
@@ -1079,6 +1148,7 @@ describe("/api/cli/upload", () => {
           { slug: "my-game/id1", name: "id1", parentSlug: "my-game" },
           { slug: "my-game/id1/s-wrath", name: "S_Wrath", parentSlug: "my-game/id1" },
         ],
+        execution: { mode: "apply", confirm: true },
       }),
     });
 

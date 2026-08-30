@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { rmdir } from "node:fs/promises";
 
 import { cleanFolderPath, cleanFolderSlug } from "@artbin/core/detection/filenames";
 import { count, eq, sql } from "drizzle-orm";
@@ -33,8 +34,17 @@ export const folderCreateInput = z
       )
       .min(1)
       .max(100),
+    execution: z.discriminatedUnion("mode", [
+      z.object({ mode: z.literal("plan") }).strict(),
+      z.object({ mode: z.literal("apply"), confirm: z.literal(true) }).strict(),
+    ]),
   })
   .strict();
+
+const executionInput = z.discriminatedUnion("mode", [
+  z.object({ mode: z.literal("plan") }).strict(),
+  z.object({ mode: z.literal("apply"), confirm: z.literal(true) }).strict(),
+]);
 
 export const folderManageInput = z.discriminatedUnion("operation", [
   z
@@ -42,7 +52,7 @@ export const folderManageInput = z.discriminatedUnion("operation", [
       operation: z.literal("rename"),
       slug: z.string().min(1),
       name: z.string().min(1),
-      dryRun: z.boolean().default(false),
+      execution: executionInput,
     })
     .strict(),
   z
@@ -50,7 +60,7 @@ export const folderManageInput = z.discriminatedUnion("operation", [
       operation: z.literal("move"),
       slug: z.string().min(1),
       destinationSlug: z.string().min(1).nullable(),
-      dryRun: z.boolean().default(false),
+      execution: executionInput,
     })
     .strict(),
 ]);
@@ -67,6 +77,20 @@ export interface FolderPlan {
   to: { name: string; slug: string; parentSlug: string | null };
   affected: { folders: number; files: number };
   noOp: boolean;
+}
+
+function serializeFolderMutationResult<T extends { folder?: typeof folders.$inferSelect }>(
+  result: T,
+) {
+  return {
+    ...result,
+    folder: result.folder
+      ? {
+          ...result.folder,
+          createdAt: result.folder.createdAt?.toISOString() ?? null,
+        }
+      : undefined,
+  };
 }
 
 function isSystemFolder(slug: string): boolean {
@@ -160,35 +184,108 @@ export async function createFoldersOperation(
   input: z.output<typeof folderCreateInput>,
 ) {
   requireOperationAdmin(context);
-  const created: { slug: string; id: string }[] = [];
+  const stored = await db.query.folders.findMany();
+  const storedBySlug = new Map(stored.map((folder) => [folder.slug, folder]));
+  const plannedBySlug = new Map<
+    string,
+    { slug: string; name: string; parentSlug: string | null; id: string }
+  >();
   const existing: { slug: string; id: string }[] = [];
+
   for (const requested of input.folders) {
     const slug = cleanFolderPath(requested.slug);
     if (!slug || slug !== requested.slug) {
       throw new OperationError(`Invalid folder slug: ${requested.slug}`, "invalid_request", 400);
     }
-    const found = await db.query.folders.findFirst({ where: eq(folders.slug, slug) });
+    if (isSystemFolder(slug)) {
+      throw new OperationError(
+        "System folders cannot be created through this operation",
+        "invalid_request",
+        400,
+      );
+    }
+    const name = requested.name.trim();
+    if (!name) throw new OperationError("Folder name is required", "invalid_request", 400);
+    if (plannedBySlug.has(slug)) {
+      throw new OperationError(`Duplicate folder slug: ${slug}`, "invalid_request", 400);
+    }
+    const found = storedBySlug.get(slug);
     if (found) {
       existing.push({ slug: found.slug, id: found.id });
       continue;
     }
-    let parentId: string | null = null;
-    if (requested.parentSlug) {
-      const parentSlug = cleanFolderPath(requested.parentSlug);
-      const parent = parentSlug
-        ? await db.query.folders.findFirst({ where: eq(folders.slug, parentSlug) })
-        : null;
-      if (!parent) throw new OperationError("Parent folder not found", "not_found", 404);
-      parentId = parent.id;
+    const slash = slug.lastIndexOf("/");
+    const expectedParentSlug = slash === -1 ? null : slug.slice(0, slash);
+    const parentSlug = requested.parentSlug ?? null;
+    if (parentSlug !== expectedParentSlug) {
+      throw new OperationError(
+        `Parent folder for "${slug}" must be ${expectedParentSlug ? `"${expectedParentSlug}"` : "null"}`,
+        "invalid_request",
+        400,
+      );
     }
-    await ensureDir(slugToPath(slug));
-    const id = nanoid();
-    await db
-      .insert(folders)
-      .values({ id, name: requested.name.trim(), slug, parentId, ownerId: context.user.id });
-    created.push({ slug, id });
+    plannedBySlug.set(slug, { slug, name, parentSlug, id: nanoid() });
   }
-  return { created, existing };
+
+  for (const planned of plannedBySlug.values()) {
+    if (
+      planned.parentSlug &&
+      !storedBySlug.has(planned.parentSlug) &&
+      !plannedBySlug.has(planned.parentSlug)
+    ) {
+      throw new OperationError(`Parent folder not found: ${planned.parentSlug}`, "not_found", 404);
+    }
+  }
+  const plannedFolders = [...plannedBySlug.values()].sort(
+    (left, right) => left.slug.split("/").length - right.slug.split("/").length,
+  );
+
+  const plan = {
+    create: plannedFolders.map(({ slug, name, parentSlug }) => ({
+      slug,
+      name,
+      parentSlug,
+    })),
+    existing,
+  };
+  if (input.execution.mode === "plan") return { applied: false as const, plan };
+
+  const createdDirectories: string[] = [];
+  try {
+    for (const planned of plannedFolders) {
+      const path = slugToPath(planned.slug);
+      if (!existsSync(path)) {
+        await ensureDir(path);
+        createdDirectories.push(path);
+      }
+    }
+    db.transaction((transaction) => {
+      for (const planned of plannedFolders) {
+        const parent = planned.parentSlug
+          ? (storedBySlug.get(planned.parentSlug) ?? plannedBySlug.get(planned.parentSlug))
+          : null;
+        transaction
+          .insert(folders)
+          .values({
+            id: planned.id,
+            name: planned.name,
+            slug: planned.slug,
+            parentId: parent?.id ?? null,
+            ownerId: context.user.id,
+          })
+          .run();
+      }
+    });
+  } catch (error) {
+    for (const path of createdDirectories.toReversed()) await rmdir(path).catch(() => undefined);
+    throw error;
+  }
+  return {
+    applied: true as const,
+    plan,
+    created: plannedFolders.map(({ slug, id }) => ({ slug, id })),
+    existing,
+  };
 }
 
 function escapeLike(value: string): string {
@@ -322,18 +419,32 @@ export async function manageFolderOperation(
         channel: context.channel,
         operation: "rename",
         userId: context.user.id,
-        dryRun: input.dryRun,
+        mode: input.execution.mode,
         from: plan.from.slug,
         to: plan.to.slug,
         affectedFolders: plan.affected.folders,
         affectedFiles: plan.affected.files,
       },
     });
-    log.emit();
-    if (input.dryRun || plan.noOp) return { success: true as const, dryRun: input.dryRun, plan };
+    if (input.execution.mode === "plan" || plan.noOp) {
+      log.set({ folderOperation: { outcome: "planned" } });
+      log.emit();
+      return { success: true as const, applied: false as const, plan };
+    }
     const result = await renameFolder(impact.folder.id, plan.to.name);
-    if (result.isErr()) throw new OperationError(result.error.message, "operation_failed", 400);
-    return { success: true as const, dryRun: false, plan, result: result.value };
+    if (result.isErr()) {
+      log.error(result.error);
+      log.emit();
+      throw new OperationError(result.error.message, "operation_failed", 400);
+    }
+    log.set({ folderOperation: { outcome: "applied" } });
+    log.emit();
+    return {
+      success: true as const,
+      applied: true as const,
+      plan,
+      result: serializeFolderMutationResult(result.value),
+    };
   }
   const move = await planMove(impact, input.destinationSlug);
   log.set({
@@ -341,17 +452,30 @@ export async function manageFolderOperation(
       channel: context.channel,
       operation: "move",
       userId: context.user.id,
-      dryRun: input.dryRun,
+      mode: input.execution.mode,
       from: move.plan.from.slug,
       to: move.plan.to.slug,
       affectedFolders: move.plan.affected.folders,
       affectedFiles: move.plan.affected.files,
     },
   });
-  log.emit();
-  if (input.dryRun || move.plan.noOp)
-    return { success: true as const, dryRun: input.dryRun, plan: move.plan };
+  if (input.execution.mode === "plan" || move.plan.noOp) {
+    log.set({ folderOperation: { outcome: "planned" } });
+    log.emit();
+    return { success: true as const, applied: false as const, plan: move.plan };
+  }
   const result = await moveFolder(impact.folder.id, move.destinationId);
-  if (result.isErr()) throw new OperationError(result.error.message, "operation_failed", 400);
-  return { success: true as const, dryRun: false, plan: move.plan, result: result.value };
+  if (result.isErr()) {
+    log.error(result.error);
+    log.emit();
+    throw new OperationError(result.error.message, "operation_failed", 400);
+  }
+  log.set({ folderOperation: { outcome: "applied" } });
+  log.emit();
+  return {
+    success: true as const,
+    applied: true as const,
+    plan: move.plan,
+    result: serializeFolderMutationResult(result.value),
+  };
 }

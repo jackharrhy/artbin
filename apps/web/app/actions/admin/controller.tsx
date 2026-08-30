@@ -31,8 +31,8 @@ export default createController(routes.admin, {
           <section>
             <h2>Administrator MCP server</h2>
             <p>
-              This private endpoint exposes the same canonical folder and job operations used by
-              Artbin's CLI and administrative interface.
+              This private endpoint exposes the same canonical folder, job, and import operations
+              used by Artbin's CLI and administrative interface.
             </p>
             <dl>
               <dt>Endpoint</dt>
@@ -46,6 +46,10 @@ export default createController(routes.admin, {
               <dt>Required scope</dt>
               <dd>
                 <code>artbin:admin</code>
+              </dd>
+              <dt>Protected resource</dt>
+              <dd>
+                <code>{endpoint}</code>
               </dd>
             </dl>
           </section>

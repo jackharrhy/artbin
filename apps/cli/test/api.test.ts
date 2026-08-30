@@ -39,7 +39,7 @@ describe("ApiClient folder operations", () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValue(
-        Response.json({ success: true, dryRun: true, plan: { operation: "rename" } }),
+        Response.json({ success: true, applied: false, plan: { operation: "rename" } }),
       );
     vi.stubGlobal("fetch", fetchMock);
 
@@ -47,7 +47,7 @@ describe("ApiClient folder operations", () => {
       operation: "rename",
       slug: "maps/tower",
       name: "Tower Maps",
-      dryRun: true,
+      execution: { mode: "plan" },
     });
 
     expect(fetchMock).toHaveBeenCalledWith("https://artbin.example/api/cli/folder/manage", {
@@ -60,7 +60,7 @@ describe("ApiClient folder operations", () => {
         operation: "rename",
         slug: "maps/tower",
         name: "Tower Maps",
-        dryRun: true,
+        execution: { mode: "plan" },
       }),
     });
   });

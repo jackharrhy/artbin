@@ -262,6 +262,8 @@ export default createController(routes.admin.import, {
         return new Response("Unknown import action", { status: 400 });
       }
 
+      if (input && typeof input === "object") input = { ...input, confirm: true };
+
       try {
         await operationCatalog.importQueue.execute({ user, channel: "admin" }, input);
       } catch (error) {

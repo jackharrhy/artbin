@@ -49,12 +49,22 @@ export interface FolderPlan {
 }
 
 export type ManageFolderInput =
-  | { operation: "rename"; slug: string; name: string; dryRun: boolean }
-  | { operation: "move"; slug: string; destinationSlug: string | null; dryRun: boolean };
+  | {
+      operation: "rename";
+      slug: string;
+      name: string;
+      execution: { mode: "plan" } | { mode: "apply"; confirm: true };
+    }
+  | {
+      operation: "move";
+      slug: string;
+      destinationSlug: string | null;
+      execution: { mode: "plan" } | { mode: "apply"; confirm: true };
+    };
 
 export interface ManageFolderResponse {
   success: true;
-  dryRun: boolean;
+  applied: boolean;
   plan: FolderPlan;
   result?: {
     folder?: {
@@ -115,7 +125,7 @@ export class ApiClient {
     const res = await fetch(`${this.serverUrl}/api/cli/folders`, {
       method: "POST",
       headers: { ...this.headers(), "Content-Type": "application/json" },
-      body: JSON.stringify({ folders }),
+      body: JSON.stringify({ folders, execution: { mode: "apply", confirm: true } }),
     });
     if (!res.ok) {
       const body = await res.text();

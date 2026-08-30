@@ -17,6 +17,7 @@ export const importQueueInput = z.discriminatedUnion("kind", [
       kind: z.literal("remote"),
       sourceUrls: z.array(z.url()).min(1).max(20),
       targetFolderId: z.string().min(1).nullable().default(null),
+      confirm: z.literal(true),
     })
     .strict(),
   z
@@ -24,13 +25,15 @@ export const importQueueInput = z.discriminatedUnion("kind", [
       kind: z.literal("folder"),
       sourcePath: z.string().min(1),
       collectionName: z.string().min(1).optional(),
+      confirm: z.literal(true),
     })
     .strict(),
-  z.object({ kind: z.literal("regenerate-previews") }).strict(),
+  z.object({ kind: z.literal("regenerate-previews"), confirm: z.literal(true) }).strict(),
   z
     .object({
       kind: z.literal("catalog"),
       source: z.enum(["texturetown", "texture-station", "sadgrl"]),
+      confirm: z.literal(true),
     })
     .strict(),
 ]);

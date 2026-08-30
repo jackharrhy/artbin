@@ -12,6 +12,7 @@ export interface ServicePrincipal {
   subject: string;
   clientId: string;
   scopes: ReadonlySet<string>;
+  audiences: ReadonlySet<string>;
   expiresAt: number;
 }
 
@@ -20,6 +21,7 @@ export interface UserTokenPrincipal {
   subject: string;
   clientId: string;
   scopes: ReadonlySet<string>;
+  audiences: ReadonlySet<string>;
   expiresAt: number;
 }
 
@@ -34,6 +36,7 @@ interface IntrospectionResponse {
   token_type?: unknown;
   exp?: unknown;
   iat?: unknown;
+  aud?: unknown;
 }
 
 interface CachedPrincipal {
@@ -137,6 +140,7 @@ async function fetchIntrospection(
 }
 
 function parseActivePrincipal(payload: IntrospectionResponse, now: number): OAuthPrincipal | null {
+  const audiences = parseAudiences(payload.aud);
   if (
     payload.active !== true ||
     (payload.principal_type !== "service" && payload.principal_type !== "user") ||
@@ -157,8 +161,17 @@ function parseActivePrincipal(payload: IntrospectionResponse, now: number): OAut
     subject: payload.sub,
     clientId: payload.client_id,
     scopes: new Set(payload.scope.split(/\s+/).filter(Boolean)),
+    audiences,
     expiresAt: payload.exp,
   };
+}
+
+function parseAudiences(value: unknown): ReadonlySet<string> {
+  if (typeof value === "string" && value) return new Set([value]);
+  if (Array.isArray(value) && value.every((item) => typeof item === "string" && item)) {
+    return new Set(value);
+  }
+  return new Set();
 }
 
 function unauthorized(message: string): Response {

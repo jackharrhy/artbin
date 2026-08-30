@@ -1,8 +1,8 @@
 import { createController } from "remix/router";
 import { createRequestLogger } from "evlog";
-import { z } from "zod";
+import { z, ZodError } from "zod";
 
-import { requireMcpAdmin, MCP_ADMIN_SCOPE } from "#lib/mcp-auth.server";
+import { mcpResourceUrl, requireMcpAdmin, MCP_ADMIN_SCOPE } from "#lib/mcp-auth.server";
 
 import { mcpOperations, mcpTools } from "../../operations/catalog.ts";
 import { OperationError } from "../../operations/errors.ts";
@@ -19,9 +19,19 @@ const rpcRequest = z
 
 const SUPPORTED_PROTOCOL_VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26"] as const;
 
+const initializeParams = z
+  .object({
+    protocolVersion: z.string(),
+    capabilities: z.record(z.string(), z.unknown()),
+    clientInfo: z.object({ name: z.string(), version: z.string() }).loose(),
+  })
+  .loose();
+
 export default createController(routes.mcp, {
   actions: {
     async endpointGet({ request }) {
+      const originError = validateOrigin(request);
+      if (originError) return originError;
       const user = await requireMcpAdmin(request);
       if (user instanceof Response) return user;
       return new Response("Method Not Allowed", {
@@ -31,6 +41,8 @@ export default createController(routes.mcp, {
     },
 
     async endpoint({ request }) {
+      const originError = validateOrigin(request);
+      if (originError) return originError;
       const user = await requireMcpAdmin(request);
       if (user instanceof Response) return user;
 
@@ -44,13 +56,27 @@ export default createController(routes.mcp, {
         });
       }
 
+      if (parsed.method !== "initialize") {
+        const versionError = validateProtocolVersion(request);
+        if (versionError) return versionError;
+      }
+      const isNotification = !Object.hasOwn(parsed, "id");
+      if (isNotification) {
+        if (parsed.method === "notifications/initialized") {
+          return new Response(null, { status: 202, headers: noStoreHeaders() });
+        }
+        return new Response(null, { status: 400, headers: noStoreHeaders() });
+      }
+
       if (parsed.method === "initialize") {
-        const requested =
-          typeof parsed.params?.protocolVersion === "string" ? parsed.params.protocolVersion : null;
-        const protocolVersion =
-          requested && SUPPORTED_PROTOCOL_VERSIONS.includes(requested as never)
-            ? requested
-            : SUPPORTED_PROTOCOL_VERSIONS[0];
+        const initialized = initializeParams.safeParse(parsed.params);
+        if (!initialized.success) {
+          return rpcResponse(rpcError(parsed.id, -32602, "Invalid params"));
+        }
+        const requested = initialized.data.protocolVersion;
+        const protocolVersion = SUPPORTED_PROTOCOL_VERSIONS.includes(requested as never)
+          ? requested
+          : SUPPORTED_PROTOCOL_VERSIONS[0];
         return rpcResponse(
           result(parsed.id, {
             protocolVersion,
@@ -58,9 +84,6 @@ export default createController(routes.mcp, {
             serverInfo: { name: "artbin", version: "1.0.0" },
           }),
         );
-      }
-      if (parsed.method === "notifications/initialized") {
-        return new Response(null, { status: 202, headers: noStoreHeaders() });
       }
       if (parsed.method === "tools/list") {
         return rpcResponse(result(parsed.id, { tools: mcpTools }));
@@ -89,13 +112,11 @@ export default createController(routes.mcp, {
             }),
           );
         } catch (error) {
-          const expected =
-            error instanceof OperationError ||
-            (error && typeof error === "object" && "issues" in error);
+          const expected = error instanceof OperationError || error instanceof ZodError;
           const message =
             error instanceof OperationError
               ? error.message
-              : error && typeof error === "object" && "issues" in error
+              : error instanceof ZodError
                 ? "Operation input is invalid"
                 : "Tool failed";
           if (expected) {
@@ -114,10 +135,9 @@ export default createController(routes.mcp, {
     },
 
     protectedResource() {
-      const resource = `${process.env.ARTBIN_URL ?? "http://localhost:5175"}/mcp`;
       return Response.json(
         {
-          resource,
+          resource: mcpResourceUrl(),
           authorization_servers: [process.env.FOURM_URL ?? "http://localhost:8000"],
           bearer_methods_supported: ["header"],
           scopes_supported: [MCP_ADMIN_SCOPE],
@@ -146,4 +166,26 @@ function noStoreHeaders(): HeadersInit {
 
 function rpcResponse(body: unknown): Response {
   return Response.json(body, { headers: noStoreHeaders() });
+}
+
+function validateOrigin(request: Request): Response | null {
+  const origin = request.headers.get("Origin");
+  if (!origin) return null;
+  let expected: string;
+  try {
+    expected = new URL(mcpResourceUrl()).origin;
+  } catch {
+    return new Response("MCP resource URL is invalid", { status: 500, headers: noStoreHeaders() });
+  }
+  if (origin === expected) return null;
+  return new Response("Forbidden Origin", { status: 403, headers: noStoreHeaders() });
+}
+
+function validateProtocolVersion(request: Request): Response | null {
+  const version = request.headers.get("MCP-Protocol-Version") ?? "2025-03-26";
+  if (SUPPORTED_PROTOCOL_VERSIONS.includes(version as never)) return null;
+  return new Response("Unsupported MCP protocol version", {
+    status: 400,
+    headers: noStoreHeaders(),
+  });
 }
