@@ -35,7 +35,8 @@
     "poppygl": "^0.0.28",
     "remix": "3.0.0-beta.10",
     "sharp": "^0.35.3",
-    "three": "^0.185.1"
+    "three": "^0.185.1",
+    "zod": "^4.5.4"
   },
   "devDependencies": {
     "@types/archiver": "^8.0.0",

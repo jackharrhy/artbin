@@ -1,7 +1,3 @@
-import { existsSync } from "node:fs";
-import { stat } from "node:fs/promises";
-import { basename } from "node:path";
-
 import { count, sql, sum } from "drizzle-orm";
 import { createController } from "remix/router";
 import { redirect } from "remix/response/redirect";
@@ -9,8 +5,9 @@ import { css } from "remix/ui";
 
 import { files, folders } from "#db";
 import { db } from "#db/connection.server";
-import { createJob } from "#lib/jobs.server";
-import { queueRemoteImports } from "#lib/remote-import-queue.server";
+
+import { operationCatalog } from "../../../operations/catalog.ts";
+import { operationErrorResponse } from "../../../operations/errors.ts";
 
 import { requireAdmin } from "../../../middleware/auth.ts";
 import { routes } from "../../../routes.ts";
@@ -242,59 +239,33 @@ export default createController(routes.admin.import, {
       const form = await context.request.formData();
       const intent = form.get("intent");
 
+      let input: unknown;
       if (intent === "remote-site-import") {
-        try {
-          await queueRemoteImports({
-            sourceUrls: stringValue(form.get("sourceUrls")),
-            targetFolderId: stringValue(form.get("targetFolderId")) || null,
-            userId: user.id,
-          });
-        } catch (error) {
-          return new Response(error instanceof Error ? error.message : "Invalid import URL", {
-            status: 400,
-          });
-        }
+        input = {
+          kind: "remote",
+          sourceUrls: stringValue(form.get("sourceUrls"))
+            .split(/\r?\n/)
+            .map((url) => url.trim())
+            .filter(Boolean),
+          targetFolderId: stringValue(form.get("targetFolderId")) || null,
+        };
       } else if (intent === "folder-import") {
-        const folderPath = stringValue(form.get("folderPath")).trim();
-        if (!folderPath || !existsSync(folderPath)) {
-          return new Response("The source folder does not exist", { status: 400 });
-        }
-        const metadata = await stat(folderPath).catch(() => null);
-        if (!metadata?.isDirectory()) {
-          return new Response("The source path is not a directory", { status: 400 });
-        }
-        const name = stringValue(form.get("folderName")).trim() || basename(folderPath);
-        const slug = name
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, "-")
-          .replace(/^-+|-+$/g, "");
-        if (!slug) return new Response("Collection name is invalid", { status: 400 });
-        await createJob({
-          type: "folder-import",
-          input: {
-            sourcePath: folderPath,
-            targetFolderSlug: slug,
-            targetFolderName: name,
-            userId: user.id,
-          },
-          userId: user.id,
-        });
-      } else if (intent === "regenerate-previews") {
-        await createJob({
-          type: "regenerate-previews",
-          input: { userId: user.id, includeModels: true },
-          userId: user.id,
-        });
-      } else if (intent === "texturetown" || intent === "texture-station" || intent === "sadgrl") {
-        const type =
-          intent === "texturetown"
-            ? "texturetown-import"
-            : intent === "texture-station"
-              ? "texture-station-import"
-              : "sadgrl-import";
-        await createJob({ type, input: { userId: user.id }, userId: user.id });
+        input = {
+          kind: "folder",
+          sourcePath: stringValue(form.get("folderPath")).trim(),
+          collectionName: stringValue(form.get("folderName")).trim() || undefined,
+        };
+      } else if (intent === "regenerate-previews") input = { kind: "regenerate-previews" };
+      else if (intent === "texturetown" || intent === "texture-station" || intent === "sadgrl") {
+        input = { kind: "catalog", source: intent };
       } else {
         return new Response("Unknown import action", { status: 400 });
+      }
+
+      try {
+        await operationCatalog.importQueue.execute({ user, channel: "admin" }, input);
+      } catch (error) {
+        return operationErrorResponse(error);
       }
 
       return redirect(routes.admin.jobs.index.href(), 303);

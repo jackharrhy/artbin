@@ -400,6 +400,7 @@ describe("native Remix router", () => {
       routes.admin.scanSettings.index.href(),
       routes.admin.orphans.index.href(),
       routes.admin.users.href(),
+      routes.admin.mcp.href(),
     ]) {
       const response = await router.fetch(request(href, adminCookie));
       assert.equal(response.status, 200, href);

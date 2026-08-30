@@ -2,7 +2,8 @@ import { createController } from "remix/router";
 import { redirect } from "remix/response/redirect";
 import { css } from "remix/ui";
 
-import { cancelJob, deleteJob, getAllJobs, isJobStuck, resetStuckJob } from "#lib/jobs.server";
+import { operationCatalog } from "../../../operations/catalog.ts";
+import { operationErrorResponse } from "../../../operations/errors.ts";
 
 import { requireAdmin } from "../../../middleware/auth.ts";
 import { routes } from "../../../routes.ts";
@@ -27,17 +28,15 @@ const smallCellStyle = css({ fontSize: "0.75rem" });
 const progressCellStyle = css({ fontSize: "0.75rem", maxWidth: "260px" });
 const actionsStyle = css({ display: "flex", gap: "0.25rem" });
 
-const stuckThresholdMinutes = 30;
-
 export default createController(routes.admin.jobs, {
   middleware: [requireAdmin()],
   actions: {
     async index(context) {
       if (!context.user) return redirect(routes.login.href(), 303);
-      const jobs = (await getAllJobs(100)).map((job) => ({
-        ...job,
-        isStuck: isJobStuck(job, stuckThresholdMinutes),
-      }));
+      const { jobs } = await operationCatalog.jobsList.execute(
+        { user: context.user, channel: "admin" },
+        { limit: 100 },
+      );
       const active = jobs.some((job) => job.status === "running" || job.status === "pending");
 
       return context.render(
@@ -66,22 +65,26 @@ export default createController(routes.admin.jobs, {
         return new Response("Missing job ID", { status: 400 });
       }
 
-      if (intent === "delete") await deleteJob(jobId);
-      else if (intent === "cancel") {
-        const result = await cancelJob(jobId);
-        if (result.isErr()) return new Response(result.error.message, { status: 409 });
-      } else if (intent === "reset") {
-        const result = await resetStuckJob(jobId, stuckThresholdMinutes);
-        if (result.isErr()) return new Response(result.error.message, { status: 409 });
-      } else {
+      if (intent !== "delete" && intent !== "cancel" && intent !== "reset") {
         return new Response("Unknown job action", { status: 400 });
+      }
+      if (!context.user) return redirect(routes.login.href(), 303);
+      try {
+        await operationCatalog.jobManage.execute(
+          { user: context.user, channel: "admin" },
+          { jobId, operation: intent, confirm: true },
+        );
+      } catch (error) {
+        return operationErrorResponse(error);
       }
       return redirect(routes.admin.jobs.index.href(), 303);
     },
   },
 });
 
-type AdminJob = Awaited<ReturnType<typeof getAllJobs>>[number] & { isStuck: boolean };
+type AdminJob = Awaited<
+  ReturnType<(typeof operationCatalog)["jobsList"]["execute"]>
+>["jobs"][number];
 
 function JobsTable(handle: { props: { jobs: AdminJob[] } }) {
   return () => (
@@ -167,6 +170,6 @@ function statusTone(status: string, stuck: boolean): Tone {
   return "info";
 }
 
-function formatDate(value: Date | null): string {
+function formatDate(value: Date | string | null): string {
   return value ? new Date(value).toLocaleString() : "-";
 }

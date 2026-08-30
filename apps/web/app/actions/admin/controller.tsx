@@ -5,6 +5,8 @@ import { redirect } from "remix/response/redirect";
 import { users } from "#db";
 import { db } from "#db/connection.server";
 
+import { mcpTools } from "../../operations/catalog.ts";
+
 import { requireAdmin } from "../../middleware/auth.ts";
 import { routes } from "../../routes.ts";
 import { AdminPage } from "../../ui/admin-page.tsx";
@@ -21,6 +23,46 @@ import {
 export default createController(routes.admin, {
   middleware: [requireAdmin()],
   actions: {
+    mcp(context) {
+      if (!context.user) return redirect(routes.login.href(), 303);
+      const endpoint = `${process.env.ARTBIN_URL ?? "http://localhost:5175"}/mcp`;
+      return context.render(
+        <AdminPage user={context.user} active="mcp" title="MCP">
+          <section>
+            <h2>Administrator MCP server</h2>
+            <p>
+              This private endpoint exposes the same canonical folder and job operations used by
+              Artbin's CLI and administrative interface.
+            </p>
+            <dl>
+              <dt>Endpoint</dt>
+              <dd>
+                <code>{endpoint}</code>
+              </dd>
+              <dt>Authorization server</dt>
+              <dd>
+                <code>{process.env.FOURM_URL ?? "http://localhost:8000"}</code>
+              </dd>
+              <dt>Required scope</dt>
+              <dd>
+                <code>artbin:admin</code>
+              </dd>
+            </dl>
+          </section>
+          <section>
+            <h2>Available tools</h2>
+            <ul>
+              {mcpTools.map((tool) => (
+                <li key={tool.name}>
+                  <code>{tool.name}</code> — {tool.description}
+                </li>
+              ))}
+            </ul>
+          </section>
+        </AdminPage>,
+      );
+    },
+
     async users(context) {
       if (!context.user) return redirect(routes.login.href(), 303);
       const allUsers = await db

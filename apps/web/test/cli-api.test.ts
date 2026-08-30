@@ -352,7 +352,7 @@ describe("/api/cli/folders", () => {
     expect(response.status).toBe(401);
   });
 
-  test("non-admin can read existing folders without 403", async () => {
+  test("non-admin cannot use the folder creation operation", async () => {
     const db = setupDatabase();
     await seedAdminSession(db);
     await seedNonAdminSession(db);
@@ -375,12 +375,10 @@ describe("/api/cli/folders", () => {
     });
 
     const response = await callRoute(foldersAction, request);
-    expect(response.status).toBe(200);
-
-    const body = await response.json();
-    // Non-admin should see existing folders but not create new ones
-    expect(body.existing).toHaveLength(2);
-    expect(body.created).toHaveLength(0);
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({
+      error: { code: "forbidden", message: "Administrator access required" },
+    });
   });
 
   test("non-admin cannot create new folders", async () => {
@@ -396,11 +394,7 @@ describe("/api/cli/folders", () => {
     });
 
     const response = await callRoute(foldersAction, request);
-    expect(response.status).toBe(200);
-
-    const body = await response.json();
-    expect(body.created).toHaveLength(0);
-    expect(body.existing).toHaveLength(0);
+    expect(response.status).toBe(403);
 
     // Verify nothing was created in DB
     const all = await db.query.folders.findMany();
@@ -517,7 +511,9 @@ describe("/api/cli/folder/manage", () => {
     );
 
     expect(response.status).toBe(400);
-    expect(await response.json()).toEqual({ error: "Invalid folder operation" });
+    expect(await response.json()).toEqual({
+      error: { code: "invalid_request", message: "Operation input is invalid" },
+    });
   });
 
   test("does not move public folders into system folders", async () => {
@@ -544,7 +540,10 @@ describe("/api/cli/folder/manage", () => {
 
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({
-      error: "Cannot move a public folder into a system folder",
+      error: {
+        code: "invalid_request",
+        message: "Cannot move a public folder into a system folder",
+      },
     });
   });
 });
@@ -1041,7 +1040,24 @@ describe("/api/cli/upload", () => {
     expect(rootFolder!.parentId).toBeNull();
   });
 
-  test("end-to-end: folders with dirty names -> upload with raw paths -> files land correctly", async () => {
+  test("folder creation rejects non-canonical slugs", async () => {
+    const db = setupDatabase();
+    await seedAdminSession(db);
+    const response = await callRoute(
+      foldersAction,
+      adminRequest("http://localhost/api/cli/folders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ folders: [{ slug: "Dirty Folder", name: "Dirty Folder" }] }),
+      }),
+    );
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: { code: "invalid_request", message: "Invalid folder slug: Dirty Folder" },
+    });
+  });
+
+  test("end-to-end: normalized folders -> upload with raw paths -> files land correctly", async () => {
     const db = setupDatabase();
     await seedAdminSession(db);
 
@@ -1054,14 +1070,14 @@ describe("/api/cli/upload", () => {
       body: JSON.stringify({
         folders: [
           { slug: "my-game", name: "my-game", parentSlug: null },
-          { slug: "my-game/GOODIES", name: "GOODIES", parentSlug: "my-game" },
+          { slug: "my-game/goodies", name: "GOODIES", parentSlug: "my-game" },
           {
-            slug: "my-game/GOODIES/Wallpapers and PFP's",
+            slug: "my-game/goodies/wallpapers-and-pfp-s",
             name: "Wallpapers and PFP's",
-            parentSlug: "my-game/GOODIES",
+            parentSlug: "my-game/goodies",
           },
           { slug: "my-game/id1", name: "id1", parentSlug: "my-game" },
-          { slug: "my-game/id1/S_Wrath", name: "S_Wrath", parentSlug: "my-game/id1" },
+          { slug: "my-game/id1/s-wrath", name: "S_Wrath", parentSlug: "my-game/id1" },
         ],
       }),
     });

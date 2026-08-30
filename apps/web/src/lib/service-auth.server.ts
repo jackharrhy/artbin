@@ -8,11 +8,22 @@ export const serviceScopes = {
 export type ServiceScope = (typeof serviceScopes)[keyof typeof serviceScopes];
 
 export interface ServicePrincipal {
+  principalType: "service";
   subject: string;
   clientId: string;
   scopes: ReadonlySet<string>;
   expiresAt: number;
 }
+
+export interface UserTokenPrincipal {
+  principalType: "user";
+  subject: string;
+  clientId: string;
+  scopes: ReadonlySet<string>;
+  expiresAt: number;
+}
+
+export type OAuthPrincipal = ServicePrincipal | UserTokenPrincipal;
 
 interface IntrospectionResponse {
   active?: unknown;
@@ -26,12 +37,12 @@ interface IntrospectionResponse {
 }
 
 interface CachedPrincipal {
-  principal: ServicePrincipal;
+  principal: OAuthPrincipal;
   cacheUntil: number;
 }
 
 const positiveCache = new Map<string, CachedPrincipal>();
-const pendingIntrospection = new Map<string, Promise<ServicePrincipal | Response>>();
+const pendingIntrospection = new Map<string, Promise<OAuthPrincipal | Response>>();
 const INTROSPECTION_TIMEOUT_MS = 3_000;
 const MAX_CACHE_SECONDS = 30;
 
@@ -39,11 +50,9 @@ export async function requireServiceScope(
   request: Request,
   requiredScope: ServiceScope,
 ): Promise<ServicePrincipal | Response> {
-  const token = parseBearerToken(request.headers.get("Authorization"));
-  if (!token) return unauthorized("Bearer token required");
-
-  const principal = await introspect(token);
+  const principal = await introspectBearerToken(request);
   if (principal instanceof Response) return principal;
+  if (principal.principalType !== "service") return unauthorized("Service token required");
   if (!principal.scopes.has(requiredScope)) {
     return serviceError(403, "insufficient_scope", `Required scope: ${requiredScope}`, {
       "WWW-Authenticate": `Bearer error="insufficient_scope", scope="${requiredScope}"`,
@@ -52,13 +61,19 @@ export async function requireServiceScope(
   return principal;
 }
 
+export async function introspectBearerToken(request: Request): Promise<OAuthPrincipal | Response> {
+  const token = parseBearerToken(request.headers.get("Authorization"));
+  if (!token) return unauthorized("Bearer token required");
+  return introspect(token);
+}
+
 function parseBearerToken(header: string | null): string | null {
   if (!header) return null;
   const match = /^Bearer ([^\s]+)$/i.exec(header);
   return match?.[1] ?? null;
 }
 
-async function introspect(token: string): Promise<ServicePrincipal | Response> {
+async function introspect(token: string): Promise<OAuthPrincipal | Response> {
   const now = Math.floor(Date.now() / 1_000);
   const cacheKey = createHash("sha256").update(token).digest("hex");
   const cached = positiveCache.get(cacheKey);
@@ -82,7 +97,7 @@ async function fetchIntrospection(
   token: string,
   cacheKey: string,
   now: number,
-): Promise<ServicePrincipal | Response> {
+): Promise<OAuthPrincipal | Response> {
   const secret = process.env.ARTBIN_4ORM_INTROSPECTION_SECRET;
   if (!secret) return unavailable();
   const clientId = process.env.ARTBIN_4ORM_INTROSPECTION_CLIENT_ID ?? "artbin-server";
@@ -121,13 +136,10 @@ async function fetchIntrospection(
   return principal;
 }
 
-function parseActivePrincipal(
-  payload: IntrospectionResponse,
-  now: number,
-): ServicePrincipal | null {
+function parseActivePrincipal(payload: IntrospectionResponse, now: number): OAuthPrincipal | null {
   if (
     payload.active !== true ||
-    payload.principal_type !== "service" ||
+    (payload.principal_type !== "service" && payload.principal_type !== "user") ||
     payload.token_type?.toString().toLowerCase() !== "bearer" ||
     typeof payload.client_id !== "string" ||
     !payload.client_id ||
@@ -141,6 +153,7 @@ function parseActivePrincipal(
     return null;
   }
   return {
+    principalType: payload.principal_type,
     subject: payload.sub,
     clientId: payload.client_id,
     scopes: new Set(payload.scope.split(/\s+/).filter(Boolean)),

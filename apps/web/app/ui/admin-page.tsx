@@ -15,7 +15,8 @@ export type AdminTab =
   | "archives"
   | "scan-settings"
   | "orphans"
-  | "users";
+  | "users"
+  | "mcp";
 
 export function AdminPage(
   handle: Handle<{
@@ -39,6 +40,7 @@ export function AdminPage(
       },
       { id: "orphans", href: routes.admin.orphans.index.href(), label: "Orphans" },
       { id: "users", href: routes.admin.users.href(), label: "Users" },
+      { id: "mcp", href: routes.admin.mcp.href(), label: "MCP" },
     ];
 
     return (

@@ -199,7 +199,21 @@ try {
     return ["library loaded", "development administrator can add content"];
   });
 
+  await flow("administrator MCP surface", async () => {
+    await page.goto(`${baseUrl}/admin/mcp`, { waitUntil: "networkidle" });
+    await page.getByRole("heading", { name: "Administrator MCP server", exact: true }).waitFor();
+    await page.getByText("artbin_folder_manage", { exact: false }).waitFor();
+    check((await page.getByText("artbin:admin", { exact: true }).count()) === 1, "MCP scope was not shown once");
+    const unauthorized = await page.request.post(`${baseUrl}/mcp`, {
+      data: { jsonrpc: "2.0", id: 1, method: "tools/list", params: {} },
+    });
+    check(unauthorized.status() === 401, `Unauthenticated MCP request returned ${unauthorized.status()}`);
+    await shot(page, "09-admin-mcp.png");
+    return ["MCP details are admin-only", "tool catalog rendered", "unauthenticated MCP calls fail closed"];
+  });
+
   await flow("create folder", async () => {
+    await page.goto(`${baseUrl}/folders`, { waitUntil: "networkidle" });
     await page.getByRole("button", { name: "Add", exact: true }).click();
     await page.getByRole("button", { name: "Create folder", exact: true }).click();
     const form = page.locator("form").filter({ has: page.getByRole("button", { name: "Create folder", exact: true }) });

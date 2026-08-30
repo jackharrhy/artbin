@@ -23,6 +23,11 @@ export const routes = route({
     cliCallback: get("/cli/callback"),
     cliRedeem: post("/cli/redeem"),
   }),
+  mcp: {
+    endpoint: post("/mcp"),
+    endpointGet: get("/mcp"),
+    protectedResource: get("/.well-known/oauth-protected-resource/mcp"),
+  },
   admin: route("/admin", {
     jobs: form("/"),
     import: form("/import"),
@@ -31,6 +36,7 @@ export const routes = route({
     scanSettings: form("/scan-settings"),
     users: get("/users"),
     orphans: form("/orphans"),
+    mcp: get("/mcp"),
   }),
   api: route("/api", {
     assets: get("/assets"),
