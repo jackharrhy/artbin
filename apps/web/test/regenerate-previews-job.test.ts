@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { eq } from "drizzle-orm";
 
-import { files, folders } from "#db";
+import { files, folders, jobs } from "#db";
 import { setDbForTesting } from "#db/connection.server";
 
 import { applyMigrations, createTestDatabase, type TestDatabase } from "./db.ts";
@@ -38,7 +38,7 @@ vi.mock("fs/promises", async (importOriginal) => ({
 
 const { handleRegeneratePreviews } =
   await import("../src/lib/jobs/regenerate-previews-job.server.ts");
-const { createJob } = await import("#lib/jobs.server");
+const { createJob, processJob } = await import("#lib/jobs.server");
 
 let currentDb: TestDatabase | undefined;
 
@@ -108,5 +108,38 @@ describe("preview regeneration job", () => {
     expect(updated?.hasPreview).toBe(true);
     const untouched = await db.query.files.findFirst({ where: eq(files.id, "other-map") });
     expect(untouched?.hasPreview).toBe(false);
+  });
+
+  test("fails with the target path when a BSP preview cannot be generated", async () => {
+    const db = setupDatabase();
+    await db.insert(folders).values({ id: "maps", name: "Maps", slug: "maps" });
+    await db.insert(files).values({
+      id: "map",
+      path: "maps/broken.bsp",
+      name: "broken.bsp",
+      mimeType: "application/octet-stream",
+      size: 64,
+      kind: "map",
+      folderId: "maps",
+      status: "approved",
+      hasPreview: false,
+    });
+    generateBspDerivatives.mockRejectedValueOnce(new Error("renderer unavailable"));
+    const input = {
+      userId: "admin",
+      target: { scope: "file" as const, fileId: "map" },
+    };
+    const job = await createJob({ type: "regenerate-previews", input });
+
+    const result = await processJob(job);
+
+    expect(result.isErr()).toBe(true);
+    const failedJob = await db.query.jobs.findFirst({ where: eq(jobs.id, job.id) });
+    expect(failedJob).toMatchObject({
+      status: "failed",
+      error: expect.stringContaining("map maps/broken.bsp: renderer unavailable"),
+    });
+    const unchanged = await db.query.files.findFirst({ where: eq(files.id, "map") });
+    expect(unchanged?.hasPreview).toBe(false);
   });
 });

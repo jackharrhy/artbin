@@ -30,6 +30,20 @@ import { resolveApprovedBspPalette, resolveApprovedBspWad } from "../bsp-assets.
 import { getAncestorFolderIds } from "../file-queries.server.ts";
 import { previewJobInputSchema, type PreviewTarget } from "../preview-target.ts";
 
+type PreviewFailure = {
+  target: string;
+  error: string;
+};
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function previewFailureError(failures: PreviewFailure[]): Error {
+  const details = failures.map(({ target, error }) => `- ${target}: ${error}`).join("\n");
+  return new Error(`Preview regeneration failed for ${failures.length} target(s):\n${details}`);
+}
+
 async function handleRegeneratePreviews(
   job: Job,
   input: Record<string, unknown>,
@@ -40,6 +54,7 @@ async function handleRegeneratePreviews(
   const options = previewJobInputSchema.parse(input);
   const includeModels = options.target.scope === "all";
   const plan = await createPreviewPlan(options.target);
+  const failures: PreviewFailure[] = [];
 
   // Phase 1: Generate missing model previews
   let modelPreviews = 0;
@@ -59,7 +74,10 @@ async function handleRegeneratePreviews(
       if (!canGenerateModelPreview(file.name)) continue;
 
       const fullPath = getFilePath(file.path);
-      if (!existsSync(fullPath)) continue;
+      if (!existsSync(fullPath)) {
+        failures.push({ target: `model ${file.path}`, error: "Source file is missing" });
+        continue;
+      }
 
       try {
         const buffer = await readFile(fullPath);
@@ -69,9 +87,13 @@ async function handleRegeneratePreviews(
         if (result.isOk()) {
           await db.update(files).set({ hasPreview: true }).where(eq(files.id, file.id));
           modelPreviews++;
+        } else {
+          failures.push({ target: `model ${file.path}`, error: result.error.message });
         }
       } catch (err) {
-        log.error(err instanceof Error ? err : new Error(String(err)), {
+        const error = errorMessage(err);
+        failures.push({ target: `model ${file.path}`, error });
+        log.error(err instanceof Error ? err : new Error(error), {
           step: "model-preview",
           file: file.path,
         });
@@ -98,7 +120,10 @@ async function handleRegeneratePreviews(
     const file = maps[index];
     if (!file.name.toLowerCase().endsWith(".bsp")) continue;
     const fullPath = getFilePath(file.path);
-    if (!existsSync(fullPath)) continue;
+    if (!existsSync(fullPath)) {
+      failures.push({ target: `map ${file.path}`, error: "Source file is missing" });
+      continue;
+    }
 
     try {
       const palette = await resolveApprovedBspPalette(file);
@@ -128,7 +153,9 @@ async function handleRegeneratePreviews(
       await db.update(files).set({ hasPreview: true }).where(eq(files.id, file.id));
       mapPreviews += 1;
     } catch (error) {
-      log.error(error instanceof Error ? error : new Error(String(error)), {
+      const message = errorMessage(error);
+      failures.push({ target: `map ${file.path}`, error: message });
+      log.error(error instanceof Error ? error : new Error(message), {
         step: "bsp-overview",
         file: file.path,
       });
@@ -153,7 +180,9 @@ async function handleRegeneratePreviews(
       const preview = await generateFolderPreview(allFolders[i].id);
       if (preview) folderPreviews++;
     } catch (err) {
-      log.error(err instanceof Error ? err : new Error(String(err)), {
+      const error = errorMessage(err);
+      failures.push({ target: `folder ${allFolders[i].slug}`, error });
+      log.error(err instanceof Error ? err : new Error(error), {
         step: "folder-preview",
         folder: allFolders[i].slug,
       });
@@ -170,6 +199,10 @@ async function handleRegeneratePreviews(
   }
 
   log.emit();
+
+  if (failures.length > 0) {
+    throw previewFailureError(failures);
+  }
 
   return {
     modelPreviews,
