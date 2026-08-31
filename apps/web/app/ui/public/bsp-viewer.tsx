@@ -32,6 +32,9 @@ interface BspViewerProps extends SerializableProps {
   bspUrl: string;
   fileId: string;
   paletteUrl?: string;
+  wadUrls: string[];
+  hasDependencyManifest: boolean;
+  walkabilityUrl?: string;
   height?: number;
 }
 
@@ -63,11 +66,7 @@ export const BspViewer = clientEntry(
                     viewer = created;
                     created.addEventListener("progress", (event) => {
                       const detail = (event as CustomEvent<ProgressDetail>).detail;
-                      status = `${detail.phase}: ${detail.label ?? "loading"}`;
-                      handle.update();
-                    });
-                    created.addEventListener("ready", () => {
-                      ready = true;
+                      status = progressLabel(detail, handle.props.wadUrls.length);
                       handle.update();
                     });
                     created.addEventListener("warning", (event) => {
@@ -75,13 +74,30 @@ export const BspViewer = clientEntry(
                     });
                     await created.load({
                       bsp: handle.props.bspUrl,
+                      wads: handle.props.wadUrls,
                       ...(handle.props.paletteUrl ? { palette: handle.props.paletteUrl } : {}),
-                      resolveWad: (reference) =>
-                        routes.api.bspWad.href({
-                          fileId: handle.props.fileId,
-                          wadName: reference.basename,
-                        }),
+                      ...(handle.props.hasDependencyManifest
+                        ? {}
+                        : {
+                            resolveWad: (reference) =>
+                              routes.api.bspWad.href({
+                                fileId: handle.props.fileId,
+                                wadName: reference.basename,
+                              }),
+                          }),
                     });
+                    if (handle.props.walkabilityUrl) {
+                      try {
+                        status = "Loading map navigation…";
+                        handle.update();
+                        await created.loadWalkability(handle.props.walkabilityUrl, { signal });
+                      } catch (cause) {
+                        if (signal.aborted) return;
+                        console.warn("Worldview: persisted walkability could not be loaded", cause);
+                      }
+                    }
+                    ready = true;
+                    handle.update();
                   })
                   .catch((cause: unknown) => {
                     if (signal.aborted) return;
@@ -111,3 +127,22 @@ export const BspViewer = clientEntry(
     };
   },
 );
+
+function progressLabel(detail: ProgressDetail, wadCount: number): string {
+  switch (detail.phase) {
+    case "bsp":
+    case "parse":
+      return "Loading map…";
+    case "wad":
+      if (detail.phaseProgress) {
+        return `Loading texture archives… ${detail.phaseProgress.completed}/${detail.phaseProgress.total}`;
+      }
+      return `Loading ${wadCount || "map"} texture archive${wadCount === 1 ? "" : "s"}…`;
+    case "walkability":
+      return "Loading map navigation…";
+    case "gpu":
+      return "Preparing renderer…";
+    default:
+      return "Loading map assets…";
+  }
+}

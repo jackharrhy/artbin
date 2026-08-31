@@ -7,9 +7,9 @@ import { db } from "#db/connection.server";
 import {
   deleteFile,
   deleteFileRecord,
+  finalizeFolders,
   ingestFile,
   moveFile,
-  recalculateFolderCounts,
 } from "#lib/files.server";
 
 import type { OperationContext } from "./context.ts";
@@ -131,6 +131,7 @@ export async function uploadAssetOperation(
   }
   const stored = await db.query.files.findFirst({ where: eq(files.id, ingested.value.fileId) });
   if (!stored) throw new Error("Uploaded asset record was not found");
+  await finalizeFolders([folder.id]);
   return { asset: serializeAsset(stored, folder.slug) };
 }
 
@@ -152,6 +153,7 @@ export async function deleteAssetOperation(
   await deleteFile(file.path);
   const deleted = await deleteFileRecord(file.id);
   if (deleted.isErr()) throw new OperationError(deleted.error.message, "operation_failed", 400);
+  await finalizeFolders([folder.id]);
   return { applied: true as const, plan, deleted: { id: file.id, path: file.path } };
 }
 
@@ -192,14 +194,14 @@ export async function moveAssetOperation(
       .update(files)
       .set({ folderId: destination.id, path: toPath })
       .where(eq(files.id, file.id));
-    await recalculateFolderCounts([source.id, destination.id]);
+    await finalizeFolders([source.id, destination.id]);
   } catch (error) {
     await moveFile(toPath, file.path);
     await db
       .update(files)
       .set({ folderId: source.id, path: file.path })
       .where(eq(files.id, file.id));
-    await recalculateFolderCounts([source.id, destination.id]);
+    await finalizeFolders([source.id, destination.id]);
     throw error;
   }
   const moved = await db.query.files.findFirst({ where: eq(files.id, file.id) });

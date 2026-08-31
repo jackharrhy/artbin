@@ -8,8 +8,10 @@ import { db } from "#db/connection.server";
 import { getFilePath } from "#lib/files.server";
 import { getFolderTrail } from "#lib/file-queries.server";
 import { getVisibleWADTextureByPath, inspectWADFile, isWADFilename } from "#lib/wad-assets.server";
+import { hasBspWalkability, readBspDependencyManifest } from "#lib/bsp-derivatives.server";
+import { resolveBspPalette, resolveBspWads } from "#lib/bsp-assets.server";
 
-import { mediaFileHref } from "../routes.ts";
+import { mediaBspWalkabilityHref, mediaFileHref } from "../routes.ts";
 
 const maxTextPreviewSize = 100 * 1_024;
 
@@ -67,6 +69,9 @@ export async function loadFilePage(path: string, user: User) {
   const bspVersion = file.name.toLowerCase().endsWith(".bsp")
     ? await readBspVersion(file.path)
     : null;
+  const bspDependencies = bspVersion ? await readBspDependencyManifest(file.path) : null;
+  const bspWads = bspDependencies ? await resolveBspWads(file, bspDependencies.wads, user) : [];
+  const bspPalette = bspVersion === 29 ? await resolveBspPalette(file, user) : null;
 
   if (file.kind === "model") {
     const siblings = await db.query.files.findMany({ where: eq(files.folderId, file.folderId) });
@@ -119,6 +124,11 @@ export async function loadFilePage(path: string, user: User) {
     availableTextures,
     modelAnimations,
     bspVersion,
+    bspWadUrls: bspWads.map((wad) => mediaFileHref(wad)),
+    bspPaletteUrl: bspPalette ? mediaFileHref(bspPalette) : null,
+    hasBspDependencyManifest: bspDependencies !== null,
+    bspWalkabilityUrl:
+      bspVersion && hasBspWalkability(file.path) ? mediaBspWalkabilityHref(file) : null,
   };
 }
 

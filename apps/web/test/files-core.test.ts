@@ -1,17 +1,21 @@
 import { afterEach, describe, expect, test } from "vitest";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { eq } from "drizzle-orm";
 import { folders } from "#db";
 import { setDbForTesting } from "#db/connection.server";
 import {
   deleteFileRecord,
+  deleteFile,
   generatePreview,
   getFilePath,
   getImageDimensions,
   insertFileRecord,
+  moveFile,
   processImage,
   recalculateFolderCounts,
   slugToPath,
 } from "#lib/files.server";
+import { getBspDependencyPath, getBspWalkabilityPath } from "#lib/bsp-derivatives.server";
 import { applyMigrations, createTestDatabase, type TestDatabase } from "./db";
 
 let currentDb: TestDatabase | undefined;
@@ -35,6 +39,36 @@ describe("upload path boundaries", () => {
       expect(() => slugToPath(path)).toThrow("Invalid upload path");
     }
     expect(getFilePath("folder/file.png")).toMatch(/public\/uploads\/folder\/file\.png$/);
+  });
+});
+
+describe("BSP derivative lifecycle", () => {
+  test("moves and deletes sibling analysis artifacts with their BSP", async () => {
+    const root = `_bsp-lifecycle-${crypto.randomUUID()}`;
+    const source = `${root}/source.bsp`;
+    const destination = `${root}/nested/destination.bsp`;
+    await mkdir(getFilePath(`${root}/nested`), { recursive: true });
+    await Promise.all([
+      writeFile(getFilePath(source), "bsp"),
+      writeFile(getBspDependencyPath(source), "manifest"),
+      writeFile(getBspWalkabilityPath(source), "walkability"),
+    ]);
+
+    try {
+      await moveFile(source, destination);
+      expect(await readFile(getBspDependencyPath(destination), "utf8")).toBe("manifest");
+      expect(await readFile(getBspWalkabilityPath(destination), "utf8")).toBe("walkability");
+
+      await deleteFile(destination);
+      await expect(readFile(getBspDependencyPath(destination))).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+      await expect(readFile(getBspWalkabilityPath(destination))).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+    } finally {
+      await rm(getFilePath(root), { recursive: true, force: true });
+    }
   });
 });
 

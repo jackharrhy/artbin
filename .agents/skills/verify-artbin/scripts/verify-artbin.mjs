@@ -308,6 +308,16 @@ try {
       (await readFile(join(uploadsDirectory, folderSlug, mapName))).equals(mapBody),
       "Uploaded BSP bytes differ from the selected file",
     );
+    const bspManifestName = mapName.replace(/\.bsp$/i, ".artbin-bsp.json");
+    const bspManifest = JSON.parse(
+      await readFile(join(uploadsDirectory, folderSlug, bspManifestName), "utf8"),
+    );
+    check(
+      bspManifest.version === 1 &&
+        Array.isArray(bspManifest.wads) &&
+        bspManifest.wads.length > 0,
+      "Uploaded BSP dependency manifest is missing or empty",
+    );
     check(
       (await readFile(join(uploadsDirectory, orphanPath))).equals(orphanBody),
       "Adopted file was unexpectedly changed",
@@ -321,6 +331,7 @@ try {
     return [
       "all files indexed",
       "uploaded bytes preserved",
+      "BSP dependency manifest generated during ingestion",
       "adoption did not rewrite orphan bytes",
     ];
   });

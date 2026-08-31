@@ -231,7 +231,11 @@ describe("administrator MCP", () => {
   });
 
   it("creates, uploads, lists, deletes, and cleans up a temporary MCP tree", async () => {
-    const probeName = `probe-${Date.now()}.txt`;
+    const probeName = `probe-${Date.now()}.png`;
+    const image = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+      "base64",
+    );
     const created = await mcpTool("admin-token", "artbin_folders_create", {
       folders: [
         { slug: "mcp-audit", name: "MCP Audit", parentSlug: null },
@@ -245,17 +249,19 @@ describe("administrator MCP", () => {
     const uploaded = await mcpTool("admin-token", "artbin_asset_upload", {
       folderSlug: "mcp-audit/assets",
       fileName: probeName,
-      contentBase64: Buffer.from("artbin mcp probe\n").toString("base64"),
+      contentBase64: image.toString("base64"),
       confirm: true,
     });
     const asset = uploaded.result.structuredContent.asset;
     assert.equal(asset.name, probeName);
     assert.equal(existsSync(getFilePath(asset.path)), true);
+    assert.equal(await folderHasPreview("mcp-audit/assets"), true);
+    assert.equal(await folderHasPreview("mcp-audit"), true);
 
     const duplicate = await mcpTool("admin-token", "artbin_asset_upload", {
       folderSlug: "mcp-audit/assets",
       fileName: probeName,
-      contentBase64: Buffer.from("second probe\n").toString("base64"),
+      contentBase64: image.toString("base64"),
       confirm: true,
     });
     const duplicateAsset = duplicate.result.structuredContent.asset;
@@ -291,6 +297,8 @@ describe("administrator MCP", () => {
     assert.equal(moved.result.structuredContent.asset.folderSlug, "mcp-audit/moved");
     assert.equal(existsSync(getFilePath(asset.path)), false);
     assert.equal(existsSync(getFilePath(moved.result.structuredContent.asset.path)), true);
+    assert.equal(await folderHasPreview("mcp-audit/assets"), true);
+    assert.equal(await folderHasPreview("mcp-audit/moved"), true);
     assert.equal(
       (
         await harness.database.db.query.folders.findFirst({
@@ -325,11 +333,15 @@ describe("administrator MCP", () => {
       }),
       undefined,
     );
+    assert.equal(await folderHasPreview("mcp-audit/moved"), false);
+    assert.equal(await folderHasPreview("mcp-audit"), true);
 
     await mcpTool("admin-token", "artbin_asset_delete", {
       fileId: duplicateAsset.id,
       execution: { mode: "apply", confirm: true, confirmationName: duplicateAsset.name },
     });
+    assert.equal(await folderHasPreview("mcp-audit/assets"), false);
+    assert.equal(await folderHasPreview("mcp-audit"), false);
 
     const folderPlan = await mcpTool("admin-token", "artbin_folder_delete", {
       slug: "mcp-audit",
@@ -482,6 +494,13 @@ describe("administrator MCP", () => {
     assert.equal((await harness.database.db.select().from(jobs)).length, 5);
   });
 });
+
+async function folderHasPreview(slug: string): Promise<boolean> {
+  const folder = await harness.database.db.query.folders.findFirst({
+    where: (table, { eq }) => eq(table.slug, slug),
+  });
+  return Boolean(folder?.previewPath && existsSync(getFilePath(folder.previewPath)));
+}
 
 async function mcpCall(token: string, method: string, params: Record<string, unknown> = {}) {
   return router.fetch(

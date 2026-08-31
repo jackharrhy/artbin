@@ -1,4 +1,5 @@
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 
 import * as assert from "remix/assert";
@@ -13,7 +14,12 @@ import { generateFolderPreview } from "#lib/folder-preview.server";
 import { applyMigrations, createTestDatabase, type TestDatabase } from "../test/db.ts";
 import { makeWAD3Texture } from "../test/wad-fixture.ts";
 import { router } from "./router.ts";
-import { mediaFileHref, mediaFolderPreviewHref, routes } from "./routes.ts";
+import {
+  mediaBspWalkabilityHref,
+  mediaFileHref,
+  mediaFolderPreviewHref,
+  routes,
+} from "./routes.ts";
 
 const origin = "http://artbin.test";
 const uploadsRoot = join(process.cwd(), "public", "uploads", "_remix-router-test");
@@ -362,6 +368,7 @@ describe("native Remix router", () => {
       ),
     );
     assert.equal(generatedPreview.status, 200);
+    assert.equal(generatedPreview.headers.get("cache-control"), "private, no-cache");
     assert.deepEqual(Buffer.from(await generatedPreview.arrayBuffer()), preview);
 
     const renderedFolderPreview = await router.fetch(
@@ -371,6 +378,7 @@ describe("native Remix router", () => {
       ),
     );
     assert.equal(renderedFolderPreview.status, 200);
+    assert.equal(renderedFolderPreview.headers.get("cache-control"), "private, no-cache");
     assert.deepEqual(Buffer.from(await renderedFolderPreview.arrayBuffer()), folderPreview);
 
     const unauthenticated = await router.fetch(
@@ -473,9 +481,15 @@ describe("native Remix router", () => {
     const wad = makeWAD3Texture("REDWALL");
     const providedWad = makeWAD3Texture("SITEWALL");
     const palette = Buffer.alloc(768, 42);
+    const walkability = JSON.stringify({ format: "worldview-walkability", version: 1 });
     await mkdir(join(uploadsRoot, "maps"), { recursive: true });
     await Promise.all([
       writeFile(join(uploadsRoot, "maps/example.bsp"), bsp),
+      writeFile(
+        join(uploadsRoot, "maps/example.artbin-bsp.json"),
+        JSON.stringify({ version: 1, wads: ["textures.wad", "halflife.wad"] }),
+      ),
+      writeFile(join(uploadsRoot, "maps/example.worldview-walkability.json"), walkability),
       writeFile(join(uploadsRoot, "textures.wad"), wad),
       writeFile(join(uploadsRoot, "palette.lmp"), palette),
       mkdir(join(providedAssetsRoot, "goldsrc"), { recursive: true }).then(() =>
@@ -532,7 +546,18 @@ describe("native Remix router", () => {
     const html = await page.text();
     assert.match(html, /BspViewer/);
     assert.match(html, /Interactive BSP map/);
-    assert.match(html, /\/api\/bsp\/bsp-map\/palette/);
+    assert.match(html, /palette\.lmp/);
+    assert.doesNotMatch(html, /\/api\/bsp\/bsp-map\/palette/);
+    assert.match(html, /textures\.wad/);
+    assert.match(html, /example\.worldview-walkability\.json/);
+
+    const walkabilityResponse = await router.fetch(
+      request(mediaBspWalkabilityHref({ id: "bsp-map", name: "example.bsp" }), memberCookie),
+    );
+    assert.equal(walkabilityResponse.status, 200);
+    assert.match(walkabilityResponse.headers.get("content-type") ?? "", /^application\/json/);
+    assert.equal(walkabilityResponse.headers.get("cache-control"), "private, no-cache");
+    assert.equal(await walkabilityResponse.text(), walkability);
 
     const wadResponse = await router.fetch(
       request(routes.api.bspWad.href({ fileId: "bsp-map", wadName: "textures.wad" }), memberCookie),
@@ -627,6 +652,44 @@ describe("native Remix router", () => {
         })
       )?.previewPath,
       previewPath,
+    );
+  });
+
+  it("clears a persisted folder preview when no previewable contents remain", async () => {
+    const folder = await seedFolder();
+    await database.db
+      .update(folders)
+      .set({ slug: "_remix-router-test" })
+      .where(eq(folders.id, folder.id));
+    const image = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+      "base64",
+    );
+    await writeFile(join(uploadsRoot, "preview.png"), image);
+    await database.db.insert(files).values({
+      id: "preview-image",
+      path: "_remix-router-test/preview.png",
+      name: "preview.png",
+      mimeType: "image/png",
+      size: image.length,
+      kind: "texture",
+      folderId: folder.id,
+      status: "approved",
+    });
+
+    assert.equal(await generateFolderPreview(folder.id), "_remix-router-test/_folder-preview.png");
+    await database.db.delete(files).where(eq(files.id, "preview-image"));
+    await rm(join(uploadsRoot, "preview.png"));
+
+    assert.equal(await generateFolderPreview(folder.id), null);
+    assert.equal(existsSync(join(uploadsRoot, "_folder-preview.png")), false);
+    assert.equal(
+      (
+        await database.db.query.folders.findFirst({
+          where: eq(folders.id, folder.id),
+        })
+      )?.previewPath,
+      null,
     );
   });
 

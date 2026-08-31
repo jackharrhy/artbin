@@ -171,11 +171,10 @@ function StandardFilePage(handle: Handle<{ data: StandardFilePageData; user: Use
                 <BspViewer
                   bspUrl={downloadUrl}
                   fileId={file.id}
-                  paletteUrl={
-                    data.bspVersion === 29
-                      ? routes.api.bspPalette.href({ fileId: file.id })
-                      : undefined
-                  }
+                  wadUrls={data.bspWadUrls}
+                  hasDependencyManifest={data.hasBspDependencyManifest}
+                  walkabilityUrl={data.bspWalkabilityUrl ?? undefined}
+                  paletteUrl={data.bspPaletteUrl ?? undefined}
                   height={560}
                 />
               ) : image ? (

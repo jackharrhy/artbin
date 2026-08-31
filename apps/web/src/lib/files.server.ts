@@ -17,6 +17,11 @@ import { sanitizeFilename } from "@artbin/core/detection/filenames";
 import { nanoid } from "nanoid";
 import { generateFolderPreview } from "./folder-preview.server.ts";
 import { getAncestorFolderIds } from "./file-queries.server.ts";
+import {
+  getBspDependencyPath,
+  getBspWalkabilityPath,
+  refreshBspDependencyManifest,
+} from "./bsp-derivatives.server.ts";
 
 const execAsync = promisify(exec);
 
@@ -147,6 +152,12 @@ export async function deleteFile(filePath: string): Promise<void> {
   } catch {
     // Preview may not exist
   }
+  if (/\.bsp$/i.test(filePath)) {
+    await Promise.all([
+      unlink(getBspDependencyPath(filePath)).catch(() => {}),
+      unlink(getBspWalkabilityPath(filePath)).catch(() => {}),
+    ]);
+  }
 }
 
 export async function moveFile(fromPath: string, toPath: string): Promise<void> {
@@ -164,6 +175,16 @@ export async function moveFile(fromPath: string, toPath: string): Promise<void> 
     await rename(fromPreview, toPreview);
   } catch {
     // Preview may not exist
+  }
+  if (/\.bsp$/i.test(fromPath)) {
+    const moveDerivative = async (from: string, to: string) => {
+      if (/\.bsp$/i.test(toPath)) await rename(from, to).catch(() => {});
+      else await unlink(from).catch(() => {});
+    };
+    await Promise.all([
+      moveDerivative(getBspDependencyPath(fromPath), getBspDependencyPath(toPath)),
+      moveDerivative(getBspWalkabilityPath(fromPath), getBspWalkabilityPath(toPath)),
+    ]);
   }
 }
 
@@ -441,6 +462,7 @@ export async function adoptFile(opts: AdoptFileOptions): Promise<Result<IngestFi
       status: "approved",
     });
     if (inserted.isErr()) return Result.err(inserted.error);
+    if (/\.bsp$/i.test(name)) await refreshBspDependencyManifest(opts.path, buffer);
     return Result.ok({
       fileId,
       path: opts.path,
@@ -537,6 +559,7 @@ export async function ingestFile(
       suggestedFolderId: opts.suggestedFolderId ?? null,
     });
     if (inserted.isErr()) return Result.err(inserted.error);
+    if (/\.bsp$/i.test(savedName)) await refreshBspDependencyManifest(savedPath, opts.buffer);
 
     return Result.ok({
       fileId,
