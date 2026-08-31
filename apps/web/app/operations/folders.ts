@@ -9,7 +9,7 @@ import { z } from "zod";
 
 import { files, folders, remoteImports } from "#db";
 import { db } from "#db/connection.server";
-import { ensureDir, slugToPath } from "#lib/files.server";
+import { deleteFile, deleteFolder, ensureDir, slugToPath } from "#lib/files.server";
 import { moveFolder, renameFolder } from "#lib/folders.server";
 
 import type { OperationContext } from "./context.ts";
@@ -17,7 +17,28 @@ import { requireOperationAdmin } from "./context.ts";
 import { OperationError } from "./errors.ts";
 
 export const folderListInput = z
-  .object({ slug: z.string().min(1).optional(), includeSystem: z.boolean().default(false) })
+  .object({
+    slug: z.string().min(1).optional(),
+    includeSystem: z.boolean().default(false),
+    limit: z.number().int().min(1).max(500).default(100),
+    cursor: z.string().min(1).optional(),
+  })
+  .strict();
+
+export const folderDeleteInput = z
+  .object({
+    slug: z.string().min(1),
+    execution: z.discriminatedUnion("mode", [
+      z.object({ mode: z.literal("plan") }).strict(),
+      z
+        .object({
+          mode: z.literal("apply"),
+          confirm: z.literal(true),
+          confirmationName: z.string().min(1),
+        })
+        .strict(),
+    ]),
+  })
   .strict();
 
 export const folderCreateInput = z
@@ -145,7 +166,16 @@ export async function listFoldersOperation(
   const includeSystem = input.includeSystem && context.user.isAdmin;
   const visible = includeSystem ? stored : stored.filter((folder) => !isSystemFolder(folder.slug));
   const summaries = summarizeFolders(visible);
-  if (!input.slug) return { folders: summaries };
+  if (!input.slug) {
+    const start = input.cursor ? summaries.findIndex((folder) => folder.slug > input.cursor!) : 0;
+    const pageStart = start === -1 ? summaries.length : start;
+    const page = summaries.slice(pageStart, pageStart + input.limit);
+    const hasMore = pageStart + page.length < summaries.length;
+    return {
+      folders: page,
+      nextCursor: hasMore ? page.at(-1)?.slug : undefined,
+    };
+  }
 
   const slug = cleanFolderPath(input.slug);
   if (!slug || slug !== input.slug)
@@ -177,6 +207,47 @@ export async function listFoldersOperation(
       source: source ?? null,
     },
   };
+}
+
+export async function deleteFolderOperation(
+  context: OperationContext,
+  input: z.output<typeof folderDeleteInput>,
+) {
+  requireOperationAdmin(context);
+  if (input.slug.startsWith("_")) throw new OperationError("Folder not found", "not_found", 404);
+  const slug = cleanFolderPath(input.slug);
+  if (!slug || slug !== input.slug)
+    throw new OperationError("Invalid folder slug", "invalid_request", 400);
+  const impact = await getFolderImpact(slug);
+  if (!impact || impact.folder.slug.startsWith("_"))
+    throw new OperationError("Folder not found", "not_found", 404);
+
+  const plan = {
+    folder: {
+      id: impact.folder.id,
+      name: impact.folder.name,
+      slug: impact.folder.slug,
+    },
+    affected: { folders: 1 + impact.descendantIds.length, files: impact.fileCount },
+  };
+  if (input.execution.mode === "plan") return { applied: false as const, plan };
+  if (input.execution.confirmationName !== impact.folder.name) {
+    throw new OperationError("Folder name confirmation did not match", "invalid_request", 400);
+  }
+  await deleteFolderTree(impact.folder.id, impact.folder.slug);
+  return { applied: true as const, plan, deleted: plan.affected };
+}
+
+export async function deleteFolderTree(folderId: string, folderSlug: string): Promise<void> {
+  const [folderFiles, childFolders] = await Promise.all([
+    db.query.files.findMany({ where: eq(files.folderId, folderId) }),
+    db.query.folders.findMany({ where: eq(folders.parentId, folderId) }),
+  ]);
+  for (const file of folderFiles) await deleteFile(file.path);
+  for (const child of childFolders) await deleteFolderTree(child.id, child.slug);
+  await db.delete(files).where(eq(files.folderId, folderId));
+  await db.delete(folders).where(eq(folders.id, folderId));
+  await deleteFolder(folderSlug);
 }
 
 export async function createFoldersOperation(

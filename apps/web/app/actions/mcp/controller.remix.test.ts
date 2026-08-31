@@ -1,7 +1,9 @@
 import * as assert from "remix/assert";
 import { afterEach, beforeEach, describe, it } from "remix/test";
 
-import { folders, jobs } from "#db";
+import { files, folders, jobs } from "#db";
+import { getFilePath } from "#lib/files.server";
+import { existsSync } from "node:fs";
 import { clearServiceAuthCacheForTesting } from "#lib/service-auth.server";
 
 import { routes } from "../../routes.ts";
@@ -112,6 +114,10 @@ describe("administrator MCP", () => {
     const names = ((await listed.json()) as any).result.tools.map((tool: any) => tool.name);
     assert.deepEqual(names, [
       "artbin_folders_list",
+      "artbin_folder_delete",
+      "artbin_assets_list",
+      "artbin_asset_upload",
+      "artbin_asset_delete",
       "artbin_folders_create",
       "artbin_folder_manage",
       "artbin_jobs_list",
@@ -200,6 +206,105 @@ describe("administrator MCP", () => {
     assert.deepEqual(mcp.result.structuredContent, await rest.json());
   });
 
+  it("paginates folders without repeating or dropping results", async () => {
+    await harness.database.db.insert(folders).values([
+      { id: "alpha", name: "Alpha", slug: "alpha" },
+      { id: "bravo", name: "Bravo", slug: "bravo" },
+      { id: "charlie", name: "Charlie", slug: "charlie" },
+    ]);
+    const first = await mcpTool("admin-token", "artbin_folders_list", { limit: 2 });
+    assert.deepEqual(
+      first.result.structuredContent.folders.map((folder: any) => folder.slug),
+      ["alpha", "bravo"],
+    );
+    assert.equal(first.result.structuredContent.nextCursor, "bravo");
+    const second = await mcpTool("admin-token", "artbin_folders_list", {
+      limit: 2,
+      cursor: first.result.structuredContent.nextCursor,
+    });
+    assert.deepEqual(
+      second.result.structuredContent.folders.map((folder: any) => folder.slug),
+      ["charlie"],
+    );
+    assert.equal(second.result.structuredContent.nextCursor, undefined);
+  });
+
+  it("creates, uploads, lists, deletes, and cleans up a temporary MCP tree", async () => {
+    const probeName = `probe-${Date.now()}.txt`;
+    const created = await mcpTool("admin-token", "artbin_folders_create", {
+      folders: [
+        { slug: "mcp-audit", name: "MCP Audit", parentSlug: null },
+        { slug: "mcp-audit/assets", name: "Assets", parentSlug: "mcp-audit" },
+      ],
+      execution: { mode: "apply", confirm: true },
+    });
+    assert.equal(created.result.structuredContent.created.length, 2);
+
+    const uploaded = await mcpTool("admin-token", "artbin_asset_upload", {
+      folderSlug: "mcp-audit/assets",
+      fileName: probeName,
+      contentBase64: Buffer.from("artbin mcp probe\n").toString("base64"),
+      confirm: true,
+    });
+    const asset = uploaded.result.structuredContent.asset;
+    assert.equal(asset.name, probeName);
+    assert.equal(existsSync(getFilePath(asset.path)), true);
+
+    const duplicate = await mcpTool("admin-token", "artbin_asset_upload", {
+      folderSlug: "mcp-audit/assets",
+      fileName: probeName,
+      contentBase64: Buffer.from("second probe\n").toString("base64"),
+      confirm: true,
+    });
+    const duplicateAsset = duplicate.result.structuredContent.asset;
+    assert.notEqual(duplicateAsset.path, asset.path);
+
+    const listed = await mcpTool("admin-token", "artbin_assets_list", {
+      folderSlug: "mcp-audit/assets",
+      limit: 10,
+    });
+    assert.deepEqual(
+      listed.result.structuredContent.assets.map((item: any) => item.id),
+      [asset.id, duplicateAsset.id],
+    );
+
+    const assetPlan = await mcpTool("admin-token", "artbin_asset_delete", {
+      fileId: asset.id,
+      execution: { mode: "plan" },
+    });
+    assert.equal(assetPlan.result.structuredContent.applied, false);
+    const deletedAsset = await mcpTool("admin-token", "artbin_asset_delete", {
+      fileId: asset.id,
+      execution: { mode: "apply", confirm: true, confirmationName: probeName },
+    });
+    assert.equal(deletedAsset.result.structuredContent.applied, true);
+    assert.equal(existsSync(getFilePath(asset.path)), false);
+    assert.equal(
+      await harness.database.db.query.files.findFirst({
+        where: (table, { eq }) => eq(table.id, asset.id),
+      }),
+      undefined,
+    );
+
+    await mcpTool("admin-token", "artbin_asset_delete", {
+      fileId: duplicateAsset.id,
+      execution: { mode: "apply", confirm: true, confirmationName: duplicateAsset.name },
+    });
+
+    const folderPlan = await mcpTool("admin-token", "artbin_folder_delete", {
+      slug: "mcp-audit",
+      execution: { mode: "plan" },
+    });
+    assert.deepEqual(folderPlan.result.structuredContent.plan.affected, { folders: 2, files: 0 });
+    const deletedFolder = await mcpTool("admin-token", "artbin_folder_delete", {
+      slug: "mcp-audit",
+      execution: { mode: "apply", confirm: true, confirmationName: "MCP Audit" },
+    });
+    assert.deepEqual(deletedFolder.result.structuredContent.deleted, { folders: 2, files: 0 });
+    assert.deepEqual(await harness.database.db.select().from(folders), []);
+    assert.deepEqual(await harness.database.db.select().from(files), []);
+  });
+
   it("plans then applies a folder mutation and rejects non-admin principals", async () => {
     await harness.database.db.insert(folders).values({ id: "maps", name: "Maps", slug: "maps" });
     const plan = await mcpTool("admin-token", "artbin_folder_manage", {
@@ -232,6 +337,32 @@ describe("administrator MCP", () => {
     assert.equal(denied.status, 403);
   });
 
+  it("plans and applies folder moves", async () => {
+    await harness.database.db.insert(folders).values([
+      { id: "source", name: "Source", slug: "source" },
+      { id: "destination", name: "Destination", slug: "destination" },
+    ]);
+    const plan = await mcpTool("admin-token", "artbin_folder_manage", {
+      operation: "move",
+      slug: "source",
+      destinationSlug: "destination",
+      execution: { mode: "plan" },
+    });
+    assert.equal(plan.result.structuredContent.plan.to.slug, "destination/source");
+    const applied = await mcpTool("admin-token", "artbin_folder_manage", {
+      operation: "move",
+      slug: "source",
+      destinationSlug: "destination",
+      execution: { mode: "apply", confirm: true },
+    });
+    assert.equal(applied.result.structuredContent.applied, true);
+    assert.ok(
+      await harness.database.db.query.folders.findFirst({
+        where: (table, { eq }) => eq(table.slug, "destination/source"),
+      }),
+    );
+  });
+
   it("requires explicit confirmation for destructive job operations", async () => {
     await harness.database.db.insert(jobs).values({
       id: "pending-job",
@@ -256,6 +387,31 @@ describe("administrator MCP", () => {
     assert.equal(await harness.database.db.query.jobs.findFirst(), undefined);
   });
 
+  it("cancels and resets jobs through MCP", async () => {
+    await harness.database.db.insert(jobs).values([
+      { id: "cancel-job", type: "test", input: "{}", status: "pending" },
+      {
+        id: "reset-job",
+        type: "test",
+        input: "{}",
+        status: "running",
+        startedAt: new Date(Date.now() - 31 * 60 * 1_000),
+      },
+    ]);
+    const cancelled = await mcpTool("admin-token", "artbin_job_manage", {
+      jobId: "cancel-job",
+      operation: "cancel",
+      confirm: true,
+    });
+    assert.equal(cancelled.result.structuredContent.job.status, "cancelled");
+    const reset = await mcpTool("admin-token", "artbin_job_manage", {
+      jobId: "reset-job",
+      operation: "reset",
+      confirm: true,
+    });
+    assert.equal(reset.result.structuredContent.job.status, "pending");
+  });
+
   it("queues maintenance imports through the shared operation", async () => {
     const queued = await mcpTool("admin-token", "artbin_import_queue", {
       kind: "regenerate-previews",
@@ -265,6 +421,25 @@ describe("administrator MCP", () => {
     const job = await harness.database.db.query.jobs.findFirst();
     assert.equal(job?.type, "regenerate-previews");
     assert.equal(job?.userId, "admin");
+  });
+
+  it("queues every import variant through MCP", async () => {
+    const requests = [
+      { kind: "remote", sourceUrls: ["https://gamebanana.com/mods/93182"], targetFolderId: null },
+      { kind: "folder", sourcePath: process.cwd(), collectionName: "MCP Folder Probe" },
+      { kind: "catalog", source: "texturetown" },
+      { kind: "catalog", source: "texture-station" },
+      { kind: "catalog", source: "sadgrl" },
+    ];
+    for (const request of requests) {
+      const queued = await mcpTool("admin-token", "artbin_import_queue", {
+        ...request,
+        confirm: true,
+      });
+      assert.equal(queued.result.isError, undefined);
+      assert.ok(queued.result.structuredContent.count >= 1);
+    }
+    assert.equal((await harness.database.db.select().from(jobs)).length, 5);
   });
 });
 

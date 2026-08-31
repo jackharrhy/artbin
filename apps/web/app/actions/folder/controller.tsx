@@ -3,12 +3,12 @@ import { createController } from "remix/router";
 import { redirect } from "remix/response/redirect";
 
 import { db } from "#db/connection.server";
-import { files, folders } from "#db";
-import { deleteFile, deleteFolder } from "#lib/files.server";
+import { folders } from "#db";
 import { moveFolder, renameFolder } from "#lib/folders.server";
 
 import { loadFolderPage } from "../../data/folder-page.ts";
 import { requireUser } from "../../middleware/auth.ts";
+import { deleteFolderOperation } from "../../operations/folders.ts";
 import { routes } from "../../routes.ts";
 import { FolderRoutePage } from "./page.tsx";
 
@@ -70,7 +70,17 @@ export default createController(routes.folder, {
         if (formData.get("confirmName") !== folder.name) {
           return new Response("Folder name confirmation did not match", { status: 400 });
         }
-        await deleteFolderTree(folder.id, folder.slug);
+        await deleteFolderOperation(
+          { user, channel: "admin" },
+          {
+            slug: folder.slug,
+            execution: {
+              mode: "apply",
+              confirm: true,
+              confirmationName: String(formData.get("confirmName") ?? ""),
+            },
+          },
+        );
         return redirect(routes.folders.href(), 303);
       }
 
@@ -78,15 +88,3 @@ export default createController(routes.folder, {
     },
   },
 });
-
-async function deleteFolderTree(folderId: string, folderSlug: string): Promise<void> {
-  const [folderFiles, childFolders] = await Promise.all([
-    db.query.files.findMany({ where: eq(files.folderId, folderId) }),
-    db.query.folders.findMany({ where: eq(folders.parentId, folderId) }),
-  ]);
-  for (const file of folderFiles) await deleteFile(file.path);
-  for (const child of childFolders) await deleteFolderTree(child.id, child.slug);
-  await db.delete(files).where(eq(files.folderId, folderId));
-  await db.delete(folders).where(eq(folders.id, folderId));
-  await deleteFolder(folderSlug);
-}

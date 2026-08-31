@@ -1,0 +1,13 @@
+# Production Artbin administrator MCP server.
+#
+# Run `codex mcp login artbin_production` from this repository to complete
+# 4orm OAuth. Codex discovers 4orm through Artbin's protected-resource
+# metadata and dynamically registers its public OAuth client.
+[mcp_servers.artbin_production]
+url = "https://artbin.jackharrhy.dev/mcp"
+scopes = ["artbin:admin"]
+enabled = true
+required = false
+startup_timeout_sec = 15
+tool_timeout_sec = 90
+default_tools_approval_mode = "prompt"

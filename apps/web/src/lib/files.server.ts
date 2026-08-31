@@ -376,6 +376,7 @@ export interface IngestFileOptions {
   mimeType?: string;
   width?: number | null;
   height?: number | null;
+  overwrite?: boolean;
 }
 
 export interface IngestFileResult {
@@ -469,7 +470,7 @@ export async function ingestFile(
       opts.buffer,
       opts.folderSlug,
       opts.fileName,
-      true,
+      opts.overwrite ?? true,
     );
 
     // 2. Detect file kind (unless pre-computed)

@@ -2,8 +2,18 @@ import { z } from "zod";
 
 import type { OperationContext } from "./context.ts";
 import {
+  assetDeleteInput,
+  assetListInput,
+  assetUploadInput,
+  deleteAssetOperation,
+  listAssetsOperation,
+  uploadAssetOperation,
+} from "./assets.ts";
+import {
   createFoldersOperation,
+  deleteFolderOperation,
   folderCreateInput,
+  folderDeleteInput,
   folderListInput,
   folderManageInput,
   listFoldersOperation,
@@ -90,6 +100,21 @@ const storedFolder = z.object({
   createdAt: z.string().nullable(),
 });
 
+const assetSummary = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    path: z.string(),
+    folderSlug: z.string(),
+    kind: z.string(),
+    mimeType: z.string(),
+    size: z.number(),
+    sha256: z.string().nullable(),
+    status: z.enum(["pending", "approved", "rejected"]),
+    createdAt: z.string().nullable(),
+  })
+  .strict();
+
 const jobOutput = z.object({
   id: z.string(),
   type: z.string(),
@@ -127,6 +152,7 @@ export const operationCatalog = {
     input: folderListInput,
     output: z.object({
       folders: z.array(folderSummary).optional(),
+      nextCursor: z.string().optional(),
       folder: folderSummary
         .extend({
           children: z.array(folderSummary),
@@ -136,6 +162,50 @@ export const operationCatalog = {
     }),
     annotations: readAnnotations,
     run: listFoldersOperation,
+  }),
+  folderDelete: defineOperation({
+    mcpName: "artbin_folder_delete",
+    description:
+      "Plan or explicitly confirm deletion of a folder, its descendants, and their assets.",
+    input: folderDeleteInput,
+    output: z.object({
+      applied: z.boolean(),
+      plan: z.object({
+        folder: z.object({ id: z.string(), name: z.string(), slug: z.string() }),
+        affected: z.object({ folders: z.number(), files: z.number() }),
+      }),
+      deleted: z.object({ folders: z.number(), files: z.number() }).optional(),
+    }),
+    annotations: executionAnnotations,
+    run: deleteFolderOperation,
+  }),
+  assetsList: defineOperation({
+    mcpName: "artbin_assets_list",
+    description: "List assets with bounded, cursor-based pagination and optional filters.",
+    input: assetListInput,
+    output: z.object({ assets: z.array(assetSummary), nextCursor: z.string().optional() }),
+    annotations: readAnnotations,
+    run: listAssetsOperation,
+  }),
+  assetUpload: defineOperation({
+    mcpName: "artbin_asset_upload",
+    description: "Upload one base64-encoded asset of up to 5 MiB into an existing folder.",
+    input: assetUploadInput,
+    output: z.object({ asset: assetSummary }),
+    annotations: executionAnnotations,
+    run: uploadAssetOperation,
+  }),
+  assetDelete: defineOperation({
+    mcpName: "artbin_asset_delete",
+    description: "Plan or explicitly confirm deletion of one asset and its stored bytes.",
+    input: assetDeleteInput,
+    output: z.object({
+      applied: z.boolean(),
+      plan: z.object({ asset: assetSummary }),
+      deleted: z.object({ id: z.string(), path: z.string() }).optional(),
+    }),
+    annotations: executionAnnotations,
+    run: deleteAssetOperation,
   }),
   foldersCreate: defineOperation({
     mcpName: "artbin_folders_create",
