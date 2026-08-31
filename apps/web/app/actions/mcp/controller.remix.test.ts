@@ -291,6 +291,22 @@ describe("administrator MCP", () => {
     assert.equal(moved.result.structuredContent.asset.folderSlug, "mcp-audit/moved");
     assert.equal(existsSync(getFilePath(asset.path)), false);
     assert.equal(existsSync(getFilePath(moved.result.structuredContent.asset.path)), true);
+    assert.equal(
+      (
+        await harness.database.db.query.folders.findFirst({
+          where: (table, { eq }) => eq(table.slug, "mcp-audit/assets"),
+        })
+      )?.fileCount,
+      1,
+    );
+    assert.equal(
+      (
+        await harness.database.db.query.folders.findFirst({
+          where: (table, { eq }) => eq(table.slug, "mcp-audit/moved"),
+        })
+      )?.fileCount,
+      1,
+    );
 
     const assetPlan = await mcpTool("admin-token", "artbin_asset_delete", {
       fileId: asset.id,

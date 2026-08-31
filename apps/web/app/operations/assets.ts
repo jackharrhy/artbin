@@ -4,7 +4,13 @@ import { z } from "zod";
 
 import { files, folders } from "#db";
 import { db } from "#db/connection.server";
-import { deleteFile, deleteFileRecord, ingestFile, moveFile } from "#lib/files.server";
+import {
+  deleteFile,
+  deleteFileRecord,
+  ingestFile,
+  moveFile,
+  recalculateFolderCounts,
+} from "#lib/files.server";
 
 import type { OperationContext } from "./context.ts";
 import { requireOperationAdmin } from "./context.ts";
@@ -186,8 +192,14 @@ export async function moveAssetOperation(
       .update(files)
       .set({ folderId: destination.id, path: toPath })
       .where(eq(files.id, file.id));
+    await recalculateFolderCounts([source.id, destination.id]);
   } catch (error) {
     await moveFile(toPath, file.path);
+    await db
+      .update(files)
+      .set({ folderId: source.id, path: file.path })
+      .where(eq(files.id, file.id));
+    await recalculateFolderCounts([source.id, destination.id]);
     throw error;
   }
   const moved = await db.query.files.findFirst({ where: eq(files.id, file.id) });
