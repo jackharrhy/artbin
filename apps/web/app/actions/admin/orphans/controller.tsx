@@ -465,6 +465,8 @@ async function walkDirectory(directory: string, base: string): Promise<string[]>
     else if (
       entry.isFile() &&
       !entry.name.endsWith(".preview.png") &&
+      !entry.name.endsWith(".artbin-bsp.json") &&
+      !entry.name.endsWith(".worldview-walkability.json") &&
       entry.name !== "_folder-preview.png"
     ) {
       paths.push(relative(base, fullPath));

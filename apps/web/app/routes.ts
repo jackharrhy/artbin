@@ -76,6 +76,13 @@ export function mediaFileHref(
   return preview ? `${href}?preview=1` : href;
 }
 
+export function mediaBspWalkabilityHref(file: { id: string; name: string }): string {
+  return routes.mediaFile.href({
+    fileId: file.id,
+    filename: file.name.replace(/\.bsp$/i, ".worldview-walkability.json"),
+  });
+}
+
 export function mediaFolderPreviewHref(folder: { id: string; previewPath: string }): string {
   const filename = folder.previewPath.replaceAll("\\", "/").split("/").at(-1)!;
   return routes.mediaFolderPreview.href({ folderId: folder.id, filename });

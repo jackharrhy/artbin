@@ -1,6 +1,6 @@
 import { basename, dirname } from "node:path";
 
-import { and, eq, or, sql } from "drizzle-orm";
+import { and, eq, inArray, or, sql } from "drizzle-orm";
 
 import type { User } from "#db";
 import { files } from "#db";
@@ -31,8 +31,50 @@ export async function resolveBspWad(
   return selectBspAsset(bsp.path, candidates);
 }
 
+export async function resolveBspWads(
+  bsp: AssetFile,
+  requestedNames: readonly string[],
+  user: User,
+): Promise<BspAsset[]> {
+  const names = [
+    ...new Set(
+      requestedNames
+        .filter((name) => isSafeLeafName(name) && name.toLowerCase().endsWith(".wad"))
+        .map((name) => name.toLowerCase()),
+    ),
+  ];
+  if (names.length === 0) return [];
+  const visibility = user.isAdmin
+    ? undefined
+    : or(eq(files.status, "approved"), eq(files.uploaderId, user.id));
+  const candidates = await db.query.files.findMany({
+    where: and(inArray(sql`lower(${files.name})`, names), visibility),
+  });
+  return names.flatMap((name) => {
+    const selected = selectBspAsset(
+      bsp.path,
+      candidates.filter((candidate) => candidate.name.toLowerCase() === name),
+    );
+    return selected ? [uploadAsset(selected)] : [];
+  });
+}
+
+export async function resolveApprovedBspWad(
+  bsp: AssetFile,
+  requestedName: string,
+): Promise<BspAsset | null> {
+  if (!isSafeLeafName(requestedName) || !requestedName.toLowerCase().endsWith(".wad")) return null;
+  const candidates = (await findApprovedNamedFiles(requestedName)).map(uploadAsset);
+  return selectBspAsset(bsp.path, candidates);
+}
+
 export async function resolveBspPalette(bsp: AssetFile, user: User): Promise<BspAsset | null> {
   const candidates = (await findVisibleNamedFiles("palette.lmp", user)).map(uploadAsset);
+  return selectBspAsset(bsp.path, candidates);
+}
+
+export async function resolveApprovedBspPalette(bsp: AssetFile): Promise<BspAsset | null> {
+  const candidates = (await findApprovedNamedFiles("palette.lmp")).map(uploadAsset);
   return selectBspAsset(bsp.path, candidates);
 }
 
@@ -107,6 +149,12 @@ async function findVisibleNamedFiles(name: string, user: User): Promise<AssetFil
     : or(eq(files.status, "approved"), eq(files.uploaderId, user.id));
   return db.query.files.findMany({
     where: and(sql`lower(${files.name}) = lower(${name})`, visibility),
+  });
+}
+
+async function findApprovedNamedFiles(name: string): Promise<AssetFile[]> {
+  return db.query.files.findMany({
+    where: and(sql`lower(${files.name}) = lower(${name})`, eq(files.status, "approved")),
   });
 }
 

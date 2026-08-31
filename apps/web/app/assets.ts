@@ -42,6 +42,8 @@ export const assetServer = createAssetServer({
 });
 
 const entry = "apps/web/app/actions/public/entry.ts";
+const bspOverviewEntry = "apps/web/app/actions/public/bsp-overview-renderer.ts";
 
 export const entryHref = await assetServer.getHref(entry);
 export const entryPreloads = await assetServer.getPreloads(entry);
+export const bspOverviewEntryHref = await assetServer.getHref(bspOverviewEntry);

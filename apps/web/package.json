@@ -24,7 +24,7 @@
   "dependencies": {
     "7zip-bin-full": "^26.2.1",
     "@artbin/core": "workspace:*",
-    "@jackharrhy/worldview": "^0.1.0",
+    "@jackharrhy/worldview": "^0.3.0",
     "@tscircuit/alphabet": "^0.0.26",
     "archiver": "^8.0.0",
     "better-result": "^3.0.1",
@@ -32,6 +32,7 @@
     "drizzle-orm": "^0.45.2",
     "evlog": "^2.27.0",
     "nanoid": "^6.0.1",
+    "playwright": "^1.62.1",
     "poppygl": "^0.0.28",
     "remix": "3.0.0-beta.10",
     "sharp": "^0.35.3",
@@ -44,7 +45,6 @@
     "@types/node": "^26.3.0",
     "@types/three": "^0.185.4",
     "drizzle-kit": "^0.31.10",
-    "playwright": "^1.62.1",
     "typescript": "^7.0.2",
     "vitest": "^4.1.11"
   },

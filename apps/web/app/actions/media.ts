@@ -7,6 +7,7 @@ import { createFileResponse } from "remix/response/file";
 import { files, folders, type User } from "#db";
 import { db } from "#db/connection.server";
 import { getFilePath, getPreviewPath } from "#lib/files.server";
+import { getBspWalkabilityPath } from "#lib/bsp-derivatives.server";
 
 export async function serveMediaFile(input: {
   request: Request;
@@ -22,17 +23,27 @@ export async function serveMediaFile(input: {
   if (!file) return notFound();
 
   const preview = new URL(input.request.url).searchParams.get("preview") === "1";
-  const expectedFilename = preview ? `${file.name}.preview.png` : file.name;
+  const walkabilityFilename = file.name.replace(/\.bsp$/i, ".worldview-walkability.json");
+  const walkability = /\.bsp$/i.test(file.name) && input.filename === walkabilityFilename;
+  const expectedFilename = walkability
+    ? walkabilityFilename
+    : preview
+      ? `${file.name}.preview.png`
+      : file.name;
   if (input.filename !== expectedFilename || (preview && !file.hasPreview)) return notFound();
 
-  const path = preview ? getPreviewPath(file.path) : getFilePath(file.path);
+  const path = walkability
+    ? getBspWalkabilityPath(file.path)
+    : preview
+      ? getPreviewPath(file.path)
+      : getFilePath(file.path);
   const lazyFile = openLazyFile(path, {
     name: expectedFilename,
-    type: preview ? "image/png" : file.mimeType,
+    type: walkability ? "application/json" : preview ? "image/png" : file.mimeType,
   });
   try {
     return await createFileResponse(lazyFile, input.request, {
-      cacheControl: "private, max-age=3600",
+      cacheControl: preview || walkability ? "private, no-cache" : "private, max-age=3600",
     });
   } catch {
     return notFound();
@@ -55,7 +66,7 @@ export async function serveFolderPreview(input: {
   });
   try {
     return await createFileResponse(lazyFile, input.request, {
-      cacheControl: "private, max-age=3600",
+      cacheControl: "private, no-cache",
     });
   } catch {
     return notFound();

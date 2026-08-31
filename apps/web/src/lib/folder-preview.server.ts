@@ -10,7 +10,8 @@ import { files, folders } from "#db";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { join } from "path";
 import { existsSync } from "fs";
-import { unlink } from "fs/promises";
+import { rename, unlink } from "fs/promises";
+import { randomUUID } from "crypto";
 import { UPLOADS_DIR, getFilePath, slugToPath, ensureDir } from "./files.server.ts";
 import { getDescendantFolderIds } from "./file-queries.server.ts";
 import { createRequestLogger } from "evlog";
@@ -155,6 +156,7 @@ export async function generateFolderPreview(folderId: string): Promise<string | 
   const texturePaths = await getPreviewTexturesRecursive(folderId);
 
   if (texturePaths.length === 0) {
+    await clearFolderPreview(folder);
     return null;
   }
 
@@ -193,6 +195,7 @@ export async function generateFolderPreview(folderId: string): Promise<string | 
     }
 
     if (thumbnails.length === 0) {
+      await clearFolderPreview(folder);
       return null;
     }
 
@@ -215,8 +218,15 @@ export async function generateFolderPreview(folderId: string): Promise<string | 
     // Save the preview
     const previewPath = getFolderPreviewPath(folder.slug);
     const fullPath = getFolderPreviewFullPath(folder.slug);
+    const temporaryPath = `${fullPath}.tmp-${randomUUID()}.png`;
 
-    await composite.toFile(fullPath);
+    try {
+      await composite.toFile(temporaryPath);
+      await rename(temporaryPath, fullPath);
+    } catch (error) {
+      await unlink(temporaryPath).catch(() => {});
+      throw error;
+    }
 
     // Update folder record with preview path
     await db.update(folders).set({ previewPath }).where(eq(folders.id, folderId));
@@ -231,21 +241,22 @@ export async function generateFolderPreview(folderId: string): Promise<string | 
   }
 }
 
+async function clearFolderPreview(folder: typeof folders.$inferSelect): Promise<void> {
+  const paths = new Set([
+    getFolderPreviewFullPath(folder.slug),
+    ...(folder.previewPath ? [join(UPLOADS_DIR, folder.previewPath)] : []),
+  ]);
+  await Promise.all([...paths].map((path) => unlink(path).catch(() => {})));
+  await db.update(folders).set({ previewPath: null }).where(eq(folders.id, folder.id));
+}
+
 export async function deleteFolderPreview(folderId: string): Promise<void> {
   const folder = await db.query.folders.findFirst({
     where: eq(folders.id, folderId),
   });
 
-  if (!folder || !folder.previewPath) return;
-
-  try {
-    const fullPath = join(UPLOADS_DIR, folder.previewPath);
-    await unlink(fullPath);
-  } catch {
-    // Ignore if file doesn't exist
-  }
-
-  await db.update(folders).set({ previewPath: null }).where(eq(folders.id, folderId));
+  if (!folder) return;
+  await clearFolderPreview(folder);
 }
 
 export async function regenerateAllFolderPreviews(): Promise<number> {

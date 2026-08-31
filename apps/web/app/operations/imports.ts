@@ -97,7 +97,7 @@ export async function queueImportOperation(
     type,
     input:
       input.kind === "regenerate-previews"
-        ? { userId: context.user.id, includeModels: true }
+        ? { userId: context.user.id, includeModels: true, includeMaps: true }
         : { userId: context.user.id },
     userId: context.user.id,
   });
