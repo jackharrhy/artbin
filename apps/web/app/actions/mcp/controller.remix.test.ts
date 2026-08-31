@@ -276,7 +276,10 @@ describe("administrator MCP", () => {
       execution: { mode: "plan" },
     });
     assert.equal(movePlan.result.structuredContent.applied, false);
-    assert.equal(movePlan.result.structuredContent.plan.destination.path, `mcp-audit/moved/${probeName}`);
+    assert.equal(
+      movePlan.result.structuredContent.plan.destination.path,
+      `mcp-audit/moved/${probeName}`,
+    );
     assert.equal(existsSync(getFilePath(asset.path)), true);
 
     const moved = await mcpTool("admin-token", "artbin_asset_move", {

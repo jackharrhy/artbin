@@ -182,7 +182,10 @@ export async function moveAssetOperation(
   }
   await moveFile(file.path, toPath);
   try {
-    await db.update(files).set({ folderId: destination.id, path: toPath }).where(eq(files.id, file.id));
+    await db
+      .update(files)
+      .set({ folderId: destination.id, path: toPath })
+      .where(eq(files.id, file.id));
   } catch (error) {
     await moveFile(toPath, file.path);
     throw error;
