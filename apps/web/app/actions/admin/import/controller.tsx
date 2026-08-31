@@ -201,7 +201,7 @@ export default createController(routes.admin.import, {
               <Panel>
                 <input type="hidden" name="intent" value="regenerate-previews" />
                 <p mix={descriptionStyle}>
-                  Generate missing model previews and refresh folder preview images.
+                  Regenerate BSP overviews, missing model previews, and folder preview images.
                 </p>
                 <Button type="submit">Regenerate previews</Button>
               </Panel>
@@ -239,33 +239,50 @@ export default createController(routes.admin.import, {
       const form = await context.request.formData();
       const intent = form.get("intent");
 
-      let input: unknown;
+      let queue: () => Promise<unknown>;
       if (intent === "remote-site-import") {
-        input = {
-          kind: "remote",
-          sourceUrls: stringValue(form.get("sourceUrls"))
-            .split(/\r?\n/)
-            .map((url) => url.trim())
-            .filter(Boolean),
-          targetFolderId: stringValue(form.get("targetFolderId")) || null,
-        };
+        queue = () =>
+          operationCatalog.importQueue.execute(
+            { user, channel: "admin" },
+            {
+              kind: "remote",
+              sourceUrls: stringValue(form.get("sourceUrls"))
+                .split(/\r?\n/)
+                .map((url) => url.trim())
+                .filter(Boolean),
+              targetFolderId: stringValue(form.get("targetFolderId")) || null,
+              confirm: true,
+            },
+          );
       } else if (intent === "folder-import") {
-        input = {
-          kind: "folder",
-          sourcePath: stringValue(form.get("folderPath")).trim(),
-          collectionName: stringValue(form.get("folderName")).trim() || undefined,
-        };
-      } else if (intent === "regenerate-previews") input = { kind: "regenerate-previews" };
-      else if (intent === "texturetown" || intent === "texture-station" || intent === "sadgrl") {
-        input = { kind: "catalog", source: intent };
+        queue = () =>
+          operationCatalog.importQueue.execute(
+            { user, channel: "admin" },
+            {
+              kind: "folder",
+              sourcePath: stringValue(form.get("folderPath")).trim(),
+              collectionName: stringValue(form.get("folderName")).trim() || undefined,
+              confirm: true,
+            },
+          );
+      } else if (intent === "regenerate-previews") {
+        queue = () =>
+          operationCatalog.previewRegenerate.execute(
+            { user, channel: "admin" },
+            { target: { scope: "all" }, confirm: true },
+          );
+      } else if (intent === "texturetown" || intent === "texture-station" || intent === "sadgrl") {
+        queue = () =>
+          operationCatalog.importQueue.execute(
+            { user, channel: "admin" },
+            { kind: "catalog", source: intent, confirm: true },
+          );
       } else {
         return new Response("Unknown import action", { status: 400 });
       }
 
-      if (input && typeof input === "object") input = { ...input, confirm: true };
-
       try {
-        await operationCatalog.importQueue.execute({ user, channel: "admin" }, input);
+        await queue();
       } catch (error) {
         return operationErrorResponse(error);
       }

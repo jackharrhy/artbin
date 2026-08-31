@@ -70,12 +70,25 @@ describe("preview regeneration job", () => {
       status: "approved",
       hasPreview: false,
     });
-    const job = await createJob({ type: "regenerate-previews", input: {} });
-
-    const result = await handleRegeneratePreviews(job, {
-      includeModels: false,
-      includeMaps: true,
+    await db.insert(files).values({
+      id: "other-map",
+      path: "maps/other.bsp",
+      name: "other.bsp",
+      mimeType: "application/octet-stream",
+      size: 64,
+      kind: "map",
+      folderId: "maps",
+      status: "approved",
+      hasPreview: false,
     });
+    const target = { scope: "file" as const, fileId: "map" };
+    const input = {
+      userId: "admin",
+      target,
+    };
+    const job = await createJob({ type: "regenerate-previews", input });
+
+    const result = await handleRegeneratePreviews(job, input);
 
     expect(generateBspDerivatives).toHaveBeenCalledOnce();
     expect(writeFile).toHaveBeenCalledWith(
@@ -93,5 +106,7 @@ describe("preview regeneration job", () => {
     expect(result.mapPreviews).toBe(1);
     const updated = await db.query.files.findFirst({ where: eq(files.id, "map") });
     expect(updated?.hasPreview).toBe(true);
+    const untouched = await db.query.files.findFirst({ where: eq(files.id, "other-map") });
+    expect(untouched?.hasPreview).toBe(false);
   });
 });

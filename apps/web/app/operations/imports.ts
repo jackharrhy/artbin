@@ -28,7 +28,6 @@ export const importQueueInput = z.discriminatedUnion("kind", [
       confirm: z.literal(true),
     })
     .strict(),
-  z.object({ kind: z.literal("regenerate-previews"), confirm: z.literal(true) }).strict(),
   z
     .object({
       kind: z.literal("catalog"),
@@ -86,19 +85,14 @@ export async function queueImportOperation(
   }
 
   const type =
-    input.kind === "regenerate-previews"
-      ? "regenerate-previews"
-      : input.source === "texturetown"
-        ? "texturetown-import"
-        : input.source === "texture-station"
-          ? "texture-station-import"
-          : "sadgrl-import";
+    input.source === "texturetown"
+      ? "texturetown-import"
+      : input.source === "texture-station"
+        ? "texture-station-import"
+        : "sadgrl-import";
   const job = await createJob({
     type,
-    input:
-      input.kind === "regenerate-previews"
-        ? { userId: context.user.id, includeModels: true, includeMaps: true }
-        : { userId: context.user.id },
+    input: { userId: context.user.id },
     userId: context.user.id,
   });
   return { count: 1, jobIds: [job.id] };

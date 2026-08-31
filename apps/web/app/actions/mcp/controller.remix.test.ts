@@ -123,6 +123,7 @@ describe("administrator MCP", () => {
       "artbin_folder_manage",
       "artbin_jobs_list",
       "artbin_job_manage",
+      "artbin_preview_regenerate",
       "artbin_import_queue",
     ]);
     const tools = (
@@ -185,8 +186,8 @@ describe("administrator MCP", () => {
           jsonrpc: "2.0",
           method: "tools/call",
           params: {
-            name: "artbin_import_queue",
-            arguments: { kind: "regenerate-previews", confirm: true },
+            name: "artbin_preview_regenerate",
+            arguments: { target: { scope: "all" }, confirm: true },
           },
         }),
       }),
@@ -464,15 +465,33 @@ describe("administrator MCP", () => {
     assert.equal(reset.result.structuredContent.job.status, "pending");
   });
 
-  it("queues maintenance imports through the shared operation", async () => {
-    const queued = await mcpTool("admin-token", "artbin_import_queue", {
-      kind: "regenerate-previews",
+  it("queues targeted preview regeneration through the shared operation", async () => {
+    await harness.database.db.insert(folders).values({ id: "maps", name: "Maps", slug: "maps" });
+    await harness.database.db.insert(files).values({
+      id: "target-map",
+      path: "maps/target.bsp",
+      name: "target.bsp",
+      mimeType: "application/x-bsp",
+      size: 64,
+      kind: "map",
+      folderId: "maps",
+      status: "approved",
+    });
+    const queued = await mcpTool("admin-token", "artbin_preview_regenerate", {
+      target: { scope: "file", fileId: "target-map" },
       confirm: true,
     });
-    assert.equal(queued.result.structuredContent.count, 1);
+    assert.equal(queued.result.structuredContent.target.fileId, "target-map");
     const job = await harness.database.db.query.jobs.findFirst();
     assert.equal(job?.type, "regenerate-previews");
     assert.equal(job?.userId, "admin");
+    assert.deepEqual(JSON.parse(job!.input).target, { scope: "file", fileId: "target-map" });
+
+    const rejected = await mcpTool("admin-token", "artbin_preview_regenerate", {
+      target: { scope: "file", fileId: "missing" },
+      confirm: true,
+    });
+    assert.equal(rejected.result.isError, true);
   });
 
   it("queues every import variant through MCP", async () => {

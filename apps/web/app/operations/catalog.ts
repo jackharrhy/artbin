@@ -23,6 +23,7 @@ import {
 } from "./folders.ts";
 import { jobListInput, jobManageInput, listJobsOperation, manageJobOperation } from "./jobs.ts";
 import { importQueueInput, queueImportOperation } from "./imports.ts";
+import { previewRegenerateInput, queuePreviewRegenerationOperation } from "./previews.ts";
 
 type OperationDefinition<S extends z.ZodType, O> = {
   mcpName: string;
@@ -287,10 +288,21 @@ export const operationCatalog = {
     annotations: executionAnnotations,
     run: manageJobOperation,
   }),
+  previewRegenerate: defineOperation({
+    mcpName: "artbin_preview_regenerate",
+    description:
+      "Queue preview regeneration for one BSP file, one folder's direct BSP files, or the full library. Requires confirm=true.",
+    input: previewRegenerateInput,
+    output: z.object({
+      jobId: z.string(),
+      target: previewRegenerateInput.shape.target,
+    }),
+    annotations: executionAnnotations,
+    run: queuePreviewRegenerationOperation,
+  }),
   importQueue: defineOperation({
     mcpName: "artbin_import_queue",
-    description:
-      "Queue a remote, local-folder, preview-regeneration, or built-in catalog import. Requires confirm=true.",
+    description: "Queue a remote, local-folder, or built-in catalog import. Requires confirm=true.",
     input: importQueueInput,
     output: z.object({ count: z.number(), jobIds: z.array(z.string()) }).strict(),
     annotations: { ...executionAnnotations, openWorldHint: true },

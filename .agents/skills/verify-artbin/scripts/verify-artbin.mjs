@@ -203,6 +203,7 @@ try {
     await page.goto(`${baseUrl}/admin/mcp`, { waitUntil: "networkidle" });
     await page.getByRole("heading", { name: "Administrator MCP server", exact: true }).waitFor();
     await page.getByText("artbin_folder_manage", { exact: false }).waitFor();
+    await page.getByText("artbin_preview_regenerate", { exact: false }).waitFor();
     check((await page.getByText("artbin:admin", { exact: true }).count()) === 1, "MCP scope was not shown once");
     const unauthorized = await page.request.post(`${baseUrl}/mcp`, {
       data: { jsonrpc: "2.0", id: 1, method: "tools/list", params: {} },
