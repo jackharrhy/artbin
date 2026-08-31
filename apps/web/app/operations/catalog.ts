@@ -4,9 +4,11 @@ import type { OperationContext } from "./context.ts";
 import {
   assetDeleteInput,
   assetListInput,
+  assetMoveInput,
   assetUploadInput,
   deleteAssetOperation,
   listAssetsOperation,
+  moveAssetOperation,
   uploadAssetOperation,
 } from "./assets.ts";
 import {
@@ -206,6 +208,22 @@ export const operationCatalog = {
     }),
     annotations: executionAnnotations,
     run: deleteAssetOperation,
+  }),
+  assetMove: defineOperation({
+    mcpName: "artbin_asset_move",
+    description: "Plan or explicitly confirm moving one asset to another existing folder.",
+    input: assetMoveInput,
+    output: z.object({
+      applied: z.boolean(),
+      plan: z.object({
+        asset: assetSummary,
+        destination: z.object({ id: z.string(), slug: z.string(), path: z.string() }),
+        noOp: z.boolean(),
+      }),
+      asset: assetSummary.optional(),
+    }),
+    annotations: executionAnnotations,
+    run: moveAssetOperation,
   }),
   foldersCreate: defineOperation({
     mcpName: "artbin_folders_create",

@@ -1,10 +1,10 @@
 import { cleanFolderPath } from "@artbin/core/detection/filenames";
-import { eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { z } from "zod";
 
 import { files, folders } from "#db";
 import { db } from "#db/connection.server";
-import { deleteFile, deleteFileRecord, ingestFile } from "#lib/files.server";
+import { deleteFile, deleteFileRecord, ingestFile, moveFile } from "#lib/files.server";
 
 import type { OperationContext } from "./context.ts";
 import { requireOperationAdmin } from "./context.ts";
@@ -42,6 +42,17 @@ export const assetDeleteInput = z
           confirmationName: z.string(),
         })
         .strict(),
+    ]),
+  })
+  .strict();
+
+export const assetMoveInput = z
+  .object({
+    fileId: z.string().min(1),
+    destinationSlug: z.string().min(1),
+    execution: z.discriminatedUnion("mode", [
+      z.object({ mode: z.literal("plan") }).strict(),
+      z.object({ mode: z.literal("apply"), confirm: z.literal(true) }).strict(),
     ]),
   })
   .strict();
@@ -136,4 +147,47 @@ export async function deleteAssetOperation(
   const deleted = await deleteFileRecord(file.id);
   if (deleted.isErr()) throw new OperationError(deleted.error.message, "operation_failed", 400);
   return { applied: true as const, plan, deleted: { id: file.id, path: file.path } };
+}
+
+export async function moveAssetOperation(
+  context: OperationContext,
+  input: z.output<typeof assetMoveInput>,
+) {
+  requireOperationAdmin(context);
+  const file = await db.query.files.findFirst({ where: eq(files.id, input.fileId) });
+  if (!file) throw new OperationError("Asset not found", "not_found", 404);
+  const source = await db.query.folders.findFirst({ where: eq(folders.id, file.folderId) });
+  const destinationSlug = cleanFolderPath(input.destinationSlug);
+  if (!source || source.slug.startsWith("_") || destinationSlug !== input.destinationSlug) {
+    throw new OperationError("Asset not found", "not_found", 404);
+  }
+  const destination = await db.query.folders.findFirst({
+    where: and(eq(folders.slug, destinationSlug), ne(folders.slug, "_provided")),
+  });
+  if (!destination || destination.slug.startsWith("_")) {
+    throw new OperationError("Destination folder not found", "not_found", 404);
+  }
+  const toPath = `${destination.slug}/${file.name}`;
+  const collision = await db.query.files.findFirst({ where: eq(files.path, toPath) });
+  if (collision && collision.id !== file.id) {
+    throw new OperationError("An asset already exists at the destination", "conflict", 409);
+  }
+  const plan = {
+    asset: serializeAsset(file, source.slug),
+    destination: { id: destination.id, slug: destination.slug, path: toPath },
+    noOp: file.folderId === destination.id,
+  };
+  if (input.execution.mode === "plan" || plan.noOp) {
+    return { applied: false as const, plan };
+  }
+  await moveFile(file.path, toPath);
+  try {
+    await db.update(files).set({ folderId: destination.id, path: toPath }).where(eq(files.id, file.id));
+  } catch (error) {
+    await moveFile(toPath, file.path);
+    throw error;
+  }
+  const moved = await db.query.files.findFirst({ where: eq(files.id, file.id) });
+  if (!moved) throw new Error("Moved asset record was not found");
+  return { applied: true as const, plan, asset: serializeAsset(moved, destination.slug) };
 }

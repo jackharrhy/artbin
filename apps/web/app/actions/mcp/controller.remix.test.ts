@@ -118,6 +118,7 @@ describe("administrator MCP", () => {
       "artbin_assets_list",
       "artbin_asset_upload",
       "artbin_asset_delete",
+      "artbin_asset_move",
       "artbin_folders_create",
       "artbin_folder_manage",
       "artbin_jobs_list",
@@ -235,10 +236,11 @@ describe("administrator MCP", () => {
       folders: [
         { slug: "mcp-audit", name: "MCP Audit", parentSlug: null },
         { slug: "mcp-audit/assets", name: "Assets", parentSlug: "mcp-audit" },
+        { slug: "mcp-audit/moved", name: "Moved", parentSlug: "mcp-audit" },
       ],
       execution: { mode: "apply", confirm: true },
     });
-    assert.equal(created.result.structuredContent.created.length, 2);
+    assert.equal(created.result.structuredContent.created.length, 3);
 
     const uploaded = await mcpTool("admin-token", "artbin_asset_upload", {
       folderSlug: "mcp-audit/assets",
@@ -268,6 +270,25 @@ describe("administrator MCP", () => {
       [asset.id, duplicateAsset.id],
     );
 
+    const movePlan = await mcpTool("admin-token", "artbin_asset_move", {
+      fileId: asset.id,
+      destinationSlug: "mcp-audit/moved",
+      execution: { mode: "plan" },
+    });
+    assert.equal(movePlan.result.structuredContent.applied, false);
+    assert.equal(movePlan.result.structuredContent.plan.destination.path, `mcp-audit/moved/${probeName}`);
+    assert.equal(existsSync(getFilePath(asset.path)), true);
+
+    const moved = await mcpTool("admin-token", "artbin_asset_move", {
+      fileId: asset.id,
+      destinationSlug: "mcp-audit/moved",
+      execution: { mode: "apply", confirm: true },
+    });
+    assert.equal(moved.result.structuredContent.applied, true);
+    assert.equal(moved.result.structuredContent.asset.folderSlug, "mcp-audit/moved");
+    assert.equal(existsSync(getFilePath(asset.path)), false);
+    assert.equal(existsSync(getFilePath(moved.result.structuredContent.asset.path)), true);
+
     const assetPlan = await mcpTool("admin-token", "artbin_asset_delete", {
       fileId: asset.id,
       execution: { mode: "plan" },
@@ -278,7 +299,7 @@ describe("administrator MCP", () => {
       execution: { mode: "apply", confirm: true, confirmationName: probeName },
     });
     assert.equal(deletedAsset.result.structuredContent.applied, true);
-    assert.equal(existsSync(getFilePath(asset.path)), false);
+    assert.equal(existsSync(getFilePath(moved.result.structuredContent.asset.path)), false);
     assert.equal(
       await harness.database.db.query.files.findFirst({
         where: (table, { eq }) => eq(table.id, asset.id),
@@ -295,12 +316,12 @@ describe("administrator MCP", () => {
       slug: "mcp-audit",
       execution: { mode: "plan" },
     });
-    assert.deepEqual(folderPlan.result.structuredContent.plan.affected, { folders: 2, files: 0 });
+    assert.deepEqual(folderPlan.result.structuredContent.plan.affected, { folders: 3, files: 0 });
     const deletedFolder = await mcpTool("admin-token", "artbin_folder_delete", {
       slug: "mcp-audit",
       execution: { mode: "apply", confirm: true, confirmationName: "MCP Audit" },
     });
-    assert.deepEqual(deletedFolder.result.structuredContent.deleted, { folders: 2, files: 0 });
+    assert.deepEqual(deletedFolder.result.structuredContent.deleted, { folders: 3, files: 0 });
     assert.deepEqual(await harness.database.db.select().from(folders), []);
     assert.deepEqual(await harness.database.db.select().from(files), []);
   });
