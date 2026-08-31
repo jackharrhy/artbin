@@ -8,6 +8,7 @@ import { eq } from "drizzle-orm";
 
 import { cliLoginHandoffs, files, folders, jobs, remoteImports, sessions, users } from "#db";
 import { setDbForTesting } from "#db/connection.server";
+import { generateFolderPreview } from "#lib/folder-preview.server";
 
 import { applyMigrations, createTestDatabase, type TestDatabase } from "../test/db.ts";
 import { makeWAD3Texture } from "../test/wad-fixture.ts";
@@ -27,6 +28,7 @@ const providedAssetsRoot = join(
 );
 const adminCookie = "artbin_session=admin-session";
 const memberCookie = "artbin_session=member-session";
+const originalCacheDirectory = process.env.ARTBIN_CACHE_DIR;
 
 let database: TestDatabase;
 const originalFetch = globalThis.fetch;
@@ -34,6 +36,7 @@ const originalFetch = globalThis.fetch;
 beforeEach(async () => {
   process.env.NODE_ENV = "test";
   process.env.ARTBIN_REQUIRE_AUTH = "1";
+  process.env.ARTBIN_CACHE_DIR = join(uploadsRoot, "cache");
   database = createTestDatabase();
   applyMigrations(database.sqlite);
   setDbForTesting(database.db);
@@ -55,6 +58,8 @@ afterEach(async () => {
   await rm(inboxUploadRoot, { recursive: true, force: true });
   await rm(inboxDestinationRoot, { recursive: true, force: true });
   await rm(providedAssetsRoot, { recursive: true, force: true });
+  if (originalCacheDirectory === undefined) delete process.env.ARTBIN_CACHE_DIR;
+  else process.env.ARTBIN_CACHE_DIR = originalCacheDirectory;
 });
 
 describe("native Remix router", () => {
@@ -590,6 +595,39 @@ describe("native Remix router", () => {
     );
     assert.equal(texture.status, 200);
     assert.match(texture.headers.get("content-type") ?? "", /text\/html/);
+  });
+
+  it("uses virtual WAD textures in folder previews", async () => {
+    const folder = await seedFolder();
+    await database.db
+      .update(folders)
+      .set({ slug: "_remix-router-test" })
+      .where(eq(folders.id, folder.id));
+    const wad = makeWAD3Texture("PREVIEW");
+    await writeFile(join(uploadsRoot, "preview.wad"), wad);
+    await database.db.insert(files).values({
+      id: "preview-wad",
+      path: "_remix-router-test/preview.wad",
+      name: "preview.wad",
+      mimeType: "application/x-wad",
+      size: wad.length,
+      kind: "archive",
+      folderId: folder.id,
+      status: "approved",
+    });
+
+    const previewPath = await generateFolderPreview(folder.id);
+    assert.equal(previewPath, "_remix-router-test/_folder-preview.png");
+    const preview = await readFile(join(uploadsRoot, "_folder-preview.png"));
+    assert.deepEqual([...preview.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
+    assert.equal(
+      (
+        await database.db.query.folders.findFirst({
+          where: eq(folders.id, folder.id),
+        })
+      )?.previewPath,
+      previewPath,
+    );
   });
 
   it("redirects legacy WAD URLs to the path-based library", async () => {

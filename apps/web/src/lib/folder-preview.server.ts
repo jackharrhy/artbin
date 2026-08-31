@@ -7,7 +7,7 @@
 import sharp from "sharp";
 import { db } from "#db/connection.server";
 import { files, folders } from "#db";
-import { eq, inArray, desc } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { join } from "path";
 import { existsSync } from "fs";
 import { unlink } from "fs/promises";
@@ -28,40 +28,6 @@ export function getFolderPreviewFullPath(folderSlug: string): string {
   return join(UPLOADS_DIR, getFolderPreviewPath(folderSlug));
 }
 
-/**
- * Get texture files from a folder for preview generation
- * Returns up to 9 texture files, preferring those with previews
- */
-async function getPreviewTextures(folderId: string): Promise<string[]> {
-  // Get textures from this folder, preferring ones with previews
-  const textures = await db
-    .select({
-      path: files.path,
-      hasPreview: files.hasPreview,
-    })
-    .from(files)
-    .where(eq(files.folderId, folderId))
-    .orderBy(desc(files.hasPreview), desc(files.createdAt))
-    .limit(GRID_SIZE * GRID_SIZE * 2); // Get more to filter
-
-  // Filter to files with displayable images (textures or models with previews)
-  return textures
-    .filter((t) => {
-      if (!t.path) return false;
-      if (t.hasPreview) return true; // Any file with a preview (models, TGA, etc.)
-      const ext = t.path.toLowerCase().split(".").pop();
-      return ["png", "jpg", "jpeg", "gif", "webp"].includes(ext || "");
-    })
-    .slice(0, GRID_SIZE * GRID_SIZE)
-    .map((t) => {
-      if (t.hasPreview) {
-        return join(UPLOADS_DIR, t.path + ".preview.png");
-      }
-      return join(UPLOADS_DIR, t.path);
-    })
-    .filter((p) => existsSync(p));
-}
-
 function shuffleArray<T>(array: T[]): T[] {
   const shuffled = [...array];
   for (let i = shuffled.length - 1; i > 0; i--) {
@@ -74,12 +40,13 @@ function shuffleArray<T>(array: T[]): T[] {
 /**
  * Get textures from a folder and all its descendants, randomly sampled
  */
-async function getPreviewTexturesRecursive(folderId: string): Promise<string[]> {
+type PreviewInput = string | Buffer;
+
+async function getPreviewTexturesRecursive(folderId: string): Promise<PreviewInput[]> {
   // Get all descendant folder IDs
   const allFolderIds = await getDescendantFolderIds(folderId);
 
-  // Get only image files (textures) from all these folders
-  // Filter by kind to avoid trying to process audio, maps, etc.
+  // Fetch a bounded candidate set; non-displayable records are filtered below.
   const textures = await db
     .select({
       path: files.path,
@@ -89,6 +56,12 @@ async function getPreviewTexturesRecursive(folderId: string): Promise<string[]> 
     .where(inArray(files.folderId, allFolderIds))
     .limit(GRID_SIZE * GRID_SIZE * 3);
 
+  const wadFiles = await db
+    .select({ path: files.path, sha256: files.sha256 })
+    .from(files)
+    .where(and(inArray(files.folderId, allFolderIds), sql`lower(${files.name}) like '%.wad'`))
+    .limit(GRID_SIZE * GRID_SIZE * 3);
+
   // Filter to files with displayable images (textures or models with previews)
   const imageTextures = textures.filter((t) => {
     if (!t.path) return false;
@@ -96,10 +69,6 @@ async function getPreviewTexturesRecursive(folderId: string): Promise<string[]> 
     const ext = t.path.toLowerCase().split(".").pop();
     return ["png", "jpg", "jpeg", "gif", "webp"].includes(ext || "");
   });
-
-  if (imageTextures.length === 0) {
-    return [];
-  }
 
   // Shuffle to get random sampling across all folders
   const shuffled = shuffleArray(imageTextures);
@@ -120,7 +89,54 @@ async function getPreviewTexturesRecursive(folderId: string): Promise<string[]> 
     }
   }
 
-  return paths;
+  const wadTextures = await getWADPreviewTextures(wadFiles, GRID_SIZE * GRID_SIZE);
+  if (wadTextures.length === 0) return paths;
+  if (paths.length === 0) return wadTextures;
+
+  const combined: PreviewInput[] = [];
+  while (combined.length < GRID_SIZE * GRID_SIZE && (paths.length || wadTextures.length)) {
+    const image = paths.shift();
+    if (image) combined.push(image);
+    const wad = wadTextures.shift();
+    if (wad && combined.length < GRID_SIZE * GRID_SIZE) combined.push(wad);
+  }
+  return shuffleArray(combined);
+}
+
+async function getWADPreviewTextures(
+  wadFiles: { path: string; sha256: string | null }[],
+  limit: number,
+): Promise<Buffer[]> {
+  if (wadFiles.length === 0) return [];
+  const { getWADTexturePreview, inspectWADFile } = await import("./wad-assets.server.ts");
+  const libraries = await Promise.all(
+    shuffleArray(wadFiles).map(async (file) => {
+      try {
+        const contents = await inspectWADFile(file.path, file.sha256);
+        return contents
+          ? { file, indices: shuffleArray(contents.textures.map((texture) => texture.index)) }
+          : null;
+      } catch {
+        return null;
+      }
+    }),
+  );
+  const available = libraries.filter((library) => library !== null);
+  const previews: Buffer[] = [];
+  while (previews.length < limit && available.some((library) => library.indices.length > 0)) {
+    for (const library of available) {
+      const textureIndex = library.indices.pop();
+      if (textureIndex === undefined) continue;
+      try {
+        const preview = await getWADTexturePreview(library.file, textureIndex);
+        if (preview) previews.push(preview);
+      } catch {
+        // A malformed texture should not prevent the rest of the folder preview.
+      }
+      if (previews.length >= limit) break;
+    }
+  }
+  return previews;
 }
 
 export async function generateFolderPreview(folderId: string): Promise<string | null> {
@@ -147,13 +163,13 @@ export async function generateFolderPreview(folderId: string): Promise<string | 
     const thumbnails: { input: Buffer; top: number; left: number }[] = [];
 
     for (let i = 0; i < texturePaths.length && i < GRID_SIZE * GRID_SIZE; i++) {
-      const texturePath = texturePaths[i];
+      const texture = texturePaths[i];
       const row = Math.floor(i / GRID_SIZE);
       const col = i % GRID_SIZE;
 
       try {
         // Resize to thumbnail, cover the area
-        const thumb = await sharp(texturePath)
+        const thumb = await sharp(texture)
           .resize(THUMB_SIZE, THUMB_SIZE, {
             fit: "cover",
             position: "center",
@@ -170,7 +186,7 @@ export async function generateFolderPreview(folderId: string): Promise<string | 
         const log = createRequestLogger();
         log.error(err instanceof Error ? err : new Error(String(err)), {
           step: "resize-thumbnail",
-          texture: texturePath,
+          texture: typeof texture === "string" ? texture : "virtual-wad-texture",
         });
         log.emit();
       }
