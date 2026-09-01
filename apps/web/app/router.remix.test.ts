@@ -284,6 +284,7 @@ describe("native Remix router", () => {
         kind: "map",
         folderId: folder.id,
         status: "approved",
+        hasPreview: true,
       },
     ]);
     await database.db.insert(remoteImports).values({
@@ -308,6 +309,7 @@ describe("native Remix router", () => {
     assert.match(html, /I'm feeling lucky/);
     assert.match(html, /href="https:\/\/scmapdb\.wikidot\.com\/map:test"/);
     assert.match(html, /SCMapDB<\/a> by Mapper for Sven Co-op\./);
+    assert.match(html, /\/media\/browse-map\/de_example\.bsp\.preview\.png\?preview=1/);
     assert.doesNotMatch(html, /react-router/);
 
     const folderMaps = await router.fetch(
@@ -317,6 +319,7 @@ describe("native Remix router", () => {
     const folderMapsHtml = await folderMaps.text();
     assert.match(folderMapsHtml, /href="\/folder\/test\?view=maps"[^>]*>Maps<span[^>]*>1<\/span>/);
     assert.match(folderMapsHtml, /de_example\.bsp/);
+    assert.match(folderMapsHtml, /\/media\/browse-map\/de_example\.bsp\.preview\.png\?preview=1/);
     assert.doesNotMatch(folderMapsHtml, /browse\.png/);
 
     const allMaps = await router.fetch(request(`${routes.folders.href()}?view=maps`, adminCookie));

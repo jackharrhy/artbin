@@ -116,9 +116,14 @@ function DirectoryPage(handle: Handle<{ data: DirectoryPageData; user: User }>) 
     const baseUrl = routes.folder.index.href({ path: folder.slug });
     const textures = files.filter((file) => file.kind === "texture");
     const models = files.filter((file) => file.kind === "model");
+    const maps = files.filter((file) => file.kind === "map");
     const wadIds = new Set(wadLibraries.map((library) => library.id));
     const otherFiles = files.filter(
-      (file) => file.kind !== "texture" && file.kind !== "model" && !wadIds.has(file.id),
+      (file) =>
+        file.kind !== "texture" &&
+        file.kind !== "model" &&
+        file.kind !== "map" &&
+        !wadIds.has(file.id),
     );
     const nextHref = data.searchResults?.nextCursor
       ? folderSearchHref(data, data.searchResults.nextCursor)
@@ -207,12 +212,13 @@ function DirectoryPage(handle: Handle<{ data: DirectoryPageData; user: User }>) 
               data={data}
               textures={textures}
               models={models}
+              maps={maps}
               otherFiles={otherFiles}
             />
           ) : (
             <FileCollection
               files={data.searchResults?.files ?? []}
-              grid={data.view === "textures" || data.view === "models"}
+              grid={data.view === "textures" || data.view === "models" || data.view === "maps"}
               showAudioPlayers={data.view === "sounds"}
               nextHref={nextHref}
             />
@@ -327,11 +333,12 @@ function FolderContents(
     data: DirectoryPageData;
     textures: DirectoryPageData["files"];
     models: DirectoryPageData["files"];
+    maps: DirectoryPageData["files"];
     otherFiles: DirectoryPageData["files"];
   }>,
 ) {
   return () => {
-    const { data, textures, models, otherFiles } = handle.props;
+    const { data, textures, models, maps, otherFiles } = handle.props;
     const baseUrl = routes.folder.index.href({ path: data.folder.slug });
     return (
       <>
@@ -405,6 +412,15 @@ function FolderContents(
             showViewAll={data.fileCounts.model > models.length}
           >
             <FileCollection files={models} grid />
+          </AssetSection>
+        ) : null}
+        {maps.length ? (
+          <AssetSection
+            title={countLabel(maps.length, data.fileCounts.map, "map")}
+            viewHref={`${baseUrl}?view=maps`}
+            showViewAll={data.fileCounts.map > maps.length}
+          >
+            <FileCollection files={maps} grid />
           </AssetSection>
         ) : null}
         {otherFiles.length ? (
