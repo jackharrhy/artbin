@@ -85,8 +85,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/core
       '@jackharrhy/worldview':
-        specifier: ^0.3.0
-        version: 0.3.0
+        specifier: ^0.4.0
+        version: 0.4.0
       '@tscircuit/alphabet':
         specifier: ^0.0.26
         version: 0.0.26(typescript@7.0.2)
@@ -705,8 +705,8 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@jackharrhy/worldview@0.3.0':
-    resolution: {integrity: sha512-tvgyLsmClqwsIO0XUt43+5KGGXQnEUHFpQubcpuUMeLv0rW9IEva9Pu9zflGiqVlVUcefg6ExnI6pjhw1EBV3w==}
+  '@jackharrhy/worldview@0.4.0':
+    resolution: {integrity: sha512-z23m7e8O+nGZlS0loiVywXfT2lBsvodBDRMVcVIkh09r1xCay3Zw3KvcpJVLPk18QwE0Ig2oUNO6X3fHx8T8Bw==}
     engines: {node: '>=24'}
 
   '@jridgewell/gen-mapping@0.3.13':
@@ -3585,7 +3585,7 @@ snapshots:
   '@img/sharp-win32-x64@0.35.3':
     optional: true
 
-  '@jackharrhy/worldview@0.3.0':
+  '@jackharrhy/worldview@0.4.0':
     dependencies:
       typegpu: 0.12.1
       wgpu-matrix: 3.4.2
