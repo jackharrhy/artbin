@@ -292,7 +292,7 @@ describe("native Remix router", () => {
       provider: "scmapdb",
       externalId: "test",
       destinationKey: "root",
-      sourceUrl: "https://scmapdb.wikidot.com",
+      sourceUrl: "https://scmapdb.wikidot.com/map:test",
       title: "Test map",
       author: "Mapper",
       game: "Sven Co-op",
@@ -308,7 +308,7 @@ describe("native Remix router", () => {
     assert.match(html, /UploadControl/);
     assert.match(html, /I'm feeling lucky/);
     assert.match(html, /href="https:\/\/scmapdb\.wikidot\.com\/map:test"/);
-    assert.match(html, /SCMapDB<\/a> by Mapper for Sven Co-op\./);
+    assert.match(html, /Test map on SCMapDB<\/a> by Mapper for Sven Co-op\./);
     assert.match(html, /\/media\/browse-map\/de_example\.bsp\.preview\.png\?preview=1/);
     assert.doesNotMatch(html, /react-router/);
 

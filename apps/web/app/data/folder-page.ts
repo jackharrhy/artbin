@@ -61,6 +61,7 @@ export async function loadFolderPage(url: URL, path: string, user: User) {
           provider: true,
           externalId: true,
           sourceUrl: true,
+          title: true,
           author: true,
           game: true,
         },

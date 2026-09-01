@@ -27,6 +27,22 @@ export interface RemoteImportManifest extends ParsedRemoteImportUrl {
   metadata: Record<string, unknown>;
 }
 
+export function describeRemoteImport(manifest: RemoteImportManifest): string {
+  if (manifest.description) return manifest.description;
+
+  const details = [
+    manifest.author ? `by ${manifest.author}` : null,
+    manifest.game ? `for ${manifest.game}` : null,
+  ].filter(Boolean);
+  const provider =
+    manifest.provider === "gamebanana"
+      ? "GameBanana"
+      : manifest.provider === "scmapdb"
+        ? "SCMapDB"
+        : new URL(manifest.canonicalUrl).hostname;
+  return `${manifest.title}${details.length ? ` ${details.join(" ")}` : ""}, published on ${provider}.`;
+}
+
 const ARCHIVE_FILE_PATTERN = /\.(?:zip|7z|rar)(?:\.\d{3})?$/i;
 const REQUEST_HEADERS = {
   "user-agent": "artbin/0.1 (+https://github.com/jackharrhy/artbin)",

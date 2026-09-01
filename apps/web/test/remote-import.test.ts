@@ -11,6 +11,7 @@ import {
   stripArchiveRoot,
 } from "#lib/archive-reader.server";
 import {
+  describeRemoteImport,
   fetchRemoteImportManifest,
   isAllowedRemoteDownloadUrl,
   parseRemoteImportUrl,
@@ -27,6 +28,21 @@ afterEach(() => {
 });
 
 describe("remote import source URLs", () => {
+  test("uses submission-specific fallback copy when a source has no description", () => {
+    expect(
+      describeRemoteImport({
+        provider: "gamebanana",
+        externalId: "580944",
+        canonicalUrl: "https://gamebanana.com/mods/580944",
+        title: "de_cyberpunk",
+        author: "spiderman32in1",
+        game: "Counter-Strike 1.6",
+        description: null,
+        files: [],
+        metadata: {},
+      }),
+    ).toBe("de_cyberpunk by spiderman32in1 for Counter-Strike 1.6, published on GameBanana.");
+  });
   test("canonicalizes supported GameBanana and SCMapDB map pages", () => {
     expect(parseRemoteImportUrl("https://www.gamebanana.com/mods/140244?foo=bar")).toEqual({
       provider: "gamebanana",

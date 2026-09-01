@@ -154,15 +154,15 @@ function DirectoryPage(handle: Handle<{ data: DirectoryPageData; user: User }>) 
 
           {data.remoteImport ? (
             <p mix={sourceStyle}>
-              Imported from{" "}
+              Source:{" "}
               <a
                 mix={sourceLinkStyle}
-                href={canonicalImportSourceHref(data.remoteImport)}
+                href={data.remoteImport.sourceUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 title={`Open the original ${providerName(data.remoteImport.provider)} source`}
               >
-                {providerName(data.remoteImport.provider)}
+                {data.remoteImport.title} on {providerName(data.remoteImport.provider)}
               </a>
               {data.remoteImport.author ? ` by ${data.remoteImport.author}` : ""}
               {data.remoteImport.game ? ` for ${data.remoteImport.game}` : ""}.
@@ -600,18 +600,6 @@ function providerName(provider: string): string {
     : provider === "scmapdb"
       ? "SCMapDB"
       : "direct archive";
-}
-
-function canonicalImportSourceHref(
-  remoteImport: NonNullable<DirectoryPageData["remoteImport"]>,
-): string {
-  if (remoteImport.provider === "gamebanana") {
-    return `https://gamebanana.com/mods/${remoteImport.externalId}`;
-  }
-  if (remoteImport.provider === "scmapdb") {
-    return `https://scmapdb.wikidot.com/map:${remoteImport.externalId}`;
-  }
-  return remoteImport.sourceUrl;
 }
 
 function folderSearchHref(data: DirectoryPageData, cursor: string): string {

@@ -24,7 +24,11 @@ import {
   stripArchiveRoot,
 } from "../archive-reader.server.ts";
 import { extractGoldSourceTextures } from "../goldsource-assets.server.ts";
-import { fetchRemoteImportManifest, type RemoteImportProvider } from "../import-sources.server.ts";
+import {
+  describeRemoteImport,
+  fetchRemoteImportManifest,
+  type RemoteImportProvider,
+} from "../import-sources.server.ts";
 import { downloadRemoteFile } from "../remote-download.server.ts";
 
 export interface RemoteImportJobInput {
@@ -44,12 +48,6 @@ export interface RemoteImportJobOutput {
   skippedFiles: number;
   filesByKind: Record<string, number>;
   errors: string[];
-}
-
-function providerName(provider: RemoteImportProvider): string {
-  if (provider === "gamebanana") return "GameBanana";
-  if (provider === "scmapdb") return "SCMapDB";
-  return "a direct archive URL";
 }
 
 const SAFE_REMOTE_ASSET_EXTENSIONS = new Set([
@@ -215,15 +213,7 @@ async function handleRemoteImport(
   await updateJobProgress(job.id, 2, "Reading source metadata...");
   const manifest = await fetchRemoteImportManifest(sourceUrl);
   const destination = await resolveDestination(targetFolderId);
-  const description =
-    manifest.description ||
-    [
-      `Imported from ${providerName(manifest.provider)}.`,
-      manifest.author ? `By ${manifest.author}.` : null,
-      manifest.game ? `For ${manifest.game}.` : null,
-    ]
-      .filter(Boolean)
-      .join(" ");
+  const description = describeRemoteImport(manifest);
   const importFolder = await getImportFolder(
     manifest.provider,
     manifest.externalId,
