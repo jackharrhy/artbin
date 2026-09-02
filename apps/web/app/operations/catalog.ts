@@ -291,7 +291,7 @@ export const operationCatalog = {
   previewRegenerate: defineOperation({
     mcpName: "artbin_preview_regenerate",
     description:
-      "Queue preview regeneration for one BSP file, one folder's direct BSP files, or the full library. Requires confirm=true.",
+      "Replace stale derivatives for one BSP file, one folder's direct BSP files, or the full library. A full refresh also rebuilds generated file and folder previews. Requires confirm=true.",
     input: previewRegenerateInput,
     output: z.object({
       jobId: z.string(),

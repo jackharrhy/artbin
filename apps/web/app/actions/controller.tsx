@@ -93,34 +93,5 @@ export default createController(routes, {
       }
       return context.render(<FileRoutePage data={data} user={context.user} />);
     },
-    async legacyWad(context) {
-      const { getVisibleWADLibrary } = await import("#lib/wad-assets.server");
-      const user = context.user;
-      if (!user) return redirect(routes.login.href(), 303);
-      const resolved = await getVisibleWADLibrary(context.params.fileId, user);
-      return resolved
-        ? redirect(routes.folder.index.href({ path: resolved.file.path }), 302)
-        : new Response("Not Found", { status: 404 });
-    },
-    async legacyWadTexture(context) {
-      const { getVisibleWADLibrary } = await import("#lib/wad-assets.server");
-      const { getWADTextureFilename } = await import("#lib/wad-paths");
-      const user = context.user;
-      if (!user) return redirect(routes.login.href(), 303);
-      const resolved = await getVisibleWADLibrary(context.params.fileId, user);
-      const index = Number.parseInt(context.params.textureIndex, 10);
-      const texture = resolved?.contents.textures[index];
-      return resolved && texture
-        ? redirect(
-            routes.file.href({
-              path: `${resolved.file.path}/${getWADTextureFilename(
-                texture,
-                resolved.contents.textures,
-              )}`,
-            }),
-            302,
-          )
-        : new Response("Not Found", { status: 404 });
-    },
   },
 });

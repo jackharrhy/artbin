@@ -1,11 +1,17 @@
 import { chromium } from "playwright";
+import type { BspFormat } from "@jackharrhy/worldview/core";
 
 import { bspOverviewEntryHref } from "../../app/assets.ts";
 
 export interface BspOverviewSources {
+  format: BspFormat;
   bspPath: string;
   palettePath?: string;
-  resolveWadPath(name: string): Promise<string | null>;
+  wadPaths: readonly string[];
+  gameAssetPaths: Readonly<Record<string, string>>;
+  skyboxPaths: Readonly<Record<string, string>>;
+  spritePaths: Readonly<Record<string, string>>;
+  soundPaths: Readonly<Record<string, string>>;
 }
 
 export interface RenderBspOverviewOptions {
@@ -52,10 +58,16 @@ export async function generateBspDerivatives(
       let path: string | null = null;
       if (url.pathname === "/bsp") path = options.sources.bspPath;
       else if (url.pathname === "/palette") path = options.sources.palettePath ?? null;
-      else if (url.pathname.startsWith("/wad/")) {
-        const name = decodeURIComponent(url.pathname.slice("/wad/".length));
-        path = await options.sources.resolveWadPath(name);
-      }
+      else if (url.pathname.startsWith("/wad/"))
+        path = options.sources.wadPaths[Number(url.pathname.slice("/wad/".length))] ?? null;
+      else if (url.pathname.startsWith("/asset/"))
+        path = options.sources.gameAssetPaths[decodeURIComponent(url.pathname.slice(7))] ?? null;
+      else if (url.pathname.startsWith("/skybox/"))
+        path = options.sources.skyboxPaths[decodeURIComponent(url.pathname.slice(8))] ?? null;
+      else if (url.pathname.startsWith("/sprite/"))
+        path = options.sources.spritePaths[decodeURIComponent(url.pathname.slice(8))] ?? null;
+      else if (url.pathname.startsWith("/sound/"))
+        path = options.sources.soundPaths[decodeURIComponent(url.pathname.slice(7))] ?? null;
       await route.fulfill(
         path
           ? { path, headers: { "access-control-allow-origin": "*" } }
@@ -75,8 +87,15 @@ export async function generateBspDerivatives(
           entryHref,
           input: {
             bspUrl: `${renderAssetOrigin}/bsp`,
+            format: options.sources.format,
             ...(options.sources.palettePath ? { paletteUrl: `${renderAssetOrigin}/palette` } : {}),
-            wadBaseUrl: `${renderAssetOrigin}/wad/`,
+            wadUrls: options.sources.wadPaths.map(
+              (_, index) => `${renderAssetOrigin}/wad/${index}`,
+            ),
+            gameAssets: routeMap(options.sources.gameAssetPaths, "asset"),
+            skybox: routeMap(options.sources.skyboxPaths, "skybox"),
+            sprites: routeMap(options.sources.spritePaths, "sprite"),
+            sounds: routeMap(options.sources.soundPaths, "sound"),
             width: options.width ?? 512,
             height: options.height ?? 512,
             maxWalkabilityNodes: options.maxWalkabilityNodes ?? 50_000,
@@ -95,6 +114,15 @@ export async function generateBspDerivatives(
   } finally {
     await browser.close();
   }
+}
+
+function routeMap(paths: Readonly<Record<string, string>>, route: string): Record<string, string> {
+  return Object.fromEntries(
+    Object.keys(paths).map((name) => [
+      name,
+      `${renderAssetOrigin}/${route}/${encodeURIComponent(name)}`,
+    ]),
+  );
 }
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {

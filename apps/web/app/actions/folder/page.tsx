@@ -97,6 +97,13 @@ const textureGridStyle = css({
 });
 const wadFactsStyle = css({ marginTop: "2rem" });
 const smallCodeStyle = css({ fontSize: "0.75rem" });
+const warningListStyle = css({
+  background: theme.color.hover,
+  border: `1px solid ${theme.color.borderLight}`,
+  fontSize: "0.8125rem",
+  margin: "0 0 1rem",
+  padding: "0.75rem 0.75rem 0.75rem 2rem",
+});
 
 export function FolderRoutePage(handle: Handle<{ data: FolderPageData; user: User }>) {
   return () => {
@@ -514,6 +521,17 @@ function WadLibraryPage(handle: Handle<{ data: WadPageData; user: User }>) {
               </div>
             }
           />
+          {data.contents.warnings.length ? (
+            <Disclosure
+              summary={`${data.contents.warnings.length} archive warning${data.contents.warnings.length === 1 ? "" : "s"}`}
+            >
+              <ul mix={warningListStyle}>
+                {data.contents.warnings.map((warning, index) => (
+                  <li key={`${warning.code}-${index}`}>{warning.message}</li>
+                ))}
+              </ul>
+            </Disclosure>
+          ) : null}
           <form method="get" action={libraryHref} mix={searchStyle}>
             <label mix={visuallyHiddenStyle} htmlFor="wad-search">
               Search WAD textures

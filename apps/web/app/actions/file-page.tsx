@@ -170,11 +170,14 @@ function StandardFilePage(handle: Handle<{ data: StandardFilePageData; user: Use
               {bsp ? (
                 <BspViewer
                   bspUrl={downloadUrl}
-                  fileId={file.id}
                   wadUrls={data.bspWadUrls}
-                  hasDependencyManifest={data.hasBspDependencyManifest}
                   walkabilityUrl={data.bspWalkabilityUrl ?? undefined}
                   paletteUrl={data.bspPaletteUrl ?? undefined}
+                  format={data.bspFormat ?? undefined}
+                  gameAssets={data.bspGameAssetUrls}
+                  skybox={data.bspSkyboxUrls}
+                  sprites={data.bspSpriteUrls}
+                  sounds={data.bspSoundUrls}
                   height={560}
                 />
               ) : image ? (

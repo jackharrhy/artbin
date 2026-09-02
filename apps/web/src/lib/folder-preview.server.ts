@@ -235,9 +235,10 @@ export async function generateFolderPreview(folderId: string): Promise<string | 
   } catch (err) {
     const log = createRequestLogger();
     log.set({ folderPreview: { folderSlug: folder.slug, error: "generation-failed" } });
-    log.error(err instanceof Error ? err : new Error(String(err)), { step: "generate-preview" });
+    const error = err instanceof Error ? err : new Error(String(err));
+    log.error(error, { step: "generate-preview" });
     log.emit();
-    return null;
+    throw error;
   }
 }
 

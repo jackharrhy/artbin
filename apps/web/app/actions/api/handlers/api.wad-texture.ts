@@ -15,7 +15,7 @@ export async function loader({
   const library = await getVisibleWADLibrary(params.fileId, user);
   if (!library) return new Response("WAD not found", { status: 404 });
 
-  const preview = await getWADTexturePreview(library.file, textureIndex);
+  const preview = await getWADTexturePreview(library.file, textureIndex, user);
   if (!preview) return new Response("Texture not found", { status: 404 });
 
   return new Response(Uint8Array.from(preview), {

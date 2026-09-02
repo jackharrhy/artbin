@@ -173,14 +173,6 @@ describe("HTTP integration tests", () => {
   });
 
   describe("API routes", () => {
-    test("matches proxy-normalized BSP WAD filenames containing dots", async () => {
-      const res = await fetch(`${BASE}/api/bsp/example/wad/halflife.wad`, {
-        redirect: "manual",
-      });
-
-      expect(res.status).toBe(401);
-    });
-
     test("/api/cli/whoami preserves the unauthenticated response", async () => {
       const res = await fetch(`${BASE}/api/cli/whoami`, { redirect: "manual" });
 

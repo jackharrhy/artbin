@@ -10,6 +10,7 @@ import { eq } from "drizzle-orm";
 import { cliLoginHandoffs, files, folders, jobs, remoteImports, sessions, users } from "#db";
 import { setDbForTesting } from "#db/connection.server";
 import { generateFolderPreview } from "#lib/folder-preview.server";
+import { inspectBspDependencies } from "#lib/bsp-derivatives.server";
 
 import { applyMigrations, createTestDatabase, type TestDatabase } from "../test/db.ts";
 import { makeWAD3Texture } from "../test/wad-fixture.ts";
@@ -485,16 +486,28 @@ describe("native Remix router", () => {
     const providedWad = makeWAD3Texture("SITEWALL");
     const palette = Buffer.alloc(768, 42);
     const walkability = JSON.stringify({ format: "worldview-walkability", version: 1 });
-    await mkdir(join(uploadsRoot, "maps"), { recursive: true });
+    const inspected = inspectBspDependencies(bsp);
+    const manifest = {
+      ...inspected,
+      assets: {
+        ...inspected.assets,
+        wads: ["textures.wad", "halflife.wad"].map((name) => ({
+          kind: "wad" as const,
+          reference: { declaredPath: name, basename: name },
+          candidates: [name],
+        })),
+      },
+    };
+    await Promise.all([
+      mkdir(join(uploadsRoot, "maps"), { recursive: true }),
+      mkdir(join(uploadsRoot, "gfx"), { recursive: true }),
+    ]);
     await Promise.all([
       writeFile(join(uploadsRoot, "maps/example.bsp"), bsp),
-      writeFile(
-        join(uploadsRoot, "maps/example.artbin-bsp.json"),
-        JSON.stringify({ version: 1, wads: ["textures.wad", "halflife.wad"] }),
-      ),
+      writeFile(join(uploadsRoot, "maps/example.artbin-bsp.json"), JSON.stringify(manifest)),
       writeFile(join(uploadsRoot, "maps/example.worldview-walkability.json"), walkability),
       writeFile(join(uploadsRoot, "textures.wad"), wad),
-      writeFile(join(uploadsRoot, "palette.lmp"), palette),
+      writeFile(join(uploadsRoot, "gfx/palette.lmp"), palette),
       mkdir(join(providedAssetsRoot, "goldsrc"), { recursive: true }).then(() =>
         writeFile(join(providedAssetsRoot, "goldsrc/halflife.wad"), providedWad),
       ),
@@ -522,7 +535,7 @@ describe("native Remix router", () => {
       },
       {
         id: "bsp-palette",
-        path: "_remix-router-test/palette.lmp",
+        path: "_remix-router-test/gfx/palette.lmp",
         name: "palette.lmp",
         mimeType: "application/octet-stream",
         size: palette.length,
@@ -561,37 +574,6 @@ describe("native Remix router", () => {
     assert.match(walkabilityResponse.headers.get("content-type") ?? "", /^application\/json/);
     assert.equal(walkabilityResponse.headers.get("cache-control"), "private, no-cache");
     assert.equal(await walkabilityResponse.text(), walkability);
-
-    const wadResponse = await router.fetch(
-      request(routes.api.bspWad.href({ fileId: "bsp-map", wadName: "textures.wad" }), memberCookie),
-    );
-    assert.equal(wadResponse.status, 302);
-    const wadMedia = await router.fetch(
-      request(wadResponse.headers.get("location")!, memberCookie),
-    );
-    assert.equal(wadMedia.status, 200);
-    assert.equal(wadMedia.headers.get("content-type"), "application/x-wad");
-    assert.deepEqual(Buffer.from(await wadMedia.arrayBuffer()), wad);
-
-    const providedWadResponse = await router.fetch(
-      request(routes.api.bspWad.href({ fileId: "bsp-map", wadName: "halflife.wad" }), memberCookie),
-    );
-    assert.equal(providedWadResponse.status, 302);
-    const providedWadMedia = await router.fetch(
-      request(providedWadResponse.headers.get("location")!, memberCookie),
-    );
-    assert.equal(providedWadMedia.status, 200);
-    assert.deepEqual(Buffer.from(await providedWadMedia.arrayBuffer()), providedWad);
-
-    const paletteResponse = await router.fetch(
-      request(routes.api.bspPalette.href({ fileId: "bsp-map" }), memberCookie),
-    );
-    assert.equal(paletteResponse.status, 302);
-    const paletteMedia = await router.fetch(
-      request(paletteResponse.headers.get("location")!, memberCookie),
-    );
-    assert.equal(paletteMedia.status, 200);
-    assert.deepEqual(Buffer.from(await paletteMedia.arrayBuffer()), palette);
   });
 
   it("serves WADs as path-based virtual folders and files", async () => {
@@ -623,6 +605,32 @@ describe("native Remix router", () => {
     );
     assert.equal(texture.status, 200);
     assert.match(texture.headers.get("content-type") ?? "", /text\/html/);
+  });
+
+  it("surfaces recoverable WAD diagnostics without rejecting the library", async () => {
+    const folder = await seedFolder();
+    const wad = makeWAD3Texture("COMPRESSED");
+    wad[wad.length - 32 + 13] = 1;
+    await writeFile(join(uploadsRoot, "diagnostic.wad"), wad);
+    await database.db.insert(files).values({
+      id: "diagnostic-wad",
+      path: "_remix-router-test/diagnostic.wad",
+      name: "diagnostic.wad",
+      mimeType: "application/octet-stream",
+      size: wad.length,
+      kind: "archive",
+      folderId: folder.id,
+      status: "approved",
+    });
+
+    const response = await router.fetch(
+      request(routes.folder.index.href({ path: "_remix-router-test/diagnostic.wad" }), adminCookie),
+    );
+    const html = await response.text();
+
+    assert.equal(response.status, 200);
+    assert.match(html, /1 archive warning/);
+    assert.match(html, /unsupported compression 1/);
   });
 
   it("uses virtual WAD textures in folder previews", async () => {
@@ -693,30 +701,6 @@ describe("native Remix router", () => {
         })
       )?.previewPath,
       null,
-    );
-  });
-
-  it("redirects legacy WAD URLs to the path-based library", async () => {
-    const folder = await seedFolder();
-    const wad = makeWAD3Texture();
-    await writeFile(join(uploadsRoot, "legacy.wad"), wad);
-    await database.db.insert(files).values({
-      id: "legacy-wad",
-      path: "_remix-router-test/legacy.wad",
-      name: "legacy.wad",
-      mimeType: "application/octet-stream",
-      size: wad.length,
-      kind: "archive",
-      folderId: folder.id,
-      status: "approved",
-    });
-    const response = await router.fetch(
-      request(routes.legacyWad.href({ fileId: "legacy-wad" }), adminCookie),
-    );
-    assert.equal(response.status, 302);
-    assert.equal(
-      response.headers.get("location"),
-      routes.folder.index.href({ path: "_remix-router-test/legacy.wad" }),
     );
   });
 

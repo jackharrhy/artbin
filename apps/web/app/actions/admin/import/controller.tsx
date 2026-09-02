@@ -201,7 +201,8 @@ export default createController(routes.admin.import, {
               <Panel>
                 <input type="hidden" name="intent" value="regenerate-previews" />
                 <p mix={descriptionStyle}>
-                  Regenerate BSP overviews, missing model previews, and folder preview images.
+                  Replace generated file previews, 2048px BSP overviews, navigation data, dependency
+                  manifests, and folder preview images from their current sources.
                 </p>
                 <Button type="submit">Regenerate previews</Button>
               </Panel>

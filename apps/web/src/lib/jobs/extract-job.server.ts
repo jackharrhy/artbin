@@ -8,7 +8,7 @@
 import { db } from "#db/connection.server";
 import { folders, type Job } from "#db";
 import { eq } from "drizzle-orm";
-import { basename, dirname } from "path";
+import { basename, dirname, isAbsolute, relative } from "path";
 import { unlink } from "fs/promises";
 import { createRequestLogger, type AuditableLogger } from "evlog";
 
@@ -21,9 +21,17 @@ import {
   type ArchiveEntry,
   type ParsedArchive,
 } from "../archives.server.ts";
-import { ingestFile, finalizeFolders, getOrCreateFolder, ROOT_FOLDER } from "../files.server.ts";
-import { isBSPFile, extractTexturesFromBSP } from "../bsp.server.ts";
-import { extractGoldSourceTextures } from "../goldsource-assets.server.ts";
+import {
+  getFilePath,
+  ingestFile,
+  finalizeFolders,
+  getOrCreateFolder,
+  ROOT_FOLDER,
+  UPLOADS_DIR,
+} from "../files.server.ts";
+import { extractTexturesFromBsp, isBspFile } from "../game-textures.server.ts";
+import { resolveApprovedBspPalette } from "../bsp-assets.server.ts";
+import { extractBspTextures } from "../bsp-texture-extraction.server.ts";
 import { findRedundantArchiveRoot, stripArchiveRoot } from "../archive-reader.server.ts";
 
 export interface ExtractJobInput {
@@ -100,7 +108,7 @@ async function extractAssetTextures(
   archiveName?: string,
 ): Promise<{ textureCount: number }> {
   try {
-    const result = await extractGoldSourceTextures({
+    const result = await extractBspTextures({
       buffer,
       fileName: assetFileName,
       parentFolderSlug,
@@ -528,14 +536,15 @@ async function handleExtractBSPJob(
   // Read the BSP file
   const buffer = await readFile(bspPath);
 
-  if (!isBSPFile(buffer)) {
-    throw new Error(`${bspName} is not a valid Quake/Half-Life BSP file`);
+  if (!isBspFile(buffer)) {
+    throw new Error(`${bspName} is not a supported BSP file`);
   }
 
   await updateJobProgress(job.id, 15, "Extracting textures from BSP...");
 
   // Extract textures
-  const bspTextures = await extractTexturesFromBSP(buffer);
+  const { textures: bspTextures, warnings } = await extractBspTexturesWithPalette(buffer, bspPath);
+  logBspWarnings(log, warnings, bspName);
 
   if (bspTextures.length === 0) {
     throw new Error(`No textures found in ${bspName}`);
@@ -672,12 +681,16 @@ async function handleBatchExtractBSPJob(
       // Read the BSP file
       const buffer = await readFile(bspInfo.path);
 
-      if (!isBSPFile(buffer)) {
+      if (!isBspFile(buffer)) {
         throw new Error("Not a valid BSP file");
       }
 
       // Extract textures
-      const bspTextures = await extractTexturesFromBSP(buffer);
+      const { textures: bspTextures, warnings } = await extractBspTexturesWithPalette(
+        buffer,
+        bspInfo.path,
+      );
+      logBspWarnings(log, warnings, bspName);
 
       if (bspTextures.length === 0) {
         // No textures - still mark as success but with 0 textures
@@ -767,5 +780,26 @@ async function handleBatchExtractBSPJob(
 }
 
 registerJobHandler("batch-extract-bsp", handleBatchExtractBSPJob);
+
+async function extractBspTexturesWithPalette(buffer: Buffer, fullPath: string) {
+  const storedPath = relative(UPLOADS_DIR, fullPath).replaceAll("\\", "/");
+  const contained =
+    storedPath && storedPath !== ".." && !storedPath.startsWith("../") && !isAbsolute(storedPath);
+  const paletteAsset = contained ? await resolveApprovedBspPalette({ path: storedPath }) : null;
+  const palette = paletteAsset
+    ? new Uint8Array(await readFile(getFilePath(paletteAsset.path)))
+    : undefined;
+  return extractTexturesFromBsp(buffer, palette);
+}
+
+function logBspWarnings(
+  log: AuditableLogger,
+  warnings: readonly { message: string }[],
+  bspName: string,
+): void {
+  for (const warning of warnings) {
+    log.error(new Error(warning.message), { step: "extract-bsp-texture", file: bspName });
+  }
+}
 
 export { handleExtractJob, handleBatchExtractJob, handleExtractBSPJob, handleBatchExtractBSPJob };

@@ -14,10 +14,42 @@ const generateBspDerivatives = vi.fn(async () => ({
 }));
 const writeFile = vi.fn(async () => {});
 const rename = vi.fn(async () => {});
+const unlink = vi.fn(async () => {});
+const readFile = vi.fn(async () => Buffer.from("bsp"));
+const generatedPreview = { isErr: () => false, isOk: () => true, value: true };
+const generateModelPreview = vi.fn(async () => generatedPreview);
+const generatePreview = vi.fn(async () => generatedPreview);
+const deleteFolderPreview = vi.fn(async () => {});
+const generateFolderPreview = vi.fn(async () => null as string | null);
+const clearWADPreviewCache = vi.fn(async () => {});
+const emptyAssetPlan = {
+  palette: null,
+  wads: [],
+  textures: [],
+  skybox: null,
+  sprites: [],
+  sounds: [],
+};
 
 vi.mock("#lib/bsp-overview-renderer.server", () => ({ generateBspDerivatives }));
 vi.mock("#lib/folder-preview.server", () => ({
-  generateFolderPreview: vi.fn(async () => null),
+  deleteFolderPreview,
+  generateFolderPreview,
+}));
+vi.mock("../src/lib/files.server.ts", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../src/lib/files.server.ts")>()),
+  generateModelPreview,
+  generatePreview,
+}));
+vi.mock("../src/lib/wad-assets.server.ts", () => ({ clearWADPreviewCache }));
+vi.mock("../src/lib/bsp-derivatives.server.ts", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../src/lib/bsp-derivatives.server.ts")>()),
+  writeBspDependencyManifest: vi.fn(async () => ({
+    format: "quake-bsp29",
+    version: 29,
+    warnings: [],
+    assets: emptyAssetPlan,
+  })),
 }));
 vi.mock("node:fs", async (importOriginal) => ({
   ...(await importOriginal<typeof import("node:fs")>()),
@@ -26,13 +58,15 @@ vi.mock("node:fs", async (importOriginal) => ({
 vi.mock("node:fs/promises", async (importOriginal) => ({
   ...(await importOriginal<typeof import("node:fs/promises")>()),
   rename,
-  unlink: vi.fn(async () => {}),
+  readFile,
+  unlink,
   writeFile,
 }));
 vi.mock("fs/promises", async (importOriginal) => ({
   ...(await importOriginal<typeof import("fs/promises")>()),
   rename,
-  unlink: vi.fn(async () => {}),
+  readFile,
+  unlink,
   writeFile,
 }));
 
@@ -56,6 +90,48 @@ function setupDatabase() {
 }
 
 describe("preview regeneration job", () => {
+  test("replaces every generated file preview during a full refresh", async () => {
+    const db = setupDatabase();
+    await db.insert(folders).values({ id: "assets", name: "Assets", slug: "assets" });
+    await db.insert(files).values([
+      {
+        id: "model",
+        path: "assets/model.glb",
+        name: "model.glb",
+        mimeType: "model/gltf-binary",
+        size: 64,
+        kind: "model",
+        folderId: "assets",
+        status: "approved",
+        hasPreview: true,
+      },
+      {
+        id: "texture",
+        path: "assets/texture.tga",
+        name: "texture.tga",
+        mimeType: "image/x-tga",
+        size: 64,
+        kind: "texture",
+        folderId: "assets",
+        status: "approved",
+        hasPreview: true,
+      },
+    ]);
+    const input = { userId: "admin", target: { scope: "all" as const } };
+    const job = await createJob({ type: "regenerate-previews", input });
+
+    const result = await handleRegeneratePreviews(job, input);
+
+    expect(clearWADPreviewCache).toHaveBeenCalledOnce();
+    expect(unlink).toHaveBeenCalledWith(expect.stringMatching(/model\.glb\.preview\.png$/));
+    expect(unlink).toHaveBeenCalledWith(expect.stringMatching(/texture\.tga\.preview\.png$/));
+    expect(generateModelPreview).toHaveBeenCalledOnce();
+    expect(generatePreview).toHaveBeenCalledOnce();
+    expect(deleteFolderPreview).toHaveBeenCalledWith("assets");
+    expect(result).toMatchObject({ modelPreviews: 1, imagePreviews: 1 });
+    expect((await db.query.files.findMany()).every((file) => file.hasPreview)).toBe(true);
+  });
+
   test("renders an approved BSP before refreshing folder previews", async () => {
     const db = setupDatabase();
     await db.insert(folders).values({ id: "maps", name: "Maps", slug: "maps" });
@@ -68,7 +144,7 @@ describe("preview regeneration job", () => {
       kind: "map",
       folderId: "maps",
       status: "approved",
-      hasPreview: false,
+      hasPreview: true,
     });
     await db.insert(files).values({
       id: "other-map",
@@ -91,6 +167,18 @@ describe("preview regeneration job", () => {
     const result = await handleRegeneratePreviews(job, input);
 
     expect(generateBspDerivatives).toHaveBeenCalledOnce();
+    expect(generateBspDerivatives).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sources: expect.objectContaining({ format: "quake-bsp29" }),
+        width: 2_048,
+        height: 2_048,
+      }),
+    );
+    expect(unlink).toHaveBeenCalledWith(expect.stringMatching(/example\.bsp\.preview\.png$/));
+    expect(unlink).toHaveBeenCalledWith(
+      expect.stringMatching(/example\.worldview-walkability\.json$/),
+    );
+    expect(unlink).toHaveBeenCalledWith(expect.stringMatching(/example\.artbin-bsp\.json$/));
     expect(writeFile).toHaveBeenCalledWith(
       expect.stringMatching(/\.preview\.png\.tmp-.+$/),
       Buffer.from("overview-png"),
@@ -122,7 +210,7 @@ describe("preview regeneration job", () => {
       kind: "map",
       folderId: "maps",
       status: "approved",
-      hasPreview: false,
+      hasPreview: true,
     });
     generateBspDerivatives.mockRejectedValueOnce(new Error("renderer unavailable"));
     const input = {
@@ -141,5 +229,28 @@ describe("preview regeneration job", () => {
     });
     const unchanged = await db.query.files.findFirst({ where: eq(files.id, "map") });
     expect(unchanged?.hasPreview).toBe(false);
+  });
+
+  test("reports a folder renderer failure after invalidating its stale preview", async () => {
+    const db = setupDatabase();
+    await db.insert(folders).values({
+      id: "broken-folder",
+      name: "Broken",
+      slug: "broken",
+      previewPath: "broken/_folder-preview.png",
+    });
+    generateFolderPreview.mockRejectedValueOnce(new Error("compositor unavailable"));
+    const input = {
+      userId: "admin",
+      target: { scope: "folder" as const, folderId: "broken-folder" },
+    };
+    const job = await createJob({ type: "regenerate-previews", input });
+
+    const result = await processJob(job);
+
+    expect(result.isErr()).toBe(true);
+    expect(deleteFolderPreview).toHaveBeenCalledWith("broken-folder");
+    const failedJob = await db.query.jobs.findFirst({ where: eq(jobs.id, job.id) });
+    expect(failedJob?.error).toContain("folder broken: compositor unavailable");
   });
 });

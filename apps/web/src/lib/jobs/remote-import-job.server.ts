@@ -23,7 +23,7 @@ import {
   listSafeArchiveEntries,
   stripArchiveRoot,
 } from "../archive-reader.server.ts";
-import { extractGoldSourceTextures } from "../goldsource-assets.server.ts";
+import { extractBspTextures } from "../bsp-texture-extraction.server.ts";
 import {
   describeRemoteImport,
   fetchRemoteImportManifest,
@@ -316,7 +316,7 @@ async function handleRemoteImport(
       const existing = await db.query.files.findFirst({ where: eq(files.path, storedPath) });
       if (existing) {
         skippedFiles++;
-        const textureResult = await extractGoldSourceTextures({
+        const textureResult = await extractBspTextures({
           buffer,
           fileName,
           parentFolderSlug: targetFolder.slug,
@@ -342,7 +342,7 @@ async function handleRemoteImport(
 
       importedFiles++;
       filesByKind[ingested.value.kind] = (filesByKind[ingested.value.kind] ?? 0) + 1;
-      const textureResult = await extractGoldSourceTextures({
+      const textureResult = await extractBspTextures({
         buffer,
         fileName,
         parentFolderSlug: targetFolder.slug,

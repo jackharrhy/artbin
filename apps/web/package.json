@@ -24,7 +24,7 @@
   "dependencies": {
     "7zip-bin-full": "^26.2.1",
     "@artbin/core": "workspace:*",
-    "@jackharrhy/worldview": "^0.4.0",
+    "@jackharrhy/worldview": "^0.6.0",
     "@tscircuit/alphabet": "^0.0.26",
     "archiver": "^8.0.0",
     "better-result": "^3.0.1",

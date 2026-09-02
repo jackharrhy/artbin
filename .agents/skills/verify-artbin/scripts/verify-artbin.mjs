@@ -314,9 +314,10 @@ try {
       await readFile(join(uploadsDirectory, folderSlug, bspManifestName), "utf8"),
     );
     check(
-      bspManifest.version === 1 &&
-        Array.isArray(bspManifest.wads) &&
-        bspManifest.wads.length > 0,
+      bspManifest.format === "quake-bsp29" &&
+        bspManifest.version === 29 &&
+        Array.isArray(bspManifest.assets?.wads) &&
+        bspManifest.assets.wads.length > 0,
       "Uploaded BSP dependency manifest is missing or empty",
     );
     check(

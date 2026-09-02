@@ -1,4 +1,4 @@
-import type { WADTextureInfo } from "@artbin/core/parsers/wad";
+import type { WadTextureInfo } from "./game-textures.server.ts";
 
 function encodeAssetPath(path: string): string {
   return path.split("/").map(encodeURIComponent).join("/");
@@ -8,7 +8,7 @@ export function getWADLibraryHref(filePath: string): string {
   return `/folder/${encodeAssetPath(filePath)}`;
 }
 
-export function getWADTextureFilename(texture: WADTextureInfo, textures: WADTextureInfo[]): string {
+export function getWADTextureFilename(texture: WadTextureInfo, textures: WadTextureInfo[]): string {
   const hasDuplicateName = textures.some(
     (candidate) =>
       candidate.index !== texture.index &&
@@ -20,8 +20,8 @@ export function getWADTextureFilename(texture: WADTextureInfo, textures: WADText
 
 export function getWADTextureHref(
   filePath: string,
-  texture: WADTextureInfo,
-  textures: WADTextureInfo[],
+  texture: WadTextureInfo,
+  textures: WadTextureInfo[],
 ): string {
   const filename = getWADTextureFilename(texture, textures);
   return `/file/${encodeAssetPath(filePath)}/${encodeURIComponent(filename)}`;

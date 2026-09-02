@@ -1,10 +1,16 @@
 import { createWorldview } from "@jackharrhy/worldview";
 import { serializeWalkability } from "@jackharrhy/worldview/walkability";
+import type { BspFormat } from "@jackharrhy/worldview/core";
 
 export interface BspOverviewRenderInput {
+  format: BspFormat;
   bspUrl: string;
   paletteUrl?: string;
-  wadBaseUrl: string;
+  wadUrls: string[];
+  gameAssets: Record<string, string>;
+  skybox: Partial<Record<SkyboxSide, string>>;
+  sprites: Record<string, string>;
+  sounds: Record<string, string>;
   width: number;
   height: number;
   maxWalkabilityNodes: number;
@@ -48,24 +54,30 @@ export async function generateBspDerivatives(
     await viewer.load({
       bsp: input.bspUrl,
       ...(input.paletteUrl ? { palette: input.paletteUrl } : {}),
-      wadBaseUrl: input.wadBaseUrl,
+      ...(input.wadUrls.length ? { wads: input.wadUrls } : {}),
+      ...(Object.keys(input.gameAssets).length ? { gameAssets: input.gameAssets } : {}),
+      ...(isCompleteSkybox(input.skybox) ? { skybox: input.skybox } : {}),
+      ...(Object.keys(input.sprites).length ? { sprites: input.sprites } : {}),
+      ...(Object.keys(input.sounds).length ? { sounds: input.sounds } : {}),
     });
 
     let usedWalkability = false;
     let walkabilityJson: string | undefined;
-    try {
-      const walkability = await viewer.generateWalkability({
-        spacing: 32,
-        maximumNodes: input.maxWalkabilityNodes,
-        yieldEvery: 16,
-      });
-      viewer.setWalkability(walkability);
-      walkabilityJson = serializeWalkability(walkability);
-      usedWalkability = true;
-    } catch (error) {
-      warnings.push(
-        `Walkability unavailable: ${error instanceof Error ? error.message : String(error)}`,
-      );
+    if (input.format !== "quake2-bsp38") {
+      try {
+        const walkability = await viewer.generateWalkability({
+          spacing: 32,
+          maximumNodes: input.maxWalkabilityNodes,
+          yieldEvery: 16,
+        });
+        viewer.setWalkability(walkability);
+        walkabilityJson = serializeWalkability(walkability);
+        usedWalkability = true;
+      } catch (error) {
+        warnings.push(
+          `Walkability unavailable: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
     }
 
     const overview = await viewer.captureOverview({
@@ -90,3 +102,13 @@ export async function generateBspDerivatives(
     viewer.dispose();
   }
 }
+
+function isCompleteSkybox(
+  skybox: Partial<Record<SkyboxSide, string>>,
+): skybox is Record<SkyboxSide, string> {
+  return (["rt", "bk", "lf", "ft", "up", "dn"] as const).every(
+    (side) => typeof skybox[side] === "string",
+  );
+}
+
+type SkyboxSide = "rt" | "bk" | "lf" | "ft" | "up" | "dn";

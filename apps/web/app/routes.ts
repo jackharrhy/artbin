@@ -11,8 +11,6 @@ export const routes = route({
   folders: get("/folders"),
   folder: form("/folder/*path"),
   file: get("/file/*path"),
-  legacyWad: get("/wad/:fileId"),
-  legacyWadTexture: get("/wad/:fileId/texture/:textureIndex"),
   dev: route("/dev", {
     kitchenSink: get("/kitchen-sink"),
   }),
@@ -50,8 +48,6 @@ export const routes = route({
     folderMove: post("/folder/move"),
     folderDownload: get("/folder/download/*path"),
     wadTexture: get("/wad/:fileId/texture/:textureIndex"),
-    bspWad: get("/bsp/:fileId/wad/*wadName"),
-    bspPalette: get("/bsp/:fileId/palette"),
     cli: route("/cli", {
       whoami: get("/whoami"),
       foldersGet: get("/folders"),

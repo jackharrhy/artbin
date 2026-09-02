@@ -10,8 +10,8 @@ import { applyMigrations, createTestDatabase, type TestDatabase } from "./db";
 import { eq } from "drizzle-orm";
 
 // Mock BSP detection to control when extract-bsp jobs are queued
-vi.mock("@artbin/core/parsers/bsp", () => ({
-  isBSPFile: (buf: Buffer) => {
+vi.mock("#lib/game-textures.server", () => ({
+  isBspFile: (buf: Buffer) => {
     // Check for Quake BSP magic (version 29 LE)
     return buf.length >= 4 && buf.readUInt32LE(0) === 29;
   },

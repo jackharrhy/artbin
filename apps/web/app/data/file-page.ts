@@ -1,4 +1,4 @@
-import { open, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 
 import { eq } from "drizzle-orm";
 
@@ -8,8 +8,12 @@ import { db } from "#db/connection.server";
 import { getFilePath } from "#lib/files.server";
 import { getFolderTrail } from "#lib/file-queries.server";
 import { getVisibleWADTextureByPath, inspectWADFile, isWADFilename } from "#lib/wad-assets.server";
-import { hasBspWalkability, readBspDependencyManifest } from "#lib/bsp-derivatives.server";
-import { resolveBspPalette, resolveBspWads } from "#lib/bsp-assets.server";
+import {
+  hasBspWalkability,
+  identifyBspFile,
+  readBspDependencyManifest,
+} from "#lib/bsp-derivatives.server";
+import { resolveBspAssetPlan } from "#lib/bsp-assets.server";
 
 import { mediaBspWalkabilityHref, mediaFileHref } from "../routes.ts";
 
@@ -66,12 +70,13 @@ export async function loadFilePage(path: string, user: User) {
   let modelMtl: string | null = null;
   let availableTextures: Array<{ name: string; url: string }> = [];
   let modelAnimations: Array<{ name: string; url: string }> = [];
-  const bspVersion = file.name.toLowerCase().endsWith(".bsp")
-    ? await readBspVersion(file.path)
+  const bspIdentification = file.name.toLowerCase().endsWith(".bsp")
+    ? await identifyBspFile(file.path)
     : null;
-  const bspDependencies = bspVersion ? await readBspDependencyManifest(file.path) : null;
-  const bspWads = bspDependencies ? await resolveBspWads(file, bspDependencies.wads, user) : [];
-  const bspPalette = bspVersion === 29 ? await resolveBspPalette(file, user) : null;
+  const bspDependencies = bspIdentification ? await readBspDependencyManifest(file.path) : null;
+  const bspAssets = bspDependencies
+    ? await resolveBspAssetPlan(file, bspDependencies.assets, user)
+    : null;
 
   if (file.kind === "model") {
     const siblings = await db.query.files.findMany({ where: eq(files.folderId, file.folderId) });
@@ -123,30 +128,28 @@ export async function loadFilePage(path: string, user: User) {
     modelMtl,
     availableTextures,
     modelAnimations,
-    bspVersion,
-    bspWadUrls: bspWads.map((wad) => mediaFileHref(wad)),
-    bspPaletteUrl: bspPalette ? mediaFileHref(bspPalette) : null,
-    hasBspDependencyManifest: bspDependencies !== null,
+    bspFormat: bspDependencies?.format ?? bspIdentification?.format ?? null,
+    bspWadUrls: bspAssets?.wads.map((wad) => mediaFileHref(wad)) ?? [],
+    bspPaletteUrl: bspAssets?.palette ? mediaFileHref(bspAssets.palette) : null,
+    bspGameAssetUrls: mapAssetUrls(bspAssets?.gameAssets),
+    bspSkyboxUrls: mapAssetUrls(bspAssets?.skybox ?? undefined),
+    bspSpriteUrls: mapAssetUrls(bspAssets?.sprites),
+    bspSoundUrls: mapAssetUrls(bspAssets?.sounds),
     bspWalkabilityUrl:
-      bspVersion && hasBspWalkability(file.path) ? mediaBspWalkabilityHref(file) : null,
+      bspIdentification &&
+      bspIdentification.format !== "quake2-bsp38" &&
+      hasBspWalkability(file.path)
+        ? mediaBspWalkabilityHref(file)
+        : null,
   };
 }
 
-async function readBspVersion(filePath: string): Promise<29 | 30 | null> {
-  try {
-    const handle = await open(getFilePath(filePath), "r");
-    try {
-      const header = Buffer.allocUnsafe(4);
-      const { bytesRead } = await handle.read(header, 0, header.length, 0);
-      if (bytesRead !== header.length) return null;
-      const version = header.readInt32LE(0);
-      return version === 29 || version === 30 ? version : null;
-    } finally {
-      await handle.close();
-    }
-  } catch {
-    return null;
-  }
+function mapAssetUrls(
+  assets: Readonly<Record<string, { id: string; name: string }>> | undefined,
+): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(assets ?? {}).map(([name, asset]) => [name, mediaFileHref(asset)]),
+  );
 }
 
 function textureUrl(file: { id: string; name: string; hasPreview: boolean | null }): string {

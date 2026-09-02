@@ -6,7 +6,7 @@ import { folders } from "#db";
 import { eq } from "drizzle-orm";
 import { basename, dirname } from "path";
 import { cleanFolderSlug, cleanFolderPath } from "@artbin/core/detection/filenames";
-import { isBSPFile } from "@artbin/core/parsers/bsp";
+import { isBspFile } from "#lib/game-textures.server";
 import { ingestFile, getFilePath } from "#lib/files.server";
 import { createJob } from "#lib/jobs.server";
 import { createUploadSession } from "#lib/inbox.server";
@@ -116,7 +116,7 @@ async function handleAdminUpload(formData: FormData, metadata: UploadMetadata, u
       if (
         ingested.value.kind === "map" &&
         ingested.value.name.toLowerCase().endsWith(".bsp") &&
-        isBSPFile(buffer)
+        isBspFile(buffer)
       ) {
         const bspBaseName = ingested.value.name.replace(/\.bsp$/i, "");
         const bspSlug = cleanFolderSlug(bspBaseName);

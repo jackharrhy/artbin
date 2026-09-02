@@ -7,7 +7,6 @@ import { action as importFromSite } from "./handlers/api.import.ts";
 import { action as lucky } from "./handlers/api.lucky.ts";
 import { action as upload } from "./handlers/api.upload.ts";
 import { loader as wadTexture } from "./handlers/api.wad-texture.ts";
-import { paletteLoader as bspPalette, wadLoader as bspWad } from "./handlers/api.bsp-assets.ts";
 import { routes } from "../../routes.ts";
 import { assetContent, assetMetadata, searchAssets, wadMetadata } from "./handlers/api.assets.ts";
 
@@ -45,12 +44,6 @@ export default createController(routes.api, {
     },
     wadTexture({ request, params }) {
       return wadTexture({ request, params });
-    },
-    bspWad({ request, params }) {
-      return bspWad({ request, params });
-    },
-    bspPalette({ request, params }) {
-      return bspPalette({ request, params });
     },
   },
 });

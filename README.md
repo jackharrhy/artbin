@@ -62,16 +62,19 @@ kept, while newly added paths are imported.
 
 ## BSP previews
 
-Quake BSP29 and GoldSrc BSP30 files open in an interactive Worldview preview. For external textures,
-Artbin first looks for a matching WAD in the same imported collection as the BSP. It then falls back
-to approved files in the `_provided` collection. Quake BSP29 maps use the same lookup for
-`palette.lmp`.
+Quake BSP29, sanitized BSP2, GoldSrc BSP30, and Quake II BSP38 files open in an interactive
+Worldview preview. Artbin stores Worldview's canonical dependency plan beside each BSP and resolves
+its ordered palette, WAD, replacement texture, skybox, sprite, and sound candidates within the
+map's imported collection. It then falls back to approved files in the matching `_provided` game
+collection. Quake II maps start in fly mode because Worldview does not yet provide BSP38 collision
+or walkability.
 
 A production library can therefore use a layout such as:
 
 ```text
 public/uploads/_provided/
   quake/palette.lmp
+  quake2/pics/colormap.pcx
   goldsrc/halflife.wad
   cstrike/cstrike.wad
 ```

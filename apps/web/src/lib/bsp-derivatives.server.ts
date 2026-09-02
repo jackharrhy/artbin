@@ -1,8 +1,17 @@
 import { dirname, isAbsolute, join, parse, relative, resolve, sep } from "node:path";
 
-import { parseBsp } from "@jackharrhy/worldview/core";
+import {
+  identifyBsp,
+  normalizeGameAssetPath,
+  parseBsp,
+  planWorldAssets,
+  type BspFormat,
+  type BspIdentification,
+  type BspWarning,
+  type WorldAssetPlan,
+} from "@jackharrhy/worldview/core";
 import { existsSync } from "node:fs";
-import { readFile, rename, unlink, writeFile } from "node:fs/promises";
+import { open, readFile, rename, unlink, writeFile } from "node:fs/promises";
 
 const uploadsDirectory = resolve(
   process.env.ARTBIN_PUBLIC_DIR ?? join(process.cwd(), "public"),
@@ -10,8 +19,10 @@ const uploadsDirectory = resolve(
 );
 
 export interface BspDependencyManifest {
-  version: 1;
-  wads: string[];
+  format: BspFormat;
+  version: BspIdentification["version"];
+  warnings: readonly BspWarning[];
+  assets: WorldAssetPlan;
 }
 
 export function getBspDependencyPath(filePath: string): string {
@@ -31,8 +42,10 @@ export function inspectBspDependencies(
 ): BspDependencyManifest {
   const world = parseBsp(bytes);
   return {
-    version: 1,
-    wads: [...new Set(world.wadReferences.map((reference) => reference.basename.toLowerCase()))],
+    format: world.format,
+    version: world.version,
+    warnings: world.warnings,
+    assets: planWorldAssets(world, { includeViewerDefaults: false }),
   };
 }
 
@@ -56,16 +69,22 @@ export async function readBspDependencyManifest(
 ): Promise<BspDependencyManifest | null> {
   try {
     const parsed: unknown = JSON.parse(await readFile(getBspDependencyPath(filePath), "utf8"));
-    if (
-      typeof parsed !== "object" ||
-      parsed === null ||
-      (parsed as { version?: unknown }).version !== 1 ||
-      !Array.isArray((parsed as { wads?: unknown }).wads) ||
-      !(parsed as { wads: unknown[] }).wads.every((name) => typeof name === "string")
-    ) {
-      return null;
+    return isBspDependencyManifest(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function identifyBspFile(filePath: string): Promise<BspIdentification | null> {
+  try {
+    const handle = await open(getUploadPath(filePath), "r");
+    try {
+      const prefix = Buffer.allocUnsafe(8);
+      const { bytesRead } = await handle.read(prefix, 0, prefix.length, 0);
+      return identifyBsp(prefix.subarray(0, bytesRead));
+    } finally {
+      await handle.close();
     }
-    return parsed as BspDependencyManifest;
   } catch {
     return null;
   }
@@ -95,4 +114,136 @@ function siblingPath(filePath: string, suffix: string): string {
     throw new Error("Invalid BSP derivative path");
   }
   return target;
+}
+
+function getUploadPath(filePath: string): string {
+  const target = resolve(uploadsDirectory, filePath);
+  const relativePath = relative(uploadsDirectory, target);
+  if (
+    !relativePath ||
+    relativePath === ".." ||
+    relativePath.startsWith(`..${sep}`) ||
+    isAbsolute(relativePath)
+  ) {
+    throw new Error("Invalid BSP path");
+  }
+  return target;
+}
+
+function isBspDependencyManifest(value: unknown): value is BspDependencyManifest {
+  if (!isRecord(value) || !isBspIdentification(value.format, value.version)) return false;
+  if (!Array.isArray(value.warnings) || !value.warnings.every(isWarning)) return false;
+  return isWorldAssetPlan(value.assets);
+}
+
+function isWorldAssetPlan(value: unknown): value is WorldAssetPlan {
+  if (!isRecord(value)) return false;
+  if (value.palette !== null && !isPalettePlan(value.palette)) return false;
+  if (!Array.isArray(value.wads) || !value.wads.every(isWadPlan)) return false;
+  if (!Array.isArray(value.textures) || !value.textures.every(isTexturePlan)) return false;
+  if (value.skybox !== null && !isSkyboxPlan(value.skybox)) return false;
+  if (!Array.isArray(value.sprites) || !value.sprites.every(isSpritePlan)) return false;
+  return Array.isArray(value.sounds) && value.sounds.every(isSoundPlan);
+}
+
+function hasCandidates(value: unknown): value is Record<string, unknown> {
+  return isRecord(value) && Array.isArray(value.candidates) && value.candidates.every(isAssetPath);
+}
+
+function isPalettePlan(value: unknown): boolean {
+  return hasCandidates(value) && value.kind === "palette";
+}
+
+function isWadPlan(value: unknown): boolean {
+  return hasCandidates(value) && value.kind === "wad" && isWadReference(value.reference);
+}
+
+function isTexturePlan(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    value.kind === "texture" &&
+    typeof value.name === "string" &&
+    isIntegerArray(value.materialIndices) &&
+    Array.isArray(value.imageCandidates) &&
+    value.imageCandidates.every(isAssetPath) &&
+    Array.isArray(value.walCandidates) &&
+    value.walCandidates.every(isAssetPath)
+  );
+}
+
+function isSkyboxPlan(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    value.kind === "skybox" &&
+    typeof value.name === "string" &&
+    Array.isArray(value.faces) &&
+    value.faces.every(
+      (face) =>
+        hasCandidates(face) && ["rt", "bk", "lf", "ft", "up", "dn"].includes(face.suffix as string),
+    )
+  );
+}
+
+function isSpritePlan(value: unknown): boolean {
+  return (
+    hasCandidates(value) &&
+    value.kind === "sprite" &&
+    isAssetReference(value.reference) &&
+    isIntegerArray(value.entityIndices)
+  );
+}
+
+function isSoundPlan(value: unknown): boolean {
+  return (
+    hasCandidates(value) &&
+    value.kind === "sound" &&
+    ["ambient", "music", "player"].includes(value.usage as string) &&
+    ["map", "viewer-default"].includes(value.origin as string) &&
+    isAssetReference(value.reference)
+  );
+}
+
+function isWadReference(value: unknown): boolean {
+  return (
+    isRecord(value) && typeof value.declaredPath === "string" && typeof value.basename === "string"
+  );
+}
+
+function isAssetReference(value: unknown): boolean {
+  return (
+    isWadReference(value) &&
+    isRecord(value) &&
+    typeof value.normalizedPath === "string" &&
+    isAssetPath(value.normalizedPath)
+  );
+}
+
+function isIntegerArray(value: unknown): boolean {
+  return Array.isArray(value) && value.every((entry) => Number.isSafeInteger(entry));
+}
+
+function isWarning(value: unknown): boolean {
+  return isRecord(value) && typeof value.code === "string" && typeof value.message === "string";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isAssetPath(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  try {
+    return normalizeGameAssetPath(value) === value;
+  } catch {
+    return false;
+  }
+}
+
+function isBspIdentification(format: unknown, version: unknown): format is BspFormat {
+  return (
+    (format === "quake-bsp29" && version === 29) ||
+    (format === "quake-bsp2" && version === "BSP2") ||
+    (format === "goldsrc-bsp30" && version === 30) ||
+    (format === "quake2-bsp38" && version === 38)
+  );
 }

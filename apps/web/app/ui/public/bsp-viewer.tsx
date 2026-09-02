@@ -1,8 +1,7 @@
 import type { WorldSource } from "@jackharrhy/worldview";
+import type { BspFormat } from "@jackharrhy/worldview/core";
 import type { WorldViewElement } from "@jackharrhy/worldview/element";
 import { clientEntry, css, ref, type Handle, type SerializableProps } from "remix/ui";
-
-import { routes } from "../../routes.ts";
 
 const rootStyle = css({ position: "relative", width: "100%" });
 const mountStyle = css({ width: "100%" });
@@ -19,13 +18,18 @@ const helpStyle = css({
 
 interface BspViewerProps extends SerializableProps {
   bspUrl: string;
-  fileId: string;
   paletteUrl?: string;
   wadUrls: string[];
-  hasDependencyManifest: boolean;
   walkabilityUrl?: string;
+  format?: BspFormat;
+  gameAssets: Record<string, string>;
+  skybox: Partial<Record<SkyboxSide, string>>;
+  sprites: Record<string, string>;
+  sounds: Record<string, string>;
   height?: number;
 }
+
+type SkyboxSide = "rt" | "bk" | "lf" | "ft" | "up" | "dn";
 
 export const BspViewer = clientEntry(
   `${import.meta.url}#BspViewer`,
@@ -51,7 +55,9 @@ export const BspViewer = clientEntry(
             ]}
           />
           <div mix={helpStyle}>
-            Click to capture · WASD to move · V toggles noclip · G toggles navigation
+            {handle.props.format === "quake2-bsp38"
+              ? "Click to capture · WASD to fly"
+              : "Click to capture · WASD to move · V toggles noclip · G toggles navigation"}
           </div>
         </div>
       );
@@ -72,7 +78,7 @@ async function mountWorldView(
   const worldView = document.createElement("world-view") as WorldViewElement;
   worldView.style.height = `${height}px`;
   worldView.style.width = "100%";
-  worldView.setAttribute("controls", "walk");
+  worldView.setAttribute("controls", props.format === "quake2-bsp38" ? "fly" : "walk");
   worldView.setAttribute("audio", "false");
   worldView.source = worldSource(props);
   worldView.walkabilitySource = props.walkabilityUrl ?? null;
@@ -93,14 +99,17 @@ function worldSource(props: BspViewerProps): WorldSource {
     bsp: props.bspUrl,
     ...(props.paletteUrl ? { palette: props.paletteUrl } : {}),
     ...(props.wadUrls.length ? { wads: props.wadUrls } : {}),
-    ...(props.hasDependencyManifest
-      ? {}
-      : {
-          resolveWad: (reference) =>
-            routes.api.bspWad.href({
-              fileId: props.fileId,
-              wadName: reference.basename,
-            }),
-        }),
+    ...(Object.keys(props.gameAssets).length ? { gameAssets: props.gameAssets } : {}),
+    ...(isCompleteSkybox(props.skybox) ? { skybox: props.skybox } : {}),
+    ...(Object.keys(props.sprites).length ? { sprites: props.sprites } : {}),
+    ...(Object.keys(props.sounds).length ? { sounds: props.sounds } : {}),
   };
+}
+
+function isCompleteSkybox(
+  skybox: Partial<Record<SkyboxSide, string>>,
+): skybox is Record<SkyboxSide, string> {
+  return (["rt", "bk", "lf", "ft", "up", "dn"] as const).every(
+    (side) => typeof skybox[side] === "string",
+  );
 }
