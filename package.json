@@ -2,6 +2,9 @@
   "name": "artbin",
   "private": true,
   "scripts": {
+    "publish": "node apps/cli/scripts/publish.mjs",
+    "publish:dry-run": "node apps/cli/scripts/publish.mjs --dry-run",
+    "release:check": "pnpm exec oxfmt --check apps/cli packages/core packages/ui && pnpm exec oxlint apps/cli packages/core packages/ui && pnpm --filter @artbin/core run ci && pnpm --filter ./apps/cli run ci && pnpm --filter ./apps/cli run build",
     "dev": "pnpm run --filter @artbin/web dev",
     "build": "pnpm run --filter @artbin/web build",
     "start": "pnpm run --filter @artbin/web start",

@@ -70,7 +70,7 @@ cli-dev:
 
 # release the cli to npm (interactive)
 cli-release:
-    node apps/cli/scripts/release.mjs
+    npm run publish
 
 # build the cli and symlink to ~/.local/bin/artbin
 cli-install:

@@ -13,6 +13,10 @@ artbin login
 `artbin login` uses `https://artbin.jackharrhy.dev` by default. Pass another server URL to connect
 to a self-hosted instance.
 
+Use CLI 0.2.0 or newer with the current server. Older releases show `Missing session parameter`
+after browser login because they predate the one-time login code exchange. Update with
+`npm install --global artbin@latest`, then run `artbin login` again.
+
 ## Commands
 
 ```text
