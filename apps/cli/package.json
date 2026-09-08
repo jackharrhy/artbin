@@ -1,6 +1,6 @@
 {
   "name": "artbin",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "CLI for scanning, uploading, downloading, and organizing game assets in artbin",
   "keywords": [
     "cli",

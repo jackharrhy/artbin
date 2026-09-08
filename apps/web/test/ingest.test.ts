@@ -19,8 +19,8 @@ vi.mock("child_process", async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     ...actual,
-    exec: vi.fn((_cmd: string, cb: Function) => {
-      // Mock `magick identify` returning dimensions
+    execFile: vi.fn((_cmd: string, _args: string[], _options: unknown, cb: Function) => {
+      // Mock identify returning dimensions.
       cb(null, { stdout: "128 128" }, "");
       return {};
     }),
@@ -36,10 +36,28 @@ vi.mock("fs", async (importOriginal) => {
   };
 });
 
-import { exec } from "child_process";
+import { execFile } from "child_process";
 import { ingestFile } from "#lib/files.server";
 
 let currentDb: TestDatabase | undefined;
+
+test("indexing and folder counts roll back together when counting fails", async () => {
+  const db = setupDatabase();
+  await db.insert(folders).values({ id: "rollback", name: "Rollback", slug: "rollback" });
+  currentDb!.sqlite.exec(
+    "CREATE TRIGGER fail_count BEFORE UPDATE OF file_count ON folders BEGIN SELECT RAISE(ABORT, 'injected count failure'); END",
+  );
+  const result = await ingestFile({
+    buffer: Buffer.from("proof"),
+    fileName: "proof.txt",
+    folderSlug: "rollback",
+    folderId: "rollback",
+    source: "upload",
+  });
+  expect(result.isErr()).toBe(true);
+  expect(await db.select().from(files)).toHaveLength(0);
+  expect((await db.select().from(folders))[0]!.fileCount).toBe(0);
+});
 
 afterEach(() => {
   currentDb?.close();
@@ -148,8 +166,7 @@ describe("ingestFile", () => {
     expect(result.value.height).toBeNull();
     expect(result.value.hasPreview).toBe(false);
 
-    // exec should NOT have been called (no ImageMagick invocations)
-    expect(exec).not.toHaveBeenCalled();
+    expect(execFile).not.toHaveBeenCalled();
   });
 
   test("processImages: false still generates preview for non-web-native formats", async () => {
@@ -165,7 +182,7 @@ describe("ingestFile", () => {
       fileName: "wall.tga",
       folderSlug: "textures",
       folderId: "folder-1",
-      source: "cli-upload",
+      source: "process-upload",
       processImages: false,
     });
 
@@ -180,12 +197,14 @@ describe("ingestFile", () => {
     expect(result.value.width).toBeNull();
     expect(result.value.height).toBeNull();
 
-    // exec should have been called once (for magick convert, not magick identify)
-    expect(exec).toHaveBeenCalledTimes(1);
-    const call = (exec as any).mock.calls[0][0];
-    expect(call).toContain("magick");
-    expect(call).toContain("wall.tga");
-    expect(call).toContain(".preview.png");
+    // Convert is needed; dimension probing is skipped.
+    expect(execFile).toHaveBeenCalledTimes(1);
+    const call = vi.mocked(execFile).mock.calls[0]![0];
+    expect(call).toBe("convert");
+    expect(vi.mocked(execFile).mock.calls[0]![1]).toEqual([
+      expect.stringMatching(/wall\.tga\[0\]$/),
+      expect.stringMatching(/^PNG:.*wall\.tga\.preview\.png$/),
+    ]);
 
     // DB record should have hasPreview = true
     const record = await db.query.files.findFirst({
@@ -222,7 +241,7 @@ describe("ingestFile", () => {
     expect(result.value.width).toBe(256);
     expect(result.value.height).toBe(512);
     // With pre-computed dimensions, processImage should be skipped entirely
-    expect(exec).not.toHaveBeenCalled();
+    expect(execFile).not.toHaveBeenCalled();
   });
 
   test("uploaderId and sourceArchive are stored", async () => {

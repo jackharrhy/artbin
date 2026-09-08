@@ -1,8 +1,8 @@
 import type * as Route from "./types.ts";
-import { requireCliAuth } from "#lib/cli-auth.server";
+import { requireSessionUser } from "#lib/session-auth.server";
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const user = await requireCliAuth(request);
+  const user = await requireSessionUser(request);
   return Response.json({
     user: {
       id: user.id,

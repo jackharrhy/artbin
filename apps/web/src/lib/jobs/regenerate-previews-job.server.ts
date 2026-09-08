@@ -263,9 +263,11 @@ async function createPreviewPlan(target: PreviewTarget) {
       : target.scope === "folder"
         ? eq(files.folderId, target.folderId)
         : undefined;
-  const maps = await db.query.files.findMany({
+  const mapFiles = await db.query.files.findMany({
     where: and(eq(files.kind, "map"), eq(files.status, "approved"), targetCondition),
   });
+  // The map category also includes editable .map sources, which are not BSPs.
+  const maps = mapFiles.filter((file) => /\.bsp$/i.test(file.name));
   if (target.scope === "all") {
     return {
       maps,

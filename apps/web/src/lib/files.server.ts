@@ -1,7 +1,7 @@
 import { mkdir, writeFile, unlink, rename, stat, readdir, readFile, rm } from "fs/promises";
 import { createReadStream, existsSync } from "fs";
 import { join, dirname, basename, extname, isAbsolute, relative, resolve, sep } from "path";
-import { exec } from "child_process";
+import { execFile } from "child_process";
 import { promisify } from "util";
 import { createHash } from "crypto";
 import { Result } from "better-result";
@@ -17,13 +17,15 @@ import { sanitizeFilename } from "@artbin/core/detection/filenames";
 import { nanoid } from "nanoid";
 import { generateFolderPreview } from "./folder-preview.server.ts";
 import { getAncestorFolderIds } from "./file-queries.server.ts";
+import { resolveApprovedWalPalette } from "./bsp-assets.server.ts";
+import { walToPng } from "./game-textures.server.ts";
 import {
   getBspDependencyPath,
   getBspWalkabilityPath,
   refreshBspDependencyManifest,
 } from "./bsp-derivatives.server.ts";
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 function toError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error));
@@ -197,7 +199,13 @@ export async function getImageDimensions(
   filePath: string,
 ): Promise<Result<{ width: number; height: number }, Error>> {
   try {
-    const { stdout } = await execAsync(`magick identify -format "%w %h" "${filePath}[0]"`);
+    const { stdout } = await execFileAsync(
+      "identify",
+      ["-format", "%w %h", `${resolve(filePath)}[0]`],
+      {
+        timeout: 60_000,
+      },
+    );
     const [width, height] = stdout.trim().split(" ").map(Number);
     if (width && height) {
       return Result.ok({ width, height });
@@ -212,7 +220,26 @@ export async function generatePreview(inputPath: string): Promise<Result<boolean
   const outputPath = inputPath + ".preview.png";
 
   try {
-    await execAsync(`magick "${inputPath}" "${outputPath}"`);
+    if (/\.wal$/i.test(inputPath)) {
+      const palette = await resolveApprovedWalPalette(
+        relative(UPLOADS_DIR, resolve(inputPath)).split(sep).join("/"),
+      );
+      if (!palette)
+        throw new Error(
+          "WAL preview requires an approved pics/colormap.pcx in its collection or _provided",
+        );
+      const png = await walToPng(
+        await readFile(inputPath),
+        await readFile(getFilePath(palette.path)),
+      );
+      await writeFile(outputPath, png);
+      return Result.ok(true);
+    }
+    // Debian's runtime image provides ImageMagick 6. Pass paths as arguments,
+    // not shell source, and select one frame so the preview has a stable filename.
+    await execFileAsync("convert", [`${resolve(inputPath)}[0]`, `PNG:${resolve(outputPath)}`], {
+      timeout: 60_000,
+    });
     return Result.ok(true);
   } catch (error) {
     return Result.err(toError(error));
@@ -349,32 +376,36 @@ export interface CreateFileRecord {
  */
 export async function insertFileRecord(record: CreateFileRecord): Promise<Result<void, Error>> {
   try {
-    await db.insert(files).values({
-      id: record.id,
-      path: record.path,
-      name: record.name,
-      mimeType: record.mimeType,
-      size: record.size,
-      kind: record.kind,
-      width: record.width ?? null,
-      height: record.height ?? null,
-      hasPreview: record.hasPreview ?? false,
-      folderId: record.folderId,
-      uploaderId: record.uploaderId ?? null,
-      source: record.source ?? null,
-      sourceArchive: record.sourceArchive ?? null,
-      sha256: record.sha256 ?? null,
-      status: record.status ?? "approved",
-      suggestedFolderId: record.suggestedFolderId ?? null,
-    });
+    db.transaction((tx) => {
+      tx.insert(files)
+        .values({
+          id: record.id,
+          path: record.path,
+          name: record.name,
+          mimeType: record.mimeType,
+          size: record.size,
+          kind: record.kind,
+          width: record.width ?? null,
+          height: record.height ?? null,
+          hasPreview: record.hasPreview ?? false,
+          folderId: record.folderId,
+          uploaderId: record.uploaderId ?? null,
+          source: record.source ?? null,
+          sourceArchive: record.sourceArchive ?? null,
+          sha256: record.sha256 ?? null,
+          status: record.status ?? "approved",
+          suggestedFolderId: record.suggestedFolderId ?? null,
+        })
+        .run();
 
-    // Increment folder's file count
-    if (record.folderId) {
-      await db
-        .update(folders)
-        .set({ fileCount: sql`file_count + 1` })
-        .where(eq(folders.id, record.folderId));
-    }
+      // Increment folder's file count
+      if (record.folderId) {
+        tx.update(folders)
+          .set({ fileCount: sql`file_count + 1` })
+          .where(eq(folders.id, record.folderId))
+          .run();
+      }
+    });
 
     return Result.ok(undefined);
   } catch (error) {

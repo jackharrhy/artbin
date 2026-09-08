@@ -1,5 +1,5 @@
 import { readFile } from "fs/promises";
-import { basename, dirname, join as pathJoin } from "path";
+import { posix } from "node:path";
 import pLimit from "p-limit";
 import { createHash } from "crypto";
 import type { ScanResult, ScannedArchive } from "./scanner.ts";
@@ -23,6 +23,8 @@ interface PreparedFile {
   mimeType: string;
   sourceArchive?: string;
 }
+
+const { basename, dirname } = posix;
 
 export interface ImportOptions {
   scanResult: ScanResult;
@@ -50,7 +52,7 @@ async function extractArchiveFiles(archive: ScannedArchive): Promise<PreparedFil
 
   // Use the archive's relative path within the scan tree to preserve directory structure.
   // e.g. archive at "AVIAOZIN3/id1/maps/myhouse.bsp" gets the dir "AVIAOZIN3/id1/maps"
-  const archiveDir = dirname(archive.relativePath);
+  const archiveDir = dirname(archive.relativePath.replaceAll("\\", "/"));
   const archiveBase = basename(archive.name, "." + archive.type);
   const archiveSlug = cleanFolderSlug(archiveBase);
 
@@ -93,8 +95,9 @@ async function extractArchiveFiles(archive: ScannedArchive): Promise<PreparedFil
       const hash = sha256(entryBuffer);
       const kind = detectKind(entry.name);
       const mimeType = await getMimeType(entry.name, entryBuffer);
-      const fileName = basename(entry.name);
-      const entryDir = dirname(entry.name);
+      const entryPath = entry.name.replaceAll("\\", "/");
+      const fileName = basename(entryPath);
+      const entryDir = dirname(entryPath);
       const relativePath =
         entryDir && entryDir !== "."
           ? `${archivePrefix}/${entryDir}/${fileName}`
@@ -157,7 +160,7 @@ export async function runImport(options: ImportOptions): Promise<ImportResult> {
       const mimeType = await getMimeType(loose.name, buffer);
 
       allFiles.push({
-        relativePath: loose.relativePath,
+        relativePath: loose.relativePath.replaceAll("\\", "/"),
         buffer,
         sha256: hash,
         kind,
@@ -237,62 +240,48 @@ export async function runImport(options: ImportOptions): Promise<ImportResult> {
   const newFileSet = new Set(newFilePaths);
   const filesToUpload = allFiles.filter((f) => newFileSet.has(f.relativePath));
 
-  // Upload in batches with concurrency
-  const BATCH_SIZE = 50;
   let uploaded = 0;
   let failed = 0;
-
-  const batches: PreparedFile[][] = [];
-  for (let i = 0; i < filesToUpload.length; i += BATCH_SIZE) {
-    batches.push(filesToUpload.slice(i, i + BATCH_SIZE));
-  }
-
-  const limit = pLimit(3);
-
+  // One file at a time per slot; tus splits even large files into bounded requests.
+  const limit = pLimit(2);
+  const errors: string[] = [];
   await Promise.all(
-    batches.map((batch, i) =>
+    filesToUpload.map((file) =>
       limit(async () => {
         progress(
           "uploading",
           uploaded,
           filesToUpload.length,
-          `Uploading batch ${i + 1}/${batches.length}...`,
+          `Uploading ${file.relativePath} (transfer and processing)…`,
         );
-
-        const result = await api.uploadBatch(
-          rootSlug,
-          batch.map((f) => ({
-            path: f.relativePath,
-            kind: f.kind,
-            mimeType: f.mimeType,
-            sha256: f.sha256,
-            sourceArchive: f.sourceArchive,
-            buffer: f.buffer,
-          })),
-        );
-
-        uploaded += result.uploaded.length;
-        if (result.errors.length > 0) {
-          failed += result.errors.length;
+        try {
+          await api.uploadFile(rootSlug, {
+            path: file.relativePath,
+            sha256: file.sha256,
+            sourceArchive: file.sourceArchive,
+            buffer: file.buffer,
+          });
+          uploaded++;
+        } catch (error) {
+          failed++;
+          errors.push(
+            `${file.relativePath}: ${error instanceof Error ? error.message : String(error)}`,
+          );
         }
-
         progress(
           "uploading",
           uploaded,
           filesToUpload.length,
-          `${uploaded}/${filesToUpload.length} uploaded`,
+          `${uploaded} uploaded, ${failed} failed`,
         );
       }),
     ),
   );
 
-  // Finalize: recalculate folder counts and generate previews on the server
-  progress("finalizing", uploaded, filesToUpload.length, "Generating folder previews...");
-  try {
-    await api.finalize(rootSlug);
-  } catch {
-    // Non-fatal -- previews can be regenerated later
-  }
+  progress("finalizing", uploaded, filesToUpload.length, "Waiting for folder preview job…");
+  await api.finalize(rootSlug);
+  if (errors.length)
+    throw new Error(`${failed} upload(s) failed:\n${errors.slice(0, 10).join("\n")}`);
 
   progress("done", uploaded, filesToUpload.length, "Upload complete");
 

@@ -17,6 +17,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && npm install -g pnpm@11.9.0
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+RUN convert -version && identify -version
 WORKDIR /app
 COPY --from=build /app/pnpm-workspace.yaml /app/package.json /app/pnpm-lock.yaml ./
 COPY --from=build /app/apps/web/package.json apps/web/

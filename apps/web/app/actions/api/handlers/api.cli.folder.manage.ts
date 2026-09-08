@@ -1,13 +1,13 @@
 import type * as Route from "./types.ts";
 
-import { requireCliAdmin } from "#lib/cli-auth.server";
+import { requireSessionAdmin } from "#lib/session-auth.server";
 
 import { operationCatalog } from "../../../operations/catalog.ts";
 import { operationErrorResponse, readOperationJson } from "../../../operations/errors.ts";
 import { folderManageInput } from "../../../operations/folders.ts";
 
 export async function action({ request }: Route.ActionArgs) {
-  const user = await requireCliAdmin(request);
+  const user = await requireSessionAdmin(request);
   try {
     const input = folderManageInput.parse(await readOperationJson(request));
     return Response.json(

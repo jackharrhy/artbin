@@ -8,6 +8,8 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import { spawn } from "node:child_process";
+import { createServer as createHttpServer } from "node:http";
+import { createHash } from "node:crypto";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const repository = resolve(scriptDirectory, "../../../..");
@@ -15,6 +17,7 @@ const webDirectory = join(repository, "apps/web");
 const requireFromWeb = createRequire(join(webDirectory, "package.json"));
 const { chromium } = requireFromWeb("playwright");
 const Database = requireFromWeb("better-sqlite3");
+const sharp = requireFromWeb("sharp");
 
 function argument(name) {
   const index = process.argv.indexOf(name);
@@ -187,10 +190,7 @@ try {
   const orphanFolder = `orphan-${nonce}`;
   const orphanName = `{loose-${nonce}.png`;
   const orphanPath = `${orphanFolder}/${orphanName}`;
-  const orphanBody = Buffer.from(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAF/gL+X1S8AAAAAElFTkSuQmCC",
-    "base64",
-  );
+  const orphanBody = await sharp({ create: { width: 1, height: 1, channels: 4, background: "green" } }).png().toBuffer();
 
   await flow("library and admin readiness", async () => {
     await page.goto(`${baseUrl}/folders`, { waitUntil: "networkidle" });
@@ -242,10 +242,10 @@ try {
       },
     ]);
     await page.getByRole("button", { name: "Upload 2 files", exact: true }).click();
+    await page.getByRole("button", { name: "Close", exact: true }).waitFor({ state: "hidden" });
     await page.getByText(uploadName, { exact: true }).waitFor();
     await page.getByText(mapName, { exact: true }).waitFor();
     await shot(page, "03-file-uploaded.png");
-    await page.getByRole("button", { name: "Close", exact: true }).click();
     const folderUrl = new URL(page.url());
     folderUrl.searchParams.set("view", "all");
     await page.goto(folderUrl.href, { waitUntil: "networkidle" });
@@ -293,6 +293,121 @@ try {
       "orphan adopted through admin UI",
       "special-character image loaded through indexed media",
     ];
+  });
+
+  await flow("TGA texture preview", async () => {
+    const textureName = `alpha-${nonce}.tga`;
+    const header = Buffer.alloc(18);
+    header[2] = 2;
+    header.writeUInt16LE(2, 12);
+    header.writeUInt16LE(1, 14);
+    header[16] = 32;
+    header[17] = 0x28;
+    await page.goto(`${baseUrl}/folder/${folderSlug}?view=textures`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: "Upload", exact: true }).click();
+    await page.locator('input[type="file"]').first().setInputFiles({
+      name: textureName,
+      mimeType: "image/x-tga",
+      buffer: Buffer.concat([header, Buffer.from([0, 0, 255, 255, 0, 255, 0, 128])]),
+    });
+    const uploadResponse = page.waitForResponse((response) => /\/api\/uploads\/[a-f0-9]+\/commit$/.test(response.url()) && response.request().method() === "POST");
+    await page.getByRole("button", { name: "Upload 1 file", exact: true }).click();
+    check((await uploadResponse).ok(), "TGA upload failed");
+    await page.getByRole("button", { name: "Close", exact: true }).waitFor({ state: "hidden" });
+    await page.locator(`img[alt="${textureName}"]`).waitFor({ state: "attached" });
+    await page.goto(`${baseUrl}/folder/${folderSlug}?view=textures`, { waitUntil: "networkidle" });
+    const texture = page.locator(`img[alt="${textureName}"]`);
+    await texture.waitFor();
+    check(await texture.evaluate((img) => img.complete && img.naturalWidth === 2), "TGA preview did not decode in the browser");
+    const database = new Database(databasePath, { readonly: true });
+    try {
+      const row = database.prepare("select has_preview, width, height from files where path = ?").get(`${folderSlug}/${textureName}`);
+      check(row?.has_preview === 1 && row.width === 2 && row.height === 1, "TGA preview metadata was not persisted");
+    } finally { database.close(); }
+    await shot(page, "10-tga-preview.png");
+    return ["TGA uploaded", "PNG preview decoded by browser", "dimensions and preview state persisted"];
+  });
+
+  await flow("CLI resumable upload through a failing proxy", async () => {
+    const { ApiClient } = await import(join(repository, "apps/cli/src/lib/api.ts"));
+    const bytes = Buffer.alloc(2 * 1024 * 1024 + 17, 65);
+    let interrupted = false;
+    let heads = 0;
+    let largestChunk = 0;
+    const proxy = createHttpServer(async (request, response) => {
+      try {
+        const chunks = [];
+        for await (const chunk of request) chunks.push(chunk);
+        const body = Buffer.concat(chunks);
+        if (request.method === "HEAD") heads++;
+        if (request.method === "PATCH") largestChunk = Math.max(largestChunk, body.length);
+        const headers = new Headers();
+        for (const [name, value] of Object.entries(request.headers)) {
+          if (value && !["host", "connection", "transfer-encoding", "content-length"].includes(name)) headers.set(name, Array.isArray(value) ? value.join(",") : value);
+        }
+        const upstream = await fetch(`${baseUrl}${request.url}`, { method: request.method, headers,
+          ...(body.length ? { body } : {}), redirect: "manual" });
+        if (request.method === "PATCH" && upstream.ok && !interrupted) {
+          interrupted = true;
+          await upstream.arrayBuffer();
+          response.writeHead(502); response.end("Simulated lost upload response"); return;
+        }
+        const responseHeaders = new Headers(upstream.headers);
+        responseHeaders.delete("content-encoding");
+        responseHeaders.delete("content-length");
+        responseHeaders.delete("transfer-encoding");
+        response.writeHead(upstream.status, Object.fromEntries(responseHeaders));
+        response.end(Buffer.from(await upstream.arrayBuffer()));
+      } catch (error) { response.writeHead(500); response.end(String(error)); }
+    });
+    await new Promise((resolve) => proxy.listen(0, "127.0.0.1", resolve));
+    try {
+      const api = new ApiClient({ serverUrl: `http://127.0.0.1:${proxy.address().port}`, sessionId: "isolated-development" });
+      await api.uploadFile(folderSlug, { path: "resumable.txt", buffer: bytes, sha256: createHash("sha256").update(bytes).digest("hex") });
+      await api.finalize(folderSlug);
+      check(interrupted && heads > 0, "CLI did not resume after the simulated gateway failure");
+      check(largestChunk <= 1024 * 1024, "CLI exceeded its chunk size");
+      check((await readFile(join(uploadsDirectory, folderSlug, "resumable.txt"))).equals(bytes), "Resumed upload bytes differ");
+      const database = new Database(databasePath, { readonly: true });
+      try {
+        check(database.prepare("select count(*) as count from files where path = ?").get(`${folderSlug}/resumable.txt`).count === 1, "Retry created duplicate files");
+      } finally { database.close(); }
+      await page.goto(`${baseUrl}/folder/${folderSlug}?view=all`, { waitUntil: "networkidle" });
+      await page.getByText("resumable.txt", { exact: true }).waitFor();
+      await shot(page, "11-cli-resumed-upload.png");
+    } finally {
+      proxy.closeAllConnections();
+      await new Promise((resolve) => proxy.close(resolve));
+    }
+    return ["gateway failure retried using HEAD offset", "requests bounded to 1 MiB", "file indexed once with exact bytes", "folder finalization job completed"];
+  });
+
+  await flow("browser archive upload and extraction", async () => {
+    const pak = Buffer.alloc(81);
+    pak.write("PACK"); pak.writeUInt32LE(17, 4); pak.writeUInt32LE(64, 8);
+    pak.write("proof", 12); pak.write("proof.txt", 17);
+    pak.writeUInt32LE(12, 73); pak.writeUInt32LE(5, 77);
+    await page.goto(`${baseUrl}/folders`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: "Add", exact: true }).click();
+    await page.locator('input[type="file"]').first().setInputFiles({ name: `archive-${nonce}.pak`, mimeType: "application/octet-stream", buffer: pak });
+    await page.getByRole("button", { name: "Extract archive", exact: true }).waitFor();
+    await shot(page, "12-archive-analysis.png");
+    const extraction = page.waitForResponse((response) => /\/api\/uploads\/[a-f0-9]+\/extract$/.test(response.url()));
+    await page.getByRole("button", { name: "Extract archive", exact: true }).click();
+    check((await extraction).status() === 202, "Archive extraction was not queued");
+    const database = new Database(databasePath, { readonly: true });
+    try {
+      const deadline = Date.now() + 30000;
+      while (!database.prepare("select id from files where path = ?").get(`archive-${nonce}/proof.txt`)) {
+        check(Date.now() < deadline, "Archive extraction did not index its file");
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+    } finally { database.close(); }
+    check(await readFile(join(uploadsDirectory, `archive-${nonce}/proof.txt`), "utf8") === "proof", "Extracted bytes differ");
+    await page.goto(`${baseUrl}/folder/archive-${nonce}?view=all`, { waitUntil: "networkidle" });
+    await page.getByText("proof.txt", { exact: true }).waitFor();
+    await shot(page, "13-archive-extracted.png");
+    return ["archive transferred through tus", "analysis returned through durable job", "owned extraction queued", "exact archive bytes indexed and visible"];
   });
 
   await flow("database and filesystem state", async () => {

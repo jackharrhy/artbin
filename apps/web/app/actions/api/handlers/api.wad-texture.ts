@@ -1,12 +1,12 @@
 import type * as Route from "./types.ts";
-import { requireCliAuth } from "#lib/cli-auth.server";
+import { requireSessionUser } from "#lib/session-auth.server";
 import { getVisibleWADLibrary, getWADTexturePreview } from "#lib/wad-assets.server";
 
 export async function loader({
   request,
   params,
 }: Route.LoaderArgsWithParams<{ fileId: string; textureIndex: string }>) {
-  const user = await requireCliAuth(request);
+  const user = await requireSessionUser(request);
   const textureIndex = Number(params.textureIndex);
   if (!Number.isSafeInteger(textureIndex) || textureIndex < 0) {
     return new Response("Texture not found", { status: 404 });

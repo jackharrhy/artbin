@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./uploads": "./src/uploads.ts",
     "./detection/kind": "./src/detection/kind.ts",
     "./detection/mime": "./src/detection/mime.ts",
     "./detection/filenames": "./src/detection/filenames.ts",
@@ -17,7 +18,8 @@
   },
   "dependencies": {
     "file-type": "^22.0.2",
-    "mime-types": "^3.0.2"
+    "mime-types": "^3.0.2",
+    "tus-js-client": "4.3.1"
   },
   "devDependencies": {
     "@types/mime-types": "^3.0.1",

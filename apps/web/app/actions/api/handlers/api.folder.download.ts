@@ -6,7 +6,7 @@ import { db } from "#db/connection.server";
 import { folders } from "#db";
 import { eq } from "drizzle-orm";
 import { slugToPath } from "#lib/files.server";
-import { requireCliAuth } from "#lib/cli-auth.server";
+import { requireSessionUser } from "#lib/session-auth.server";
 
 /**
  * GET /api/folder/download/:slug/*
@@ -16,7 +16,7 @@ import { requireCliAuth } from "#lib/cli-auth.server";
  * the entire archive in memory.
  */
 export async function loader({ request, params }: Route.LoaderArgsWithParams<{ "*": string }>) {
-  const user = await requireCliAuth(request);
+  const user = await requireSessionUser(request);
   const slug = params["*"];
 
   const folder = await db.query.folders.findFirst({

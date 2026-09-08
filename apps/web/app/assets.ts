@@ -1,4 +1,6 @@
 import * as path from "node:path";
+import { fileURLToPath } from "node:url";
+import { buildSync } from "esbuild";
 
 import { createAssetServer } from "remix/assets";
 import { uiHmr } from "remix/ui-hmr/assets";
@@ -12,6 +14,7 @@ export const assetServer = createAssetServer({
   basePath: "/assets",
   rootDir,
   fileMap: {
+    "shared/uploads.ts": "packages/core/src/uploads.ts",
     "app/*path": "apps/web/app/*path",
     "node_modules/*path": "node_modules/*path",
   },
@@ -22,7 +25,7 @@ export const assetServer = createAssetServer({
     "apps/web/app/ui/primitives.tsx",
     "apps/web/app/**/public/**",
   ],
-  allowPackages: ["@jackharrhy/worldview", "remix", "three"],
+  allowPackages: ["@artbin/core", "@jackharrhy/worldview", "remix", "three"],
   denyFiles: ["apps/web/app/**/*.test.*"],
   files: {
     extensions: [".svg", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".woff", ".woff2"],
@@ -37,7 +40,26 @@ export const assetServer = createAssetServer({
     define: {
       "process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV ?? "development"),
     },
-    loaders: isHmr ? [uiHmr()] : undefined,
+    loaders: [
+      // tus-js-client has CommonJS dependencies. Bundle this one shared client into
+      // browser ESM through Remix's loader hook; the rest of the app stays source-served.
+      (url, context, nextLoad) => {
+        const result = nextLoad(url, context);
+        const filename = fileURLToPath(url);
+        if (filename !== path.join(rootDir, "packages/core/src/uploads.ts")) return result;
+        const bundled = buildSync({
+          entryPoints: [filename],
+          bundle: true,
+          platform: "browser",
+          format: "esm",
+          write: false,
+          target: "es2022",
+          minify: !isDevelopment,
+        });
+        return { ...result, format: "module", source: bundled.outputFiles[0]!.text };
+      },
+      ...(isHmr ? [uiHmr()] : []),
+    ],
   },
 });
 

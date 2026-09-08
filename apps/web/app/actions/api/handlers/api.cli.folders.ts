@@ -1,13 +1,13 @@
 import type * as Route from "./types.ts";
 
-import { requireCliAuth } from "#lib/cli-auth.server";
+import { requireSessionUser } from "#lib/session-auth.server";
 
 import { operationCatalog } from "../../../operations/catalog.ts";
 import { operationErrorResponse, readOperationJson } from "../../../operations/errors.ts";
 import { folderCreateInput, folderListInput } from "../../../operations/folders.ts";
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const user = await requireCliAuth(request);
+  const user = await requireSessionUser(request);
   const url = new URL(request.url);
   try {
     const input = folderListInput.parse({
@@ -23,7 +23,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 }
 
 export async function action({ request }: Route.ActionArgs) {
-  const user = await requireCliAuth(request);
+  const user = await requireSessionUser(request);
   try {
     const input = folderCreateInput.parse(await readOperationJson(request));
     return Response.json(

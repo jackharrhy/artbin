@@ -13,9 +13,11 @@ artbin login
 `artbin login` uses `https://artbin.jackharrhy.dev` by default. Pass another server URL to connect
 to a self-hosted instance.
 
-Use CLI 0.2.0 or newer with the current server. Older releases show `Missing session parameter`
-after browser login because they predate the one-time login code exchange. Update with
-`npm install --global artbin@latest`, then run `artbin login` again.
+Use CLI 0.3.0 with the current server. Uploads use resumable tus transfers in 1 MiB chunks,
+with two files in flight. Processing and folder previews run as jobs that the CLI waits for.
+Interrupted requests retry from the server's recorded offset; restarting the CLI skips files
+already indexed with matching size and checksum. Conflicting files are reported, not overwritten.
+Individual files may be up to 512 MiB.
 
 ## Commands
 

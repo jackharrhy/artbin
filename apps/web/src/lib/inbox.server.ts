@@ -43,10 +43,18 @@ export async function ensureInboxFolder(): Promise<string> {
 
 export async function createUploadSession(
   uploaderId: string,
+  sessionKey?: string,
 ): Promise<{ id: string; slug: string }> {
+  if (sessionKey) {
+    const existing = await db.query.folders.findFirst({ where: eq(folders.id, sessionKey) });
+    if (existing) {
+      if (existing.ownerId !== uploaderId) throw new Error("Upload session owner mismatch");
+      return { id: existing.id, slug: existing.slug };
+    }
+  }
   const inboxId = await ensureInboxFolder();
-  const sessionId = nanoid();
-  const sessionName = nanoid();
+  const sessionId = sessionKey ?? nanoid();
+  const sessionName = sessionKey ?? nanoid();
   const sessionSlug = `${INBOX_SLUG}/${sessionName}`;
 
   await db.insert(folders).values({

@@ -1,3 +1,4 @@
+import { UploadClient } from "@artbin/core/uploads";
 import type { Config } from "./config.ts";
 
 export interface FolderSummary {
@@ -203,68 +204,30 @@ export class ApiClient {
     return (await res.json()) as { newFiles: string[]; existingFiles: string[] };
   }
 
-  async uploadBatch(
+  async uploadFile(
     parentFolder: string,
-    files: {
+    file: {
       path: string;
-      kind: string;
-      mimeType: string;
       sha256: string;
       sourceArchive?: string;
       buffer: Buffer;
-    }[],
-  ): Promise<{
-    uploaded: string[];
-    errors: { path: string; error: string }[];
-  }> {
-    const formData = new FormData();
-
-    const metadata = {
-      parentFolder,
-      files: files.map((f) => ({
-        path: f.path,
-        kind: f.kind,
-        mimeType: f.mimeType,
-        sha256: f.sha256,
-        sourceArchive: f.sourceArchive,
-      })),
-    };
-    formData.set("metadata", JSON.stringify(metadata));
-
-    for (let i = 0; i < files.length; i++) {
-      const f = files[i];
-      const bytes = new Uint8Array(f.buffer.byteLength);
-      bytes.set(f.buffer);
-      const blob = new Blob([bytes]);
-      const filename = f.path.split("/").pop() || `file_${i}`;
-      formData.set(`file_${i}`, blob, filename);
-    }
-
-    const res = await fetch(`${this.serverUrl}/api/cli/upload`, {
-      method: "POST",
-      headers: this.headers(),
-      body: formData,
-    });
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`Upload failed (${res.status}): ${body}`);
-    }
-    return (await res.json()) as {
-      uploaded: string[];
-      errors: { path: string; error: string }[];
-    };
+    },
+  ): Promise<void> {
+    await new UploadClient({ serverUrl: this.serverUrl, headers: this.headers() }).upload(
+      file.buffer,
+      {
+        purpose: "file",
+        parentFolder,
+        path: file.path,
+        sha256: file.sha256,
+        ...(file.sourceArchive ? { sourceArchive: file.sourceArchive } : {}),
+      },
+    );
   }
 
   async finalize(parentFolder: string): Promise<{ finalized: number }> {
-    const res = await fetch(`${this.serverUrl}/api/cli/finalize`, {
-      method: "POST",
-      headers: { ...this.headers(), "Content-Type": "application/json" },
-      body: JSON.stringify({ parentFolder }),
-    });
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`Finalize failed (${res.status}): ${body}`);
-    }
-    return (await res.json()) as { finalized: number };
+    return new UploadClient({ serverUrl: this.serverUrl, headers: this.headers() }).finalize(
+      parentFolder,
+    );
   }
 }

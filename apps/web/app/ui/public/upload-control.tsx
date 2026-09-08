@@ -1,5 +1,7 @@
 import { clientEntry, css, on, ref, type Handle, type SerializableProps } from "remix/ui";
 
+import { UploadClient, MAX_UPLOAD_BYTES, type ArchiveAnalysis } from "@artbin/core/uploads";
+
 import { routes } from "../../routes.ts";
 import { ModalFrame } from "../modal.tsx";
 import { Alert, Button, Disclosure, ProgressBar } from "../primitives.tsx";
@@ -136,15 +138,10 @@ interface SelectedFile {
   error?: string;
 }
 
-interface ArchiveAnalysis {
-  tempFile: string;
-  originalName: string;
-  archiveType: string;
-  totalFiles: number;
-  totalDirs: number;
-  suggestedName: string;
-  suggestedSlug: string;
-  sampleFiles: string[];
+async function hashFile(file: File): Promise<string> {
+  if (file.size > MAX_UPLOAD_BYTES) throw new Error("Individual uploads may be at most 512 MiB");
+  const digest = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 type View = "main" | "folder" | "archive";
@@ -163,7 +160,7 @@ export const UploadControl = clientEntry(
     let message: string | null = null;
     let busy = false;
     let progress = { done: 0, total: 0 };
-    let analysis: ArchiveAnalysis | null = null;
+    let analysis: (ArchiveAnalysis & { uploadId: string }) | null = null;
     let archiveName = "";
     let archiveSlug = "";
     let folderName = "";
@@ -189,28 +186,22 @@ export const UploadControl = clientEntry(
       busy = true;
       error = null;
       await handle.update();
-      const form = new FormData();
-      form.set("_action", "analyze");
-      form.set("file", file);
       try {
-        const response = await fetch(routes.api.upload.href(), {
-          method: "POST",
-          body: form,
+        const sha256 = await hashFile(file);
+        const { uploadId, result } = await new UploadClient({
+          serverUrl: location.origin,
           signal,
+        }).upload(file, {
+          purpose: "archive",
+          path: file.name,
+          sha256,
         });
-        const result = (await response.json()) as {
-          error?: string;
-          archiveAnalysis?: ArchiveAnalysis;
-        };
         if (signal.aborted) return;
-        if (!response.ok || result.error || !result.archiveAnalysis) {
-          error = result.error ?? "The archive could not be analyzed.";
-        } else {
-          analysis = result.archiveAnalysis;
-          archiveName = analysis.suggestedName;
-          archiveSlug = analysis.suggestedSlug;
-          view = "archive";
-        }
+        if (result.purpose !== "archive") throw new Error("Invalid archive analysis response");
+        analysis = { ...result.archiveAnalysis, uploadId };
+        archiveName = analysis.suggestedName;
+        archiveSlug = analysis.suggestedSlug;
+        view = "archive";
       } catch (caught) {
         if (!signal.aborted) {
           error = caught instanceof Error ? caught.message : "The archive could not be analyzed.";
@@ -437,39 +428,29 @@ export const UploadControl = clientEntry(
                             error = null;
                             message = null;
                             progress = { done: 0, total: files.length };
-                            let sessionId: string | null = null;
+                            const batchId = crypto.randomUUID();
+                            const client = new UploadClient({ serverUrl: location.origin, signal });
                             let successes = 0;
                             for (let index = 0; index < files.length; index++) {
                               if (signal.aborted) return;
                               const selected = files[index]!;
                               selected.status = "uploading";
                               await handle.update();
-                              const form = new FormData();
-                              form.set("file", selected.file);
-                              form.set("folderId", currentFolder.id);
-                              form.set("relativePath", selected.relativePath);
-                              if (sessionId) form.set("uploadSessionId", sessionId);
                               try {
-                                const response = await fetch(routes.api.upload.href(), {
-                                  method: "POST",
-                                  body: form,
-                                  signal,
+                                const { result } = await client.upload(selected.file, {
+                                  purpose: "file",
+                                  parentFolder: currentFolder.slug,
+                                  path: selected.relativePath,
+                                  batchId,
+                                  sha256: await hashFile(selected.file),
                                 });
-                                const result = (await response.json()) as {
-                                  error?: string;
-                                  pendingUpload?: boolean;
-                                  uploadSessionId?: string;
-                                  message?: string;
-                                };
-                                if (!response.ok || result.error) {
-                                  selected.status = "error";
-                                  selected.error = result.error ?? "Upload failed.";
-                                } else {
-                                  selected.status = "done";
-                                  successes++;
-                                  if (result.uploadSessionId) sessionId = result.uploadSessionId;
-                                  if (result.message) message = result.message;
-                                }
+                                if (result.purpose !== "file")
+                                  throw new Error("Invalid file response");
+                                selected.status = "done";
+                                successes++;
+                                if (result.pendingUpload)
+                                  message =
+                                    "Upload complete. An admin will review your submission.";
                               } catch (caught) {
                                 if (signal.aborted) return;
                                 selected.status = "error";
@@ -479,11 +460,24 @@ export const UploadControl = clientEntry(
                               progress.done = index + 1;
                               await handle.update();
                             }
+                            if (successes && props.isAdmin) {
+                              try {
+                                await client.finalize(currentFolder.slug);
+                              } catch (caught) {
+                                error =
+                                  caught instanceof Error
+                                    ? caught.message
+                                    : "Folder previews failed";
+                              }
+                            }
                             busy = false;
                             const firstError = files.find((selected) => selected.error)?.error;
                             if (firstError) error = firstError;
                             await handle.update();
-                            if (successes === files.length && props.isAdmin) location.reload();
+                            if (successes === files.length && props.isAdmin && !error) {
+                              close();
+                              location.reload();
+                            }
                           }),
                         ]}
                       >
@@ -720,26 +714,25 @@ export const UploadControl = clientEntry(
                           busy = true;
                           error = null;
                           await handle.update();
-                          const form = new FormData();
-                          form.set("_action", "extract");
-                          form.set("tempFile", analysis.tempFile);
-                          form.set("originalName", analysis.originalName);
-                          form.set("folderName", archiveName);
-                          form.set("folderSlug", archiveSlug);
-                          if (currentFolder) form.set("parentFolderId", currentFolder.id);
                           try {
-                            const response = await fetch(routes.api.upload.href(), {
-                              method: "POST",
-                              body: form,
-                              signal,
-                            });
-                            const result = (await response.json()) as {
-                              error?: string;
-                              jobCreated?: unknown;
-                            };
-                            if (!response.ok || result.error)
-                              error = result.error ?? "Extraction could not start.";
-                            else location.reload();
+                            const response = await fetch(
+                              routes.api.extractUpload.href({ uploadId: analysis.uploadId }),
+                              {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                  folderName: archiveName,
+                                  folderSlug: archiveSlug,
+                                  ...(currentFolder ? { parentFolderId: currentFolder.id } : {}),
+                                }),
+                                signal,
+                              },
+                            );
+                            if (!response.ok) error = await response.text();
+                            else {
+                              close();
+                              location.reload();
+                            }
                           } catch (caught) {
                             if (!signal.aborted)
                               error =

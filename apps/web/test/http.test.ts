@@ -47,14 +47,15 @@ describe("HTTP integration tests", () => {
         PORT: String(PORT),
         NODE_ENV: "production",
         ARTBIN_DB_PATH: ":memory:",
+        // This is a real server process: run its migrations instead of inheriting
+        // Vitest's in-process database override mode.
+        VITEST: "",
       },
       stdio: "pipe",
     });
 
     server.stderr?.on("data", (data: Buffer) => {
       const msg = data.toString();
-      // Suppress known non-fatal noise (JobRunner polling on empty DB)
-      if (msg.includes("no such table")) return;
       if (msg.includes("Error") || msg.includes("error")) {
         console.error("[server stderr]", msg);
       }
@@ -180,8 +181,8 @@ describe("HTTP integration tests", () => {
       await expect(res.json()).resolves.toEqual({ error: "Not authenticated" });
     });
 
-    test("/api/upload returns 401 when not authenticated", async () => {
-      const res = await fetch(`${BASE}/api/upload`, {
+    test("/api/uploads returns 401 when not authenticated", async () => {
+      const res = await fetch(`${BASE}/api/uploads`, {
         method: "POST",
         redirect: "manual",
       });

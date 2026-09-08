@@ -41,6 +41,14 @@ export async function resolveApprovedBspPalette(
   return selectBspAsset(bsp.path, candidates);
 }
 
+export async function resolveApprovedWalPalette(path: string): Promise<BspAsset | null> {
+  const candidates = (await findApprovedNamedFiles("colormap.pcx")).map(uploadAsset);
+  return selectBspAsset(
+    path,
+    candidates.filter((asset) => /\/pics\/colormap\.pcx$/i.test(asset.path)),
+  );
+}
+
 export async function resolveBspAssetPlan(
   bsp: AssetFile,
   plan: WorldAssetPlan,

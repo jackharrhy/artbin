@@ -3,7 +3,11 @@ import { afterEach, describe, expect, test } from "vitest";
 
 import { files, folders } from "#db";
 import { setDbForTesting } from "#db/connection.server";
-import { resolveApprovedBspAssetPlan, selectBspAsset } from "../src/lib/bsp-assets.server.ts";
+import {
+  resolveApprovedBspAssetPlan,
+  resolveApprovedWalPalette,
+  selectBspAsset,
+} from "../src/lib/bsp-assets.server.ts";
 import { applyMigrations, createTestDatabase, type TestDatabase } from "./db.ts";
 
 let currentDb: TestDatabase | undefined;
@@ -30,6 +34,28 @@ const emptyPlan: WorldAssetPlan = {
 };
 
 describe("BSP asset selection", () => {
+  test("WAL palettes prefer sibling archives and exclude pending or unrelated files", async () => {
+    const db = setupDatabase();
+    await db.insert(folders).values({ id: "root", name: "Root", slug: "root" });
+    for (const [id, path, status] of [
+      ["sibling", "game/pak0/pics/colormap.pcx", "approved"],
+      ["pending", "game/pak2/pics/colormap.pcx", "pending"],
+      ["other", "other/pak0/pics/colormap.pcx", "approved"],
+    ] as const) {
+      await db.insert(files).values({
+        id,
+        path,
+        status,
+        name: "colormap.pcx",
+        mimeType: "image/x-pcx",
+        size: 100,
+        kind: "texture",
+        folderId: "root",
+      });
+    }
+    expect((await resolveApprovedWalPalette("game/pak2/textures/wall.wal"))?.id).toBe("sibling");
+    expect(await resolveApprovedWalPalette("unrelated/textures/wall.wal")).toBeNull();
+  });
   test("prefers the nearest matching game asset over the provided fallback", () => {
     const nearby = { path: "collection/mod/textures.wad" };
     const provided = { path: "_provided/goldsrc/textures.wad" };

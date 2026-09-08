@@ -2,6 +2,8 @@ import sharp from "sharp";
 
 import {
   decodeMipTexture,
+  decodeWalTexture,
+  readPcxPalette,
   identifyBsp,
   identifyWad,
   isQuakePaletteFormat,
@@ -16,6 +18,11 @@ export interface ExtractedTexture {
   width: number;
   height: number;
   pngBuffer: Buffer;
+}
+
+export async function walToPng(wal: Uint8Array, colormap: Uint8Array): Promise<Buffer> {
+  const texture = decodeWalTexture(wal, readPcxPalette(colormap));
+  return rgbaToPng(texture.levels[0]!.rgba, texture.width, texture.height);
 }
 
 export interface WadTextureInfo {

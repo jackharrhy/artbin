@@ -17,6 +17,7 @@ mise exec -- pnpm run dev
 ```
 
 Open `http://localhost:5175`. Development includes a local admin account; no OAuth setup needed.
+Image previews and their tests require ImageMagick (`convert` and `identify`).
 
 ```bash
 pnpm run ci       # format checks, lint, typechecks, and tests

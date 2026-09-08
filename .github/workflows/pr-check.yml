@@ -18,6 +18,9 @@ jobs:
           runtime: node@25
           cache: true
 
+      - name: Install image preview runtime
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends imagemagick
+
       - name: Check formatting
         run: pnpm run format:check
 

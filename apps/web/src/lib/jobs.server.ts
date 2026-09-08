@@ -255,11 +255,13 @@ export function startJobRunner(intervalMs = 2000): void {
 
   const poll = async () => {
     if (!isRunning) return;
+    let processedJob = false;
 
     try {
       const job = await getNextJob();
       if (job) {
         await processJob(job);
+        processedJob = true;
       }
     } catch (error) {
       const pollLog = createRequestLogger();
@@ -269,7 +271,7 @@ export function startJobRunner(intervalMs = 2000): void {
     }
 
     if (isRunning) {
-      pollInterval = setTimeout(poll, intervalMs);
+      pollInterval = setTimeout(poll, processedJob ? 0 : intervalMs);
     }
   };
 

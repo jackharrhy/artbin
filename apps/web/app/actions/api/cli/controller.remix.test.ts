@@ -1,7 +1,9 @@
 import * as assert from "remix/assert";
 import { afterEach, beforeEach, describe, it } from "remix/test";
 
-import { files, folders } from "#db";
+import { files, folders, jobs } from "#db";
+import { processJob } from "#lib/jobs.server";
+import "#lib/jobs/upload-jobs.server";
 
 import { routes } from "../../../routes.ts";
 import {
@@ -23,6 +25,7 @@ describe("CLI finalization mutations", () => {
   it("recalculates descendant folder counts through the router", async () => {
     await harness.database.db.insert(folders).values([
       { id: "root-folder", name: "Root", slug: "router-finalize", fileCount: 99 },
+      { id: "sibling-folder", name: "Sibling", slug: "router-finalize-other", fileCount: 99 },
       {
         id: "child-folder",
         name: "Child",
@@ -42,19 +45,23 @@ describe("CLI finalization mutations", () => {
     });
 
     const response = await router.fetch(
-      harness.request(routes.api.cli.finalize.href(), adminCookie, {
+      harness.request(routes.api.finalizeUploads.href(), adminCookie, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ parentFolder: "router-finalize" }),
       }),
     );
 
-    assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), { finalized: 2 });
+    assert.equal(response.status, 202);
+    const queued = (await harness.database.db.select().from(jobs))[0]!;
+    assert.deepEqual(await response.json(), { jobId: queued.id });
+    assert.equal(queued.status, "pending");
+    assert.equal((await processJob(queued)).isOk(), true);
     const records = await harness.database.db.select().from(folders);
     assert.deepEqual(Object.fromEntries(records.map((folder) => [folder.id, folder.fileCount])), {
       "root-folder": 0,
       "child-folder": 1,
+      "sibling-folder": 99,
     });
   });
 });

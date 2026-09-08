@@ -90,6 +90,26 @@ function setupDatabase() {
 }
 
 describe("preview regeneration job", () => {
+  test("does not treat editable map sources as BSP previews", async () => {
+    const db = setupDatabase();
+    await db.insert(folders).values({ id: "maps", name: "Maps", slug: "maps" });
+    await db.insert(files).values({
+      id: "source",
+      path: "maps/plane.map",
+      name: "plane.map",
+      mimeType: "text/plain",
+      size: 64,
+      kind: "map",
+      folderId: "maps",
+      status: "approved",
+    });
+    const input = { userId: "admin", target: { scope: "all" as const } };
+    const job = await createJob({ type: "regenerate-previews", input });
+    const result = await handleRegeneratePreviews(job, input);
+    expect(result.mapPreviews).toBe(0);
+    expect(generateBspDerivatives).not.toHaveBeenCalled();
+    expect(deleteFolderPreview).toHaveBeenCalledWith("maps");
+  });
   test("replaces every generated file preview during a full refresh", async () => {
     const db = setupDatabase();
     await db.insert(folders).values({ id: "assets", name: "Assets", slug: "assets" });
