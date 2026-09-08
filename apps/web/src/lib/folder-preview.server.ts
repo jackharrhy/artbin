@@ -9,10 +9,9 @@ import { db } from "#db/connection.server";
 import { files, folders } from "#db";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { join } from "path";
-import { existsSync } from "fs";
-import { rename, unlink } from "fs/promises";
+import { existsSync, mkdirSync, renameSync, unlinkSync, writeFileSync } from "fs";
 import { randomUUID } from "crypto";
-import { UPLOADS_DIR, getFilePath, slugToPath, ensureDir } from "./files.server.ts";
+import { UPLOADS_DIR, getFilePath, slugToPath } from "./files.server.ts";
 import { getDescendantFolderIds } from "./file-queries.server.ts";
 import { createRequestLogger } from "evlog";
 
@@ -20,9 +19,10 @@ import { createRequestLogger } from "evlog";
 const GRID_SIZE = 3; // 3x3 grid
 const THUMB_SIZE = 128; // Each thumbnail is 128x128
 const PREVIEW_SIZE = GRID_SIZE * THUMB_SIZE; // 384x384 total
+export const FOLDER_PREVIEW_FILENAME = "_folder-preview.png";
 
 export function getFolderPreviewPath(folderSlug: string): string {
-  return `${folderSlug}/_folder-preview.png`;
+  return `${folderSlug}/${FOLDER_PREVIEW_FILENAME}`;
 }
 
 export function getFolderPreviewFullPath(folderSlug: string): string {
@@ -212,26 +212,28 @@ export async function generateFolderPreview(folderId: string): Promise<string | 
       .composite(thumbnails)
       .png();
 
-    // Ensure the folder directory exists
-    await ensureDir(slugToPath(folder.slug));
-
-    // Save the preview
-    const previewPath = getFolderPreviewPath(folder.slug);
-    const fullPath = getFolderPreviewFullPath(folder.slug);
-    const temporaryPath = `${fullPath}.tmp-${randomUUID()}.png`;
-
-    try {
-      await composite.toFile(temporaryPath);
-      await rename(temporaryPath, fullPath);
-    } catch (error) {
-      await unlink(temporaryPath).catch(() => {});
-      throw error;
-    }
-
-    // Update folder record with preview path
-    await db.update(folders).set({ previewPath }).where(eq(folders.id, folderId));
-
-    return previewPath;
+    const png = await composite.toBuffer();
+    // Rendering can overlap a move. Resolve the folder's current path at publication
+    // time, with no async gap between the filesystem write and the database update.
+    return db.transaction(
+      (tx) => {
+        const current = tx.select().from(folders).where(eq(folders.id, folderId)).get();
+        if (!current) return null;
+        mkdirSync(slugToPath(current.slug), { recursive: true });
+        const previewPath = getFolderPreviewPath(current.slug);
+        const fullPath = getFolderPreviewFullPath(current.slug);
+        const temporaryPath = `${fullPath}.tmp-${randomUUID()}.png`;
+        try {
+          writeFileSync(temporaryPath, png);
+          renameSync(temporaryPath, fullPath);
+          tx.update(folders).set({ previewPath }).where(eq(folders.id, folderId)).run();
+        } finally {
+          if (existsSync(temporaryPath)) unlinkSync(temporaryPath);
+        }
+        return previewPath;
+      },
+      { behavior: "immediate" },
+    );
   } catch (err) {
     const log = createRequestLogger();
     log.set({ folderPreview: { folderSlug: folder.slug, error: "generation-failed" } });
@@ -243,12 +245,16 @@ export async function generateFolderPreview(folderId: string): Promise<string | 
 }
 
 async function clearFolderPreview(folder: typeof folders.$inferSelect): Promise<void> {
-  const paths = new Set([
-    getFolderPreviewFullPath(folder.slug),
-    ...(folder.previewPath ? [join(UPLOADS_DIR, folder.previewPath)] : []),
-  ]);
-  await Promise.all([...paths].map((path) => unlink(path).catch(() => {})));
-  await db.update(folders).set({ previewPath: null }).where(eq(folders.id, folder.id));
+  db.transaction(
+    (tx) => {
+      const current = tx.select().from(folders).where(eq(folders.id, folder.id)).get();
+      if (!current || current.slug !== folder.slug) return;
+      const path = getFolderPreviewFullPath(current.slug);
+      if (existsSync(path)) unlinkSync(path);
+      tx.update(folders).set({ previewPath: null }).where(eq(folders.id, folder.id)).run();
+    },
+    { behavior: "immediate" },
+  );
 }
 
 export async function deleteFolderPreview(folderId: string): Promise<void> {

@@ -90,6 +90,34 @@ function setupDatabase() {
 }
 
 describe("preview regeneration job", () => {
+  test("a move during rendering fails the target instead of marking a stale preview ready", async () => {
+    const db = setupDatabase();
+    await db.insert(folders).values({ id: "assets", name: "Assets", slug: "assets" });
+    await db.insert(files).values({
+      id: "texture",
+      path: "assets/texture.tga",
+      name: "texture.tga",
+      mimeType: "image/x-tga",
+      size: 64,
+      kind: "texture",
+      folderId: "assets",
+      status: "approved",
+    });
+    generatePreview.mockImplementationOnce(async () => {
+      await db.update(files).set({ path: "moved/texture.tga" }).where(eq(files.id, "texture"));
+      return generatedPreview;
+    });
+    const input = { userId: "admin", target: { scope: "all" as const } };
+    const job = await createJob({ type: "regenerate-previews", input });
+    await expect(handleRegeneratePreviews(job, input)).rejects.toThrow(
+      "Asset moved or was removed",
+    );
+    expect(await db.query.files.findFirst({ where: eq(files.id, "texture") })).toMatchObject({
+      path: "moved/texture.tga",
+      hasPreview: false,
+    });
+  });
+
   test("does not treat editable map sources as BSP previews", async () => {
     const db = setupDatabase();
     await db.insert(folders).values({ id: "maps", name: "Maps", slug: "maps" });

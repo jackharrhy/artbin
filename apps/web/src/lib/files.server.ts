@@ -1,5 +1,5 @@
-import { mkdir, writeFile, unlink, rename, stat, readdir, readFile, rm } from "fs/promises";
-import { createReadStream, existsSync } from "fs";
+import { mkdir, writeFile, unlink, stat, readdir, readFile, rm } from "fs/promises";
+import { createReadStream, existsSync, mkdirSync, renameSync } from "fs";
 import { join, dirname, basename, extname, isAbsolute, relative, resolve, sep } from "path";
 import { execFile } from "child_process";
 import { promisify } from "util";
@@ -162,31 +162,39 @@ export async function deleteFile(filePath: string): Promise<void> {
   }
 }
 
-export async function moveFile(fromPath: string, toPath: string): Promise<void> {
+export function moveFile(fromPath: string, toPath: string): void {
+  if (fromPath === toPath) return;
   const fullFromPath = getFilePath(fromPath);
   const fullToPath = getFilePath(toPath);
 
-  await ensureDir(dirname(fullToPath));
-  await rename(fullFromPath, fullToPath);
-
-  // Also move preview if it exists
-  const fromPreview = getPreviewPath(fromPath);
-  const toPreview = getPreviewPath(toPath);
-
-  try {
-    await rename(fromPreview, toPreview);
-  } catch {
-    // Preview may not exist
-  }
+  mkdirSync(dirname(fullToPath), { recursive: true });
+  const paths: Array<[string, string]> = [[fullFromPath, fullToPath]];
+  const derivatives: Array<[string, string]> = [[getPreviewPath(fromPath), getPreviewPath(toPath)]];
   if (/\.bsp$/i.test(fromPath)) {
-    const moveDerivative = async (from: string, to: string) => {
-      if (/\.bsp$/i.test(toPath)) await rename(from, to).catch(() => {});
-      else await unlink(from).catch(() => {});
-    };
-    await Promise.all([
-      moveDerivative(getBspDependencyPath(fromPath), getBspDependencyPath(toPath)),
-      moveDerivative(getBspWalkabilityPath(fromPath), getBspWalkabilityPath(toPath)),
-    ]);
+    derivatives.push(
+      [getBspDependencyPath(fromPath), getBspDependencyPath(toPath)],
+      [getBspWalkabilityPath(fromPath), getBspWalkabilityPath(toPath)],
+    );
+  }
+  paths.push(...derivatives.filter(([from]) => existsSync(from)));
+  for (const [, to] of paths) {
+    if (existsSync(to)) throw new Error(`Move destination already exists: ${to}`);
+  }
+  const moved: Array<[string, string]> = [];
+  try {
+    for (const [from, to] of paths) {
+      renameSync(from, to);
+      moved.push([from, to]);
+    }
+  } catch (error) {
+    try {
+      for (const [from, to] of moved.toReversed()) renameSync(to, from);
+    } catch (rollbackError) {
+      throw new AggregateError([error, rollbackError], "File move and rollback failed", {
+        cause: rollbackError,
+      });
+    }
+    throw error;
   }
 }
 

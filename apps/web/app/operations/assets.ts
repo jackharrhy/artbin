@@ -4,13 +4,8 @@ import { z } from "zod";
 
 import { files, folders } from "#db";
 import { db } from "#db/connection.server";
-import {
-  deleteFile,
-  deleteFileRecord,
-  finalizeFolders,
-  ingestFile,
-  moveFile,
-} from "#lib/files.server";
+import { relocateFile } from "#lib/file-relocation.server";
+import { deleteFile, deleteFileRecord, finalizeFolders, ingestFile } from "#lib/files.server";
 
 import type { OperationContext } from "./context.ts";
 import { requireOperationAdmin } from "./context.ts";
@@ -188,22 +183,8 @@ export async function moveAssetOperation(
   if (input.execution.mode === "plan" || plan.noOp) {
     return { applied: false as const, plan };
   }
-  await moveFile(file.path, toPath);
-  try {
-    await db
-      .update(files)
-      .set({ folderId: destination.id, path: toPath })
-      .where(eq(files.id, file.id));
-    await finalizeFolders([source.id, destination.id]);
-  } catch (error) {
-    await moveFile(toPath, file.path);
-    await db
-      .update(files)
-      .set({ folderId: source.id, path: file.path })
-      .where(eq(files.id, file.id));
-    await finalizeFolders([source.id, destination.id]);
-    throw error;
-  }
+  relocateFile(file, { folderId: destination.id, path: toPath });
+  await finalizeFolders([source.id, destination.id]);
   const moved = await db.query.files.findFirst({ where: eq(files.id, file.id) });
   if (!moved) throw new Error("Moved asset record was not found");
   return { applied: true as const, plan, asset: serializeAsset(moved, destination.slug) };

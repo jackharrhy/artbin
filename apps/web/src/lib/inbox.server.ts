@@ -7,7 +7,6 @@ import { nanoid } from "nanoid";
 import {
   ensureDir,
   slugToPath,
-  moveFile,
   deleteFolder,
   recalculateFolderCounts,
   getFilePath,
@@ -15,6 +14,7 @@ import {
 import { generateFolderPreview } from "./folder-preview.server.ts";
 import { getDescendantFolderIds } from "./file-queries.server.ts";
 import { createRequestLogger } from "evlog";
+import { relocateFile } from "./file-relocation.server.ts";
 
 export const INBOX_SLUG = "_inbox";
 export const INBOX_NAME = "Inbox";
@@ -125,8 +125,6 @@ export async function approveSession(
     where: and(inArray(files.folderId, sessionFolderIds), eq(files.status, "pending")),
   });
 
-  let skippedCount = 0;
-
   // Cache for destination subfolder resolution: relative path -> { id, slug }
   const destFolderCache = new Map<string, { id: string; slug: string }>();
   destFolderCache.set("", { id: destinationFolderId, slug: destinationSlug });
@@ -193,22 +191,8 @@ export async function approveSession(
 
     const newPath = await findUniquePath(destFolder.slug, file.name);
 
-    // Move file on disk, skip gracefully if source is missing
-    const sourcePath = getFilePath(file.path);
-    if (existsSync(sourcePath)) {
-      await moveFile(file.path, newPath);
-    } else {
-      skippedCount++;
-    }
-
-    await db
-      .update(files)
-      .set({
-        status: "approved",
-        folderId: destFolder.id,
-        path: newPath,
-      })
-      .where(eq(files.id, file.id));
+    // A missing source fails closed: keep the pending record and its session for retry.
+    relocateFile(file, { status: "approved", folderId: destFolder.id, path: newPath });
   }
 
   await recalculateFolderCounts([...touchedFolderIds]);
@@ -243,7 +227,7 @@ export async function approveSession(
   }
   await db.delete(folders).where(eq(folders.id, sessionFolderId));
 
-  return { approvedCount: pendingFiles.length, skippedCount };
+  return { approvedCount: pendingFiles.length, skippedCount: 0 };
 }
 
 export async function rejectSession(sessionFolderId: string): Promise<{ rejectedCount: number }> {

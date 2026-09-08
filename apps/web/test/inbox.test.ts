@@ -11,7 +11,7 @@ vi.mock("#lib/files.server", async (importOriginal) => {
     ensureDir: vi.fn(async () => {}),
     slugToPath: (slug: string) => `/mock-uploads/${slug}`,
     getFilePath: (filePath: string) => `/mock-uploads/${filePath}`,
-    moveFile: vi.fn(async () => {}),
+    moveFile: vi.fn(() => {}),
     deleteFolder: vi.fn(async () => {}),
     recalculateFolderCounts: vi.fn(async () => {}),
   };
@@ -30,6 +30,7 @@ import {
   INBOX_SLUG,
   INBOX_NAME,
 } from "#lib/inbox.server";
+import { moveFile, deleteFolder } from "#lib/files.server";
 
 let currentDb: TestDatabase | undefined;
 
@@ -116,6 +117,36 @@ describe("createUploadSession", () => {
 });
 
 describe("approveSession", () => {
+  test("a missing source leaves the pending record and session intact", async () => {
+    const db = setupDatabase();
+    await db.insert(folders).values([
+      { id: "session", name: "Session", slug: "_inbox/session" },
+      { id: "destination", name: "Destination", slug: "destination" },
+    ]);
+    await db.insert(files).values({
+      id: "missing",
+      path: "_inbox/session/missing.png",
+      name: "missing.png",
+      mimeType: "image/png",
+      size: 10,
+      kind: "texture",
+      folderId: "session",
+      status: "pending",
+    });
+    vi.mocked(deleteFolder).mockClear();
+    vi.mocked(moveFile).mockImplementationOnce(() => {
+      throw new Error("ENOENT: missing source");
+    });
+    await expect(approveSession("session", "destination", "destination")).rejects.toThrow("ENOENT");
+    expect(await db.query.files.findFirst({ where: eq(files.id, "missing") })).toMatchObject({
+      path: "_inbox/session/missing.png",
+      folderId: "session",
+      status: "pending",
+    });
+    expect(await db.query.folders.findFirst({ where: eq(folders.id, "session") })).toBeDefined();
+    expect(deleteFolder).not.toHaveBeenCalled();
+  });
+
   test("moves files, updates status/path/folderId, deletes session folder", async () => {
     const db = setupDatabase();
     await seedUser(db);

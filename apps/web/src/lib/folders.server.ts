@@ -1,14 +1,15 @@
 import { join } from "path";
 import { nanoid } from "nanoid";
 import { Result } from "better-result";
-import { eq, like, sql } from "drizzle-orm";
-import { existsSync } from "fs";
-import { rename } from "fs/promises";
+import { eq } from "drizzle-orm";
 import { cleanFolderSlug } from "@artbin/core/detection/filenames";
 import { db as appDb, type AppDb } from "#db/connection.server";
 import { files, folders, type Folder } from "#db";
 import { ensureDir as ensureUploadsDir, UPLOADS_DIR } from "./files.server.ts";
 import { generateFolderPreview } from "./folder-preview.server.ts";
+import { relocateFolder, type FolderRelocationDeps } from "./folder-relocation.server.ts";
+import { getAncestorFolderIds } from "./file-queries.server.ts";
+import { createRequestLogger } from "evlog";
 
 export interface CreateFolderInput {
   name: string;
@@ -30,14 +31,7 @@ export interface CreatedFolder {
   slug: string;
 }
 
-export interface MoveFolderDeps {
-  db?: AppDb;
-  uploadsDir?: string;
-  exists?: (path: string) => boolean;
-  rename?: (from: string, to: string) => Promise<void>;
-  ensureDir?: (path: string) => Promise<void>;
-  generatePreview?: (folderId: string) => Promise<string | null>;
-}
+export type MoveFolderDeps = FolderRelocationDeps;
 
 export interface MoveFolderOutput {
   folder?: Folder;
@@ -130,35 +124,6 @@ async function getDescendantFolders(database: AppDb, folderId: string): Promise<
   return descendants;
 }
 
-/**
- * Bulk-update all descendant folder slugs and file paths when a folder's slug changes.
- * Uses SQL REPLACE() in single queries instead of per-row loops to avoid blocking
- * the event loop on large trees.
- */
-async function cascadeSlugChange(
-  database: AppDb,
-  oldSlug: string,
-  newSlug: string,
-): Promise<{ updatedFolders: number; updatedFiles: number }> {
-  // Update all descendant folder slugs in one query
-  // Matches folders whose slug starts with "oldSlug/" (direct descendants)
-  const folderResult = await database
-    .update(folders)
-    .set({ slug: sql`REPLACE(${folders.slug}, ${oldSlug}, ${newSlug})` })
-    .where(like(folders.slug, `${oldSlug}/%`));
-
-  // Update all file paths that start with the old slug
-  const fileResult = await database
-    .update(files)
-    .set({ path: sql`REPLACE(${files.path}, ${oldSlug}, ${newSlug})` })
-    .where(like(files.path, `${oldSlug}/%`));
-
-  return {
-    updatedFolders: folderResult.changes ?? 0,
-    updatedFiles: fileResult.changes ?? 0,
-  };
-}
-
 async function wouldCreateCycle(
   database: AppDb,
   folderId: string,
@@ -177,10 +142,6 @@ export async function moveFolder(
   deps: MoveFolderDeps = {},
 ) {
   const database = deps.db ?? appDb;
-  const uploadsDir = deps.uploadsDir ?? UPLOADS_DIR;
-  const exists = deps.exists ?? existsSync;
-  const moveDir = deps.rename ?? rename;
-  const ensureDir = deps.ensureDir ?? ensureUploadsDir;
   const generatePreview = deps.generatePreview ?? generateFolderPreview;
 
   const folder = await database.query.folders.findFirst({
@@ -225,38 +186,29 @@ export async function moveFolder(
     }
   }
 
-  const oldSlug = folder.slug;
-  const oldPath = join(uploadsDir, oldSlug);
-  const newPath = join(uploadsDir, newSlug);
-
-  if (newParentSlug) {
-    await ensureDir(join(uploadsDir, newParentSlug));
-  }
-
-  if (exists(newPath)) {
-    return Result.err(new Error(`Directory already exists at "${newSlug}"`));
-  }
-
   try {
-    // Update the folder itself
-    await database
-      .update(folders)
-      .set({ parentId: newParentId, slug: newSlug })
-      .where(eq(folders.id, folderId));
-
-    // Bulk-update all descendant slugs and file paths
-    const { updatedFolders, updatedFiles } = await cascadeSlugChange(database, oldSlug, newSlug);
-
-    if (exists(oldPath)) {
-      await moveDir(oldPath, newPath);
-    }
-
-    await generatePreview(folderId);
-    if (newParentId) {
-      await generatePreview(newParentId);
-    }
-    if (folder.parentId) {
-      await generatePreview(folder.parentId);
+    const { updatedFolders, updatedFiles } = await relocateFolder(
+      database,
+      folder,
+      {
+        slug: newSlug,
+        name: folder.name,
+        parentId: newParentId,
+      },
+      deps,
+    );
+    // The moved subtree keeps its preview bytes. Only its old/new ancestors changed content.
+    const parents = [folder.parentId, newParentId].filter((id): id is string => id !== null);
+    for (const id of await getAncestorFolderIds(parents, database)) {
+      try {
+        await generatePreview(id);
+      } catch (error) {
+        // The relocation has committed. A derived-preview failure must not report
+        // that the move failed or encourage retrying a successful mutation.
+        const log = createRequestLogger();
+        log.error(toError(error), { step: "folder-preview", folderId: id });
+        log.emit();
+      }
     }
 
     const updatedFolder = await database.query.folders.findFirst({
@@ -273,13 +225,7 @@ export async function moveFolder(
   }
 }
 
-export interface RenameFolderDeps {
-  db?: AppDb;
-  uploadsDir?: string;
-  exists?: (path: string) => boolean;
-  rename?: (from: string, to: string) => Promise<void>;
-  generatePreview?: (folderId: string) => Promise<string | null>;
-}
+export type RenameFolderDeps = FolderRelocationDeps;
 
 export interface RenameFolderOutput {
   folder?: Folder;
@@ -298,10 +244,6 @@ export async function renameFolder(
   deps: RenameFolderDeps = {},
 ): Promise<Result<RenameFolderOutput, Error>> {
   const database = deps.db ?? appDb;
-  const uploadsDir = deps.uploadsDir ?? UPLOADS_DIR;
-  const exists = deps.exists ?? existsSync;
-  const moveDir = deps.rename ?? rename;
-  const generatePreview = deps.generatePreview ?? generateFolderPreview;
 
   const trimmedName = newName.trim();
   if (!trimmedName) {
@@ -346,31 +288,17 @@ export async function renameFolder(
     return Result.err(new Error(`A folder already exists at "${newSlug}"`));
   }
 
-  const oldSlug = folder.slug;
-  const oldPath = join(uploadsDir, oldSlug);
-  const newPath = join(uploadsDir, newSlug);
-
-  if (exists(newPath)) {
-    return Result.err(new Error(`Directory already exists at "${newSlug}"`));
-  }
-
   try {
-    // Update the folder's name and slug
-    await database
-      .update(folders)
-      .set({ name: trimmedName, slug: newSlug })
-      .where(eq(folders.id, folderId));
-
-    // Bulk-update all descendant slugs and file paths
-    const { updatedFolders, updatedFiles } = await cascadeSlugChange(database, oldSlug, newSlug);
-
-    // Rename the physical directory on disk
-    if (exists(oldPath)) {
-      await moveDir(oldPath, newPath);
-    }
-
-    // Regenerate folder preview (path changed)
-    await generatePreview(folderId);
+    const { updatedFolders, updatedFiles } = await relocateFolder(
+      database,
+      folder,
+      {
+        slug: newSlug,
+        name: trimmedName,
+        parentId: folder.parentId,
+      },
+      deps,
+    );
 
     const updatedFolder = await database.query.folders.findFirst({
       where: eq(folders.id, folderId),

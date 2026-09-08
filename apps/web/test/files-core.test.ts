@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, test } from "vitest";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { eq } from "drizzle-orm";
-import { folders } from "#db";
+import { files, folders } from "#db";
+import { relocateFile } from "#lib/file-relocation.server";
 import { setDbForTesting } from "#db/connection.server";
 import {
   deleteFileRecord,
@@ -43,6 +44,45 @@ describe("upload path boundaries", () => {
 });
 
 describe("BSP derivative lifecycle", () => {
+  test("rolls the original back if a later sidecar rename fails", async () => {
+    const root = `_bsp-rollback-${crypto.randomUUID()}`;
+    const source = `${root}/source.bsp`;
+    // The BSP filename fits the filesystem limit; the longer sidecar name does not.
+    const destination = `${root}/${"a".repeat(250)}.bsp`;
+    await mkdir(getFilePath(root), { recursive: true });
+    try {
+      await writeFile(getFilePath(source), "original");
+      await writeFile(getBspWalkabilityPath(source), "navigation");
+      expect(() => moveFile(source, destination)).toThrow();
+      expect(await readFile(getFilePath(source), "utf8")).toBe("original");
+      expect(await readFile(getBspWalkabilityPath(source), "utf8")).toBe("navigation");
+      await expect(readFile(getFilePath(destination))).rejects.toMatchObject({ code: "ENOENT" });
+    } finally {
+      await rm(getFilePath(root), { recursive: true, force: true });
+    }
+  });
+
+  test("a sidecar collision preserves both originals and existing derivatives", async () => {
+    const root = `_bsp-collision-${crypto.randomUUID()}`;
+    const source = `${root}/source.bsp`;
+    const destination = `${root}/destination.bsp`;
+    await mkdir(getFilePath(root), { recursive: true });
+    try {
+      await writeFile(getFilePath(source), "original");
+      await writeFile(getBspWalkabilityPath(source), "source navigation");
+      await writeFile(getBspWalkabilityPath(destination), "existing navigation");
+      expect(() => moveFile(source, destination)).toThrow("destination already exists");
+      expect(await readFile(getFilePath(source), "utf8")).toBe("original");
+      expect(await readFile(getBspWalkabilityPath(source), "utf8")).toBe("source navigation");
+      expect(await readFile(getBspWalkabilityPath(destination), "utf8")).toBe(
+        "existing navigation",
+      );
+      await expect(readFile(getFilePath(destination))).rejects.toMatchObject({ code: "ENOENT" });
+    } finally {
+      await rm(getFilePath(root), { recursive: true, force: true });
+    }
+  });
+
   test("moves and deletes sibling analysis artifacts with their BSP", async () => {
     const root = `_bsp-lifecycle-${crypto.randomUUID()}`;
     const source = `${root}/source.bsp`;
@@ -70,6 +110,57 @@ describe("BSP derivative lifecycle", () => {
       await rm(getFilePath(root), { recursive: true, force: true });
     }
   });
+});
+
+describe("indexed file relocation", () => {
+  test.each(["success", "database failure", "missing source"])(
+    "%s keeps disk and index consistent",
+    async (scenario) => {
+      const db = setupDatabase();
+      const root = `_file-relocation-${crypto.randomUUID()}`;
+      const source = `${root}/source.bsp`;
+      const destination = `${root}/destination.bsp`;
+      await db.insert(folders).values({ id: "folder", name: "Folder", slug: root });
+      await db.insert(files).values({
+        id: "file",
+        path: source,
+        name: "source.bsp",
+        folderId: "folder",
+        size: 3,
+        mimeType: "application/octet-stream",
+        kind: "map",
+      });
+      await mkdir(getFilePath(root), { recursive: true });
+      try {
+        if (scenario !== "missing source") {
+          await writeFile(getFilePath(source), "bsp");
+          await writeFile(getBspWalkabilityPath(source), "navigation");
+        }
+        if (scenario === "database failure")
+          currentDb!.sqlite.exec(
+            "CREATE TRIGGER fail_move BEFORE UPDATE OF path ON files BEGIN SELECT RAISE(ABORT, 'injected database failure'); END",
+          );
+        const relocate = () =>
+          relocateFile({ id: "file", path: source }, { path: destination, folderId: "folder" });
+        if (scenario === "success") {
+          relocate();
+          expect((await db.query.files.findFirst())?.path).toBe(destination);
+          expect(await readFile(getFilePath(destination), "utf8")).toBe("bsp");
+          expect(await readFile(getBspWalkabilityPath(destination), "utf8")).toBe("navigation");
+        } else {
+          expect(relocate).toThrow();
+          expect((await db.query.files.findFirst())?.path).toBe(source);
+          await expect(readFile(getFilePath(destination))).rejects.toMatchObject({
+            code: "ENOENT",
+          });
+          if (scenario === "database failure")
+            expect(await readFile(getFilePath(source), "utf8")).toBe("bsp");
+        }
+      } finally {
+        await rm(getFilePath(root), { recursive: true, force: true });
+      }
+    },
+  );
 });
 
 describe("file record count sync", () => {

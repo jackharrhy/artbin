@@ -190,7 +190,7 @@ async function handleRegeneratePreviews(
 async function regenerateFilePreview(file: PreviewableFile): Promise<"image" | "model"> {
   const sourcePath = getFilePath(file.path);
   const previewPath = getPreviewPath(file.path);
-  await db.update(files).set({ hasPreview: false }).where(eq(files.id, file.id));
+  setPreviewState(file, false);
   await unlink(previewPath).catch(() => {});
   if (!existsSync(sourcePath)) throw new Error("Source file is missing");
 
@@ -201,7 +201,7 @@ async function regenerateFilePreview(file: PreviewableFile): Promise<"image" | "
   if (result.isErr()) throw result.error;
   if (!result.value) throw new Error("Preview generator produced no output");
 
-  await db.update(files).set({ hasPreview: true }).where(eq(files.id, file.id));
+  setPreviewState(file, true);
   return file.kind === "model" ? "model" : "image";
 }
 
@@ -211,7 +211,7 @@ async function regenerateBspPreview(file: PreviewMap): Promise<void> {
   const walkabilityPath = getBspWalkabilityPath(file.path);
   const manifestPath = getBspDependencyPath(file.path);
 
-  await db.update(files).set({ hasPreview: false }).where(eq(files.id, file.id));
+  setPreviewState(file, false);
   await Promise.all(
     [previewPath, walkabilityPath, manifestPath].map((path) => unlink(path).catch(() => {})),
   );
@@ -237,11 +237,22 @@ async function regenerateBspPreview(file: PreviewMap): Promise<void> {
     height: bspOverviewSize,
   });
 
+  setPreviewState(file, false);
   await writeDerivedFile(previewPath, rendered.png);
   if (rendered.walkabilityJson) {
     await writeDerivedFile(walkabilityPath, rendered.walkabilityJson);
   }
-  await db.update(files).set({ hasPreview: true }).where(eq(files.id, file.id));
+  setPreviewState(file, true);
+}
+
+function setPreviewState(file: { id: string; path: string }, hasPreview: boolean): void {
+  const { changes } = db
+    .update(files)
+    .set({ hasPreview })
+    .where(and(eq(files.id, file.id), eq(files.path, file.path), eq(files.status, "approved")))
+    .run();
+  if (!changes)
+    throw new Error("Asset moved or was removed during preview generation; retry this target");
 }
 
 registerJobHandler("regenerate-previews", handleRegeneratePreviews);

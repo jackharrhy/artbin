@@ -183,7 +183,7 @@ export async function getFolderTrail(folderId: string) {
  * Get all ancestor folder IDs by walking up the parent chain using a recursive CTE.
  * Includes the input folder IDs themselves.
  */
-export async function getAncestorFolderIds(folderIds: string[]): Promise<string[]> {
+export async function getAncestorFolderIds(folderIds: string[], database = db): Promise<string[]> {
   if (folderIds.length === 0) return [];
 
   // SQLite doesn't support array params in CTEs, so we need to seed with a
@@ -192,7 +192,7 @@ export async function getAncestorFolderIds(folderIds: string[]): Promise<string[
     .map((id) => sql`SELECT ${id} AS id`)
     .reduce((a, b) => sql`${a} UNION ALL ${b}`);
 
-  const result = await db.all<{ id: string }>(
+  const result = await database.all<{ id: string }>(
     sql`WITH RECURSIVE ancestors AS (
       ${seedUnion}
       UNION

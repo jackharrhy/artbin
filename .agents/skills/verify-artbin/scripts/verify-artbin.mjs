@@ -328,6 +328,47 @@ try {
     return ["TGA uploaded", "PNG preview decoded by browser", "dimensions and preview state persisted"];
   });
 
+  await flow("nested folder previews survive move and rename", async () => {
+    const { ApiClient } = await import(join(repository, "apps/cli/src/lib/api.ts"));
+    const api = new ApiClient({ serverUrl: baseUrl, sessionId: "isolated-development" });
+    const source = `relocate-${nonce}`;
+    const target = `destination-${nonce}`;
+    await api.createFolders([
+      { slug: source, name: source },
+      { slug: `${source}/child`, name: "Child", parentSlug: source },
+      { slug: target, name: target },
+    ]);
+    const png = await sharp({ create: { width: 24, height: 24, channels: 3, background: "#55aa88" } }).png().toBuffer();
+    await api.uploadFile(`${source}/child`, { path: "proof.png", buffer: png, sha256: createHash("sha256").update(png).digest("hex") });
+    await api.finalize(`${source}/child`);
+    const database = new Database(databasePath, { readonly: true });
+    try {
+      const original = database.prepare("select id, preview_path from folders where slug = ?").get(`${source}/child`);
+      check(original?.preview_path, "Nested preview was not generated before relocation");
+      const previewBytes = await readFile(join(uploadsDirectory, original.preview_path));
+      await api.manageFolder({ operation: "move", slug: source, destinationSlug: target, execution: { mode: "apply", confirm: true } });
+      const moved = `${target}/${source}`;
+      await api.manageFolder({ operation: "rename", slug: moved, name: `Renamed ${nonce}`, execution: { mode: "apply", confirm: true } });
+      const renamed = `${target}/renamed-${nonce}`;
+      let rejected = false;
+      try {
+        await api.manageFolder({ operation: "move", slug: renamed, destinationSlug: `${renamed}/child`, execution: { mode: "apply", confirm: true } });
+      } catch { rejected = true; }
+      check(rejected, "Moving a folder into its child was not rejected");
+      const current = database.prepare("select slug, preview_path from folders where id = ?").get(original.id);
+      check(current?.slug === `${renamed}/child`, "Nested folder path was not rebased");
+      check(current.preview_path === `${current.slug}/_folder-preview.png`, "Preview reference retained the old prefix");
+      check((await readFile(join(uploadsDirectory, current.preview_path))).equals(previewBytes), "Relocation changed the existing preview bytes");
+      check((await readFile(join(uploadsDirectory, current.slug, "proof.png"))).equals(png), "Original texture bytes were not preserved");
+      await page.goto(`${baseUrl}/folder/${renamed}`, { waitUntil: "networkidle" });
+      const preview = page.locator(`img[src*="${original.id}"]`);
+      await preview.waitFor();
+      check(await preview.evaluate((img) => img.complete && img.naturalWidth > 0), "Moved folder preview failed to decode");
+      await shot(page, "13-relocated-folder-preview.png");
+    } finally { database.close(); }
+    return ["nested preview generated", "move and rename preserve preview and original bytes", "descendant move rejected", "rebased preview decodes in browser"];
+  });
+
   await flow("CLI resumable upload through a failing proxy", async () => {
     const { ApiClient } = await import(join(repository, "apps/cli/src/lib/api.ts"));
     const bytes = Buffer.alloc(2 * 1024 * 1024 + 17, 65);

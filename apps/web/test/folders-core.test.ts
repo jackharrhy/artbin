@@ -138,7 +138,7 @@ describe("moveFolder", () => {
 
     const result = await moveFolder("missing", null, {
       exists: () => false,
-      rename: async () => {},
+      rename: () => {},
       ensureDir: async () => {},
       generatePreview: async () => null,
     });
@@ -159,7 +159,7 @@ describe("moveFolder", () => {
 
     const result = await moveFolder("folder-1", "missing-parent", {
       exists: () => false,
-      rename: async () => {},
+      rename: () => {},
       ensureDir: async () => {},
       generatePreview: async () => null,
     });
@@ -179,7 +179,7 @@ describe("moveFolder", () => {
 
     const result = await moveFolder("parent", "child", {
       exists: () => false,
-      rename: async () => {},
+      rename: () => {},
       ensureDir: async () => {},
       generatePreview: async () => null,
     });
@@ -223,7 +223,7 @@ describe("moveFolder", () => {
     const result = await moveFolder("source", "target", {
       uploadsDir: "/uploads-test",
       exists: (path) => path === "/uploads-test/source",
-      rename: async (from, to) => {
+      rename: (from, to) => {
         renamed.push([from, to]);
       },
       ensureDir: async () => {},
@@ -236,7 +236,7 @@ describe("moveFolder", () => {
     expect(result.isOk()).toBe(true);
     expect(result.unwrap()).toMatchObject({ movedFolders: 2, movedFiles: 2 });
     expect(renamed).toEqual([["/uploads-test/source", "/uploads-test/target/source"]]);
-    expect(previewed).toEqual(["source", "target"]);
+    expect(previewed).toEqual(["target"]);
 
     const movedSource = await db.query.folders.findFirst({ where: eq(folders.id, "source") });
     const movedChild = await db.query.folders.findFirst({ where: eq(folders.id, "child") });
@@ -261,7 +261,7 @@ describe("moveFolder", () => {
     const result = await moveFolder("source", "target", {
       uploadsDir: "/uploads-test",
       exists: (path) => path === "/uploads-test/source",
-      rename: async () => {
+      rename: () => {
         throw new Error("permission denied");
       },
       ensureDir: async () => {},
@@ -288,7 +288,7 @@ describe("createFolderAndMoveChildren", () => {
       createId: () => "group",
       uploadsDir: "/uploads-test",
       exists: (path) => path === "/uploads-test/child-a" || path === "/uploads-test/child-b",
-      rename: async () => {},
+      rename: () => {},
       ensureDir: async () => {},
       generatePreview: async () => null,
     });
@@ -315,7 +315,7 @@ describe("createFolderAndMoveChildren", () => {
       createId: () => "group",
       uploadsDir: "/uploads-test",
       exists: () => false,
-      rename: async () => {},
+      rename: () => {},
       ensureDir: async () => {},
       generatePreview: async () => null,
     });
@@ -327,9 +327,10 @@ describe("createFolderAndMoveChildren", () => {
 });
 
 const renameDeps = {
+  ensureDir: async () => {},
   uploadsDir: "/uploads-test",
   exists: () => false as boolean,
-  rename: async () => {},
+  rename: () => {},
   generatePreview: async () => null,
 };
 
@@ -376,7 +377,7 @@ describe("renameFolder", () => {
     const result = await renameFolder("parent", "Quake Stuff", {
       ...renameDeps,
       exists: (path) => path === "/uploads-test/game-assets",
-      rename: async (from, to) => {
+      rename: (from, to) => {
         renamed.push([from, to]);
       },
     });
