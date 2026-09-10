@@ -82,7 +82,14 @@ export default createController(routes, {
     async folders(context) {
       if (!context.user) return redirect(routes.login.href(), 303);
       const data = await loadFoldersPage(context.url);
-      return context.render(<FoldersPage data={data} user={context.user} />);
+      if (context.request.headers.get("accept") === "application/json") {
+        return Response.json(data.searchResults ?? { files: [], nextCursor: null }, {
+          headers: { Vary: "Accept", "Cache-Control": "private, no-store" },
+        });
+      }
+      return context.render(<FoldersPage data={data} user={context.user} />, {
+        headers: { Vary: "Accept" },
+      });
     },
     async file(context) {
       if (!context.user) return redirect(routes.login.href(), 303);

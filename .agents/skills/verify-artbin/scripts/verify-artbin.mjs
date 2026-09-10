@@ -607,6 +607,68 @@ try {
     return ["destination beyond first page available", "top-level destination selectable without deep clutter", "loose-file-only import works", "browser and terminal progress reported", "ordinary retry skips indexed bytes and finalizes", "unscanned source rejected"];
   });
 
+  await flow("infinite file browsing", async () => {
+    const slug = `scroll-${nonce}`;
+    await mkdir(join(uploadsDirectory, slug));
+    const db = new Database(databasePath);
+    try {
+      db.prepare("INSERT INTO folders (id, name, slug) VALUES (?, ?, ?)").run(slug, slug, slug);
+      const insert = db.prepare("INSERT INTO files (id, folder_id, path, name, kind, mime_type, size, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'approved', ?)");
+      for (let i = 0; i < 111; i++) {
+        const name = `scroll-proof-${String(i).padStart(3, "0")}.png`;
+        await writeFile(join(uploadsDirectory, slug, name), orphanBody);
+        insert.run(`${slug}-${i}`, slug, `${slug}/${name}`, name, "texture", "image/png", orphanBody.length, 1000 + i);
+      }
+    } finally { db.close(); }
+    const links = () => page.locator(`main a[href^="/file/${slug}/"]`);
+    async function waitCount(count) {
+      await page.waitForFunction(({ slug, count }) => document.querySelectorAll(`main a[href^="/file/${slug}/"]`).length === count, { slug, count });
+    }
+    for (const base of ["/folders", `/folder/${slug}`]) {
+      await page.goto(`${baseUrl}${base}?view=textures&q=scroll-proof`, { waitUntil: "networkidle" });
+      await waitCount(50);
+      await page.getByRole("link", { name: "Load more", exact: true }).scrollIntoViewIfNeeded();
+      await waitCount(100);
+      await page.getByRole("link", { name: "Load more", exact: true }).scrollIntoViewIfNeeded();
+      await waitCount(111);
+      check(new Set(await links().evaluateAll((nodes) => nodes.map((node) => node.href))).size === 111, "Infinite loading duplicated files");
+      check(!new URL(page.url()).searchParams.has("cursor"), "Infinite loading navigated away from the initial page");
+    }
+    await shot(page, "15-infinite-files.png");
+    let rejectedPage = false;
+    const cursorRequest = `**/folder/${slug}?*cursor=*`;
+    await page.route(cursorRequest, async (route) => {
+      if (!rejectedPage && route.request().headers().accept === "application/json") {
+        rejectedPage = true;
+        await route.fulfill({ status: 200, contentType: "text/html", body: "Unexpected login page" });
+      } else await route.continue();
+    });
+    await page.goto(`${baseUrl}/folder/${slug}?view=textures`, { waitUntil: "networkidle" });
+    await waitCount(50);
+    await page.getByRole("link", { name: "Load more", exact: true }).scrollIntoViewIfNeeded();
+    await page.getByText("Could not load more files. Try again.", { exact: true }).waitFor();
+    check(await links().count() === 50, "Failed page discarded existing files");
+    await page.getByRole("link", { name: "Retry", exact: true }).click();
+    await waitCount(100);
+    await page.unroute(cursorRequest);
+    await page.getByRole("link", { name: /^All files/ }).click();
+    await waitCount(50);
+    await page.getByRole("link", { name: "Load more", exact: true }).scrollIntoViewIfNeeded();
+    await waitCount(100);
+    await page.getByRole("link", { name: /^Models/ }).click();
+    await page.getByText("No files found", { exact: true }).waitFor();
+    check(await links().count() === 0, "View change retained previous results");
+    const noJs = await browser.newContext({ javaScriptEnabled: false });
+    try {
+      const plainPage = await noJs.newPage();
+      await plainPage.goto(`${baseUrl}/folder/${slug}?view=textures`);
+      await plainPage.getByRole("link", { name: "Load more", exact: true }).click();
+      check(new URL(plainPage.url()).searchParams.has("cursor"), "Non-JavaScript pagination failed");
+      check(await plainPage.locator(`main a[href^="/file/${slug}/"]`).count() === 50, "Non-JavaScript page size changed");
+    } finally { await noJs.close(); }
+    return ["global and folder grids append three cursor pages", "list view also appends", "no duplicates or cursor navigation", "changing views clears loaded results", "failed request retains files and can be retried", "ordinary pagination works without JavaScript"];
+  });
+
   await flow("database and filesystem state", async () => {
     const database = new Database(databasePath, { readonly: true });
     const rows = database

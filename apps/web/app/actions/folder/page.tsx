@@ -6,6 +6,7 @@ import type { DirectoryPageData, FolderPageData, WadPageData } from "../../data/
 import { mediaFileHref, mediaFolderPreviewHref, routes } from "../../routes.ts";
 import { BrowseTabs } from "../../ui/browse-tabs.tsx";
 import { FileCollection, formatSize } from "../../ui/file-collection.tsx";
+import { InfiniteFiles } from "../../ui/public/infinite-files.tsx";
 import { MediaCard } from "../../ui/media-card.tsx";
 import { Breadcrumbs } from "../../ui/navigation.tsx";
 import {
@@ -223,7 +224,7 @@ function DirectoryPage(handle: Handle<{ data: DirectoryPageData; user: User }>) 
               otherFiles={otherFiles}
             />
           ) : (
-            <FileCollection
+            <InfiniteFiles
               files={data.searchResults?.files ?? []}
               grid={data.view === "textures" || data.view === "models" || data.view === "maps"}
               showAudioPlayers={data.view === "sounds"}

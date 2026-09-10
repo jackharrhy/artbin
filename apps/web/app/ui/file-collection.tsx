@@ -3,7 +3,7 @@ import { css, type Handle } from "remix/ui";
 import { mediaFileHref, routes } from "../routes.ts";
 import { MediaCard } from "./media-card.tsx";
 import { EmptyState } from "./primitives.tsx";
-import { buttonStyle, theme } from "./styles.ts";
+import { theme } from "./styles.ts";
 
 const gridStyle = css({
   display: "grid",
@@ -39,9 +39,8 @@ const fileNameStyle = css({
 const metadataStyle = css({ color: theme.color.muted, fontSize: "0.75rem" });
 const playerStyle = css({ padding: "0 0.75rem 0.75rem" });
 const audioStyle = css({ height: "2rem", width: "100%" });
-const moreStyle = css({ padding: "2rem", textAlign: "center" });
 
-export interface FileItem {
+export type FileItem = {
   id: string;
   path: string;
   name: string;
@@ -51,20 +50,19 @@ export interface FileItem {
   hasPreview?: boolean | null;
   width?: number | null;
   height?: number | null;
-}
+};
 
 interface FileCollectionProps {
   files: FileItem[];
   grid?: boolean;
   showAudioPlayers?: boolean;
-  nextHref?: string | null;
 }
 
 const playableAudio = new Set(["mp3", "ogg", "wav", "m4a", "webm", "aac"]);
 
 export function FileCollection(handle: Handle<FileCollectionProps>) {
   return () => {
-    const { files, grid = false, showAudioPlayers = true, nextHref } = handle.props;
+    const { files, grid = false, showAudioPlayers = true } = handle.props;
     if (files.length === 0) {
       return (
         <EmptyState
@@ -120,13 +118,6 @@ export function FileCollection(handle: Handle<FileCollectionProps>) {
             })}
           </div>
         )}
-        {nextHref ? (
-          <div mix={moreStyle}>
-            <a href={nextHref} mix={buttonStyle}>
-              Load more
-            </a>
-          </div>
-        ) : null}
       </div>
     );
   };

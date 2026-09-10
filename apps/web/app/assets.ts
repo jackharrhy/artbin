@@ -23,6 +23,8 @@ export const assetServer = createAssetServer({
     "apps/web/app/ui/styles.ts",
     "apps/web/app/ui/modal.tsx",
     "apps/web/app/ui/primitives.tsx",
+    "apps/web/app/ui/file-collection.tsx",
+    "apps/web/app/ui/media-card.tsx",
     "apps/web/app/**/public/**",
   ],
   allowPackages: ["@artbin/core", "@jackharrhy/worldview", "remix", "three"],

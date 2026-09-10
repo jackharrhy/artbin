@@ -5,7 +5,7 @@ import type { User } from "#db";
 import type { FoldersPageData } from "../data/folders-page.ts";
 import { mediaFolderPreviewHref, routes } from "../routes.ts";
 import { BrowseTabs } from "../ui/browse-tabs.tsx";
-import { FileCollection } from "../ui/file-collection.tsx";
+import { InfiniteFiles } from "../ui/public/infinite-files.tsx";
 import { MediaCard } from "../ui/media-card.tsx";
 import { EmptyState, PageHeader } from "../ui/primitives.tsx";
 import { LuckyButton } from "../ui/public/lucky-button.tsx";
@@ -103,7 +103,7 @@ export function FoldersPage(handle: Handle<FoldersPageProps>) {
               </div>
             )
           ) : (
-            <FileCollection
+            <InfiniteFiles
               files={search?.files ?? []}
               grid={data.view === "textures" || data.view === "models"}
               showAudioPlayers={data.view === "sounds"}

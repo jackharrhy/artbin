@@ -19,7 +19,17 @@ export default createController(routes.folder, {
       if (!context.user) return redirect(routes.login.href(), 303);
       const data = await loadFolderPage(context.url, context.params.path, context.user);
       if (!data) return new Response("Folder not found", { status: 404 });
-      return context.render(<FolderRoutePage data={data} user={context.user} />);
+      if (context.request.headers.get("accept") === "application/json") {
+        return Response.json(
+          data.page === "folder"
+            ? (data.searchResults ?? { files: [], nextCursor: null })
+            : { files: [], nextCursor: null },
+          { headers: { Vary: "Accept", "Cache-Control": "private, no-store" } },
+        );
+      }
+      return context.render(<FolderRoutePage data={data} user={context.user} />, {
+        headers: { Vary: "Accept" },
+      });
     },
 
     async action(context) {
