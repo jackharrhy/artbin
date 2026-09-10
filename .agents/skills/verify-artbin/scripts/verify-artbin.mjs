@@ -199,6 +199,28 @@ try {
     return ["library loaded", "development administrator can add content"];
   });
 
+  await flow("admin dashboard navigation", async () => {
+    await page.getByRole("navigation", { name: "Main navigation" }).getByRole("link", { name: "admin", exact: true }).click();
+    await page.getByRole("heading", { name: "Overview", exact: true }).waitFor();
+    await page.getByText("0 running, 0 queued, 0 failed", { exact: true }).waitFor();
+    await shot(page, "13-admin-overview-desktop.png");
+    for (const [label, path] of [["Jobs", "/admin/jobs"], ["Inbox", "/admin/inbox"], ["Import", "/admin/import"], ["Archives", "/admin/archives"], ["Orphans", "/admin/orphans"], ["Scan settings", "/admin/scan-settings"], ["Users", "/admin/users"], ["MCP", "/admin/mcp"]]) {
+      const destination = page.getByRole("main").locator(`a[href="${path}"]`);
+      await destination.click();
+      await page.getByRole("navigation", { name: "Admin sections" }).locator('a[aria-current="page"]').filter({ hasText: label }).waitFor();
+      check(await page.getByRole("navigation", { name: "Admin sections" }).getByRole("link", { name: label, exact: true }).getAttribute("aria-current") === "page", `${label} navigation was not selected`);
+      await page.getByRole("navigation", { name: "Admin sections" }).getByRole("link", { name: "Overview", exact: true }).click();
+      await page.getByRole("heading", { name: "Overview", exact: true }).waitFor();
+    }
+    await page.setViewportSize({ width: 390, height: 844 });
+    await shot(page, "14-admin-overview-mobile.png");
+    check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "Admin overview overflows on mobile");
+    await page.getByRole("navigation", { name: "Admin sections" }).getByRole("link", { name: "Jobs", exact: true }).click();
+    await page.getByText("No jobs found", { exact: true }).waitFor();
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    return ["header ADMIN opens overview", "all eight destinations and return navigation work", "empty queue counts are visible", "mobile navigation works without page overflow"];
+  });
+
   await flow("Katamari catalog import and repeat", async () => {
     const database = new Database(databasePath);
     try {

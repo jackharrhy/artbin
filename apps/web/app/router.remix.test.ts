@@ -410,6 +410,7 @@ describe("native Remix router", () => {
 
   it("renders every admin surface through native controllers", async () => {
     for (const href of [
+      routes.admin.index.href(),
       routes.admin.jobs.index.href(),
       routes.admin.import.index.href(),
       routes.admin.inbox.index.href(),

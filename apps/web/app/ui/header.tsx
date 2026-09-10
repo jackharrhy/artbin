@@ -23,7 +23,17 @@ const brandStyle = css({
   letterSpacing: "0.025em",
   textDecoration: "none",
 });
-const navStyle = css({ alignItems: "center", display: "flex", gap: "1rem" });
+const navStyle = css({
+  alignItems: "center",
+  display: "flex",
+  gap: "1rem",
+  "@media (max-width: 640px)": { gap: "0.5rem" },
+});
+const adminLinkStyle = css({
+  "&": { color: theme.color.background, textDecoration: "none", padding: "0.35rem 0.5rem" },
+  "&:hover": { color: theme.color.background, background: "#333" },
+  "&:focus-visible": { outline: `2px solid ${theme.color.text}`, outlineOffset: "3px" },
+});
 const navLinkStyle = css({
   color: theme.color.muted,
   fontSize: "0.875rem",
@@ -61,7 +71,9 @@ export function Header(handle: Handle<HeaderProps>) {
                   <a href={routes.admin.inbox.index.href()} mix={navLinkStyle}>
                     inbox
                   </a>
-                  <span mix={adminBadgeStyle}>admin</span>
+                  <a href={routes.admin.index.href()} mix={[adminBadgeStyle, adminLinkStyle]}>
+                    admin
+                  </a>
                 </>
               ) : null}
             </>

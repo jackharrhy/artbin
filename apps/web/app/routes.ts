@@ -27,7 +27,8 @@ export const routes = route({
     protectedResource: get("/.well-known/oauth-protected-resource/mcp"),
   },
   admin: route("/admin", {
-    jobs: form("/"),
+    index: get("/"),
+    jobs: form("/jobs"),
     import: form("/import"),
     inbox: form("/inbox"),
     archives: form("/archives"),

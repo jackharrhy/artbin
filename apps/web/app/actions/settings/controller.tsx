@@ -67,7 +67,7 @@ export default createController(routes.settings, {
               <section mix={sectionStyle}>
                 <SectionHeader title="Admin" />
                 <Panel>
-                  <ButtonLink href={routes.admin.jobs.index.href()} variant="primary" size="small">
+                  <ButtonLink href={routes.admin.index.href()} variant="primary" size="small">
                     Admin panel
                   </ButtonLink>
                 </Panel>

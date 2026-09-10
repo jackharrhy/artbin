@@ -1,8 +1,8 @@
-import { desc } from "drizzle-orm";
+import { count, desc, eq } from "drizzle-orm";
 import { createController } from "remix/router";
 import { redirect } from "remix/response/redirect";
 
-import { users } from "#db";
+import { files, jobs, users } from "#db";
 import { db } from "#db/connection.server";
 
 import { mcpTools } from "../../operations/catalog.ts";
@@ -10,6 +10,7 @@ import { mcpTools } from "../../operations/catalog.ts";
 import { requireAdmin } from "../../middleware/auth.ts";
 import { routes } from "../../routes.ts";
 import { AdminPage } from "../../ui/admin-page.tsx";
+import { Dashboard } from "./dashboard.tsx";
 import {
   Badge,
   DataTable,
@@ -23,6 +24,29 @@ import {
 export default createController(routes.admin, {
   middleware: [requireAdmin()],
   actions: {
+    async index(context) {
+      if (!context.user) return redirect(routes.login.href(), 303);
+      const [jobCounts, [inbox]] = await Promise.all([
+        db.select({ status: jobs.status, count: count() }).from(jobs).groupBy(jobs.status),
+        db.select({ count: count() }).from(files).where(eq(files.status, "pending")),
+      ]);
+      const counts = new Map(jobCounts.map((row) => [row.status, row.count]));
+      return context.render(
+        <AdminPage
+          user={context.user}
+          active="overview"
+          title="Overview"
+          description="Review uploads, follow background work, and maintain the library."
+        >
+          <Dashboard
+            running={counts.get("running") ?? 0}
+            queued={counts.get("pending") ?? 0}
+            failed={counts.get("failed") ?? 0}
+            pendingFiles={inbox?.count ?? 0}
+          />
+        </AdminPage>,
+      );
+    },
     mcp(context) {
       if (!context.user) return redirect(routes.login.href(), 303);
       const endpoint = `${process.env.ARTBIN_URL ?? "http://localhost:5175"}/mcp`;
