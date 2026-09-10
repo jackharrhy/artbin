@@ -4,6 +4,7 @@ import { scanDirectory } from "../lib/scanner.ts";
 import { loadConfig } from "../lib/config.ts";
 import { ApiClient } from "../lib/api.ts";
 import { startBrowseServer } from "../lib/browse-server.ts";
+import { formatProgress } from "../lib/progress.ts";
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -101,12 +102,27 @@ export async function scan(args: Record<string, unknown>) {
   }
 
   // Start the browse server
+  const importSpinner = p.spinner();
+  let importing = false;
   const { port, close } = await startBrowseServer({
     scanResult: result,
     api,
     html: BROWSE_UI_HTML,
     serverUrl: config.serverUrl,
     user,
+    onProgress(progress) {
+      if (progress.status === "running") {
+        if (!importing) {
+          importSpinner.start("Starting import…");
+          importing = true;
+        }
+        importSpinner.message(formatProgress(progress));
+      } else if (importing) {
+        importSpinner.stop(progress.status === "done" ? progress.message : "Import failed");
+        importing = false;
+        if (progress.error) p.log.error(progress.error);
+      }
+    },
   });
 
   const url = `http://localhost:${port}/`;

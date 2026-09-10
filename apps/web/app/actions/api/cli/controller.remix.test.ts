@@ -22,7 +22,7 @@ beforeEach(async () => {
 afterEach(() => harness.close());
 
 describe("CLI finalization mutations", () => {
-  it("recalculates descendant folder counts through the router", async () => {
+  it("finalizes more than 500 folders and exposes preview progress through the router", async () => {
     await harness.database.db.insert(folders).values([
       { id: "root-folder", name: "Root", slug: "router-finalize", fileCount: 99 },
       { id: "sibling-folder", name: "Sibling", slug: "router-finalize-other", fileCount: 99 },
@@ -34,6 +34,15 @@ describe("CLI finalization mutations", () => {
         fileCount: 99,
       },
     ]);
+    await harness.database.db.insert(folders).values(
+      Array.from({ length: 600 }, (_, index) => ({
+        id: `bulk-${index}`,
+        name: `Bulk ${index}`,
+        slug: `router-finalize/bulk-${index}`,
+        parentId: "root-folder",
+        fileCount: 99,
+      })),
+    );
     await harness.database.db.insert(files).values({
       id: "finalized-file",
       path: "router-finalize/child/file.txt",
@@ -58,10 +67,34 @@ describe("CLI finalization mutations", () => {
     assert.equal(queued.status, "pending");
     assert.equal((await processJob(queued)).isOk(), true);
     const records = await harness.database.db.select().from(folders);
-    assert.deepEqual(Object.fromEntries(records.map((folder) => [folder.id, folder.fileCount])), {
-      "root-folder": 0,
-      "child-folder": 1,
-      "sibling-folder": 99,
-    });
+    assert.equal(
+      records.filter((folder) => folder.id.startsWith("bulk-") && folder.fileCount === 0).length,
+      600,
+    );
+    assert.deepEqual(
+      Object.fromEntries(
+        records
+          .filter((folder) => !folder.id.startsWith("bulk-"))
+          .map((folder) => [folder.id, folder.fileCount]),
+      ),
+      {
+        "root-folder": 0,
+        "child-folder": 1,
+        "sibling-folder": 99,
+      },
+    );
+    const status = await router.fetch(
+      harness.request(routes.api.uploadJob.href({ jobId: queued.id }), adminCookie),
+    );
+    const report = (await status.json()) as {
+      status: string;
+      progress: number;
+      progressMessage: string;
+      output: { finalized: number };
+    };
+    assert.equal(report.status, "completed");
+    assert.equal(report.progress, 100);
+    assert.equal(report.progressMessage, "Refreshing folder previews: 602/602");
+    assert.equal(report.output.finalized, 602);
   });
 });

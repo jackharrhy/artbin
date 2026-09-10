@@ -36,10 +36,9 @@ export function BatchControls({ selectedCount, onClear, children }: BatchControl
             </div>
             <div className="modal-body">
               <p className="mb-4 text-text-muted">
-                Import <strong>{selectedCount}</strong>{" "}
-                {selectedCount === 1 ? "archive" : "archives"}
-                into a new parent folder. Each archive becomes a subfolder named after its file
-                name.
+                Import <strong>{selectedCount}</strong> {selectedCount === 1 ? "item" : "items"}.
+                Choose a destination below. Archive contents and loose files keep their relative
+                folder structure.
               </p>
 
               {children({ close })}

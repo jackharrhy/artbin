@@ -4,10 +4,13 @@ import { ArchiveItem } from "@artbin/ui/ArchiveItem";
 import { BatchControls } from "@artbin/ui/BatchControls";
 import { buildTree, getAllArchivePaths } from "@artbin/ui/tree-utils";
 import type { FoundArchive, TreeNode } from "@artbin/ui/types";
+import { DestinationPicker } from "./DestinationPicker";
+import type { ImportProgress } from "../lib/browse-server";
 
 interface ScanResult {
   archives: {
     path: string;
+    relativePath: string;
     name: string;
     size: number;
     type: string;
@@ -25,16 +28,6 @@ interface ServerInfo {
   folders: { slug: string; id: string }[];
 }
 
-interface ImportProgress {
-  status: "idle" | "running" | "done" | "error";
-  phase: string;
-  current: number;
-  total: number;
-  message: string;
-  result?: { uploaded: number; failed: number; skipped: number; total: number };
-  error?: string;
-}
-
 type View = "browse" | "importing" | "done";
 
 export function App() {
@@ -45,20 +38,20 @@ export function App() {
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
   const [destinationFolder, setDestinationFolder] = useState("");
   const [newFolderSlug, setNewFolderSlug] = useState("");
+  const [includeLooseFiles, setIncludeLooseFiles] = useState(false);
   const [view, setView] = useState<View>("browse");
   const [importProgress, setImportProgress] = useState<ImportProgress | null>(null);
 
   // Fetch scan results and info on mount
   useEffect(() => {
-    Promise.all([
-      fetch("/api/scan-results").then((r) => r.json()),
-      fetch("/api/info").then((r) => r.json()),
-    ])
+    Promise.all([fetch("/api/scan-results").then(readJson), fetch("/api/info").then(readJson)])
       .then(([scan, serverInfo]: [ScanResult, ServerInfo]) => {
         setScanResult(scan);
         setInfo(serverInfo);
         if (serverInfo.folders.length > 0) {
-          setDestinationFolder(serverInfo.folders[0].slug);
+          setDestinationFolder(
+            serverInfo.folders.find((folder) => !folder.slug.includes("/"))?.slug ?? "",
+          );
         }
         setLoading(false);
       })
@@ -72,6 +65,7 @@ export function App() {
     ? buildTree(
         scanResult.archives.map((a) => ({
           path: a.path,
+          relativePath: a.relativePath,
           name: a.name,
           type: a.type,
           size: a.size,
@@ -111,10 +105,12 @@ export function App() {
     if (!tree) return;
     const allPaths = getAllArchivePaths(tree);
     setSelectedPaths(new Set(allPaths));
+    setIncludeLooseFiles(true);
   }, [tree]);
 
   const handleClearSelection = useCallback(() => {
     setSelectedPaths(new Set());
+    setIncludeLooseFiles(false);
   }, []);
 
   const handleImport = useCallback(
@@ -126,30 +122,16 @@ export function App() {
       setView("importing");
 
       try {
-        await fetch("/api/import", {
+        const response = await fetch("/api/import", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             archivePaths: Array.from(selectedPaths),
             destinationFolder: folder,
+            includeLooseFiles,
           }),
         });
-
-        // Poll for progress
-        const poll = setInterval(async () => {
-          try {
-            const res = await fetch("/api/import-status");
-            const progress: ImportProgress = await res.json();
-            setImportProgress(progress);
-
-            if (progress.status === "done" || progress.status === "error") {
-              clearInterval(poll);
-              setView("done");
-            }
-          } catch {
-            // Keep polling
-          }
-        }, 1000);
+        await readJson(response);
       } catch (err) {
         setImportProgress({
           status: "error",
@@ -162,8 +144,43 @@ export function App() {
         setView("done");
       }
     },
-    [selectedPaths, destinationFolder, newFolderSlug],
+    [selectedPaths, destinationFolder, newFolderSlug, includeLooseFiles],
   );
+
+  useEffect(() => {
+    if (view !== "importing") return;
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout>;
+    async function poll() {
+      try {
+        const progress: ImportProgress = await fetch("/api/import-status", {
+          signal: controller.signal,
+        }).then(readJson);
+        if (controller.signal.aborted) return;
+        setImportProgress(progress);
+        if (progress.status === "done" || progress.status === "error") {
+          setView("done");
+          return;
+        }
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        setImportProgress((previous) => ({
+          ...previous,
+          status: "running",
+          phase: previous?.phase ?? "starting",
+          current: previous?.current ?? 0,
+          total: previous?.total ?? 0,
+          message: `Connection interrupted; retrying: ${String(error)}`,
+        }));
+      }
+      timer = setTimeout(poll, 1000);
+    }
+    void poll();
+    return () => {
+      controller.abort();
+      clearTimeout(timer);
+    };
+  }, [view]);
 
   const handleBackToBrowse = useCallback(() => {
     setView("browse");
@@ -237,7 +254,23 @@ export function App() {
             )}
           />
 
-          <BatchControls selectedCount={selectedPaths.size} onClear={handleClearSelection}>
+          {scanResult.looseFiles.length > 0 && (
+            <label className="block my-4">
+              <input
+                type="checkbox"
+                checked={includeLooseFiles}
+                onChange={(event) => setIncludeLooseFiles(event.target.checked)}
+              />{" "}
+              Include {scanResult.looseFiles.length} loose files (preserve their folders)
+            </label>
+          )}
+
+          <BatchControls
+            selectedCount={
+              selectedPaths.size + (includeLooseFiles ? scanResult.looseFiles.length : 0)
+            }
+            onClear={handleClearSelection}
+          >
             {({ close }) => (
               <div>
                 {!info.user.isAdmin && (
@@ -246,21 +279,14 @@ export function App() {
                   </p>
                 )}
 
-                <label className="block text-sm mb-1 font-semibold">Destination folder</label>
-                {info.folders.length > 0 ? (
-                  <select
-                    className="w-full p-2 border border-border-light bg-white text-sm mb-3"
-                    value={destinationFolder}
-                    onChange={(e) => setDestinationFolder(e.target.value)}
-                  >
-                    {info.folders.map((f) => (
-                      <option key={f.slug} value={f.slug}>
-                        {f.slug}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
+                <DestinationPicker
+                  folders={info.folders}
+                  value={destinationFolder}
+                  onChange={setDestinationFolder}
+                />
+                {!destinationFolder && (
                   <input
+                    aria-label="New folder slug"
                     type="text"
                     className="w-full p-2 border border-border-light bg-white text-sm mb-3"
                     placeholder="folder-slug"
@@ -279,7 +305,7 @@ export function App() {
                     onClick={() => handleImport(close)}
                     disabled={!destinationFolder && !newFolderSlug}
                   >
-                    Import {selectedPaths.size} archives
+                    Start import
                   </button>
                 </div>
               </div>
@@ -294,19 +320,17 @@ export function App() {
           {importProgress && (
             <div>
               <p className="text-sm text-text-muted mb-2">{importProgress.message}</p>
-              <div className="w-full h-4 bg-bg-subtle border border-border-light">
-                <div
-                  className="h-full bg-text transition-all"
-                  style={{
-                    width:
-                      importProgress.total > 0
-                        ? `${(importProgress.current / importProgress.total) * 100}%`
-                        : "0%",
-                  }}
-                />
-              </div>
+              <progress
+                aria-label={`${importProgress.phase} progress`}
+                className="w-full h-4"
+                max={importProgress.total || 1}
+                value={importProgress.total > 0 ? importProgress.current : undefined}
+              />
               <p className="text-xs text-text-muted mt-1">
-                {importProgress.phase} -- {importProgress.current}/{importProgress.total}
+                {importProgress.phase}
+                {importProgress.total > 0
+                  ? ` — ${Math.floor((importProgress.current / importProgress.total) * 100)}%`
+                  : ""}
               </p>
             </div>
           )}
@@ -352,4 +376,10 @@ export function App() {
       )}
     </div>
   );
+}
+
+async function readJson(response: Response) {
+  if (!response.ok)
+    throw new Error(`Request failed (${response.status}): ${await response.text()}`);
+  return response.json();
 }

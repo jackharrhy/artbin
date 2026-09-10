@@ -1,7 +1,8 @@
 {
   "compilerOptions": {
-    "lib": ["ES2022"],
-    "types": ["node"],
+    "lib": ["ES2022", "DOM"],
+    "jsx": "react-jsx",
+    "types": ["node", "vite/client"],
     "target": "ES2022",
     "module": "ES2022",
     "moduleResolution": "bundler",
@@ -13,6 +14,5 @@
     "verbatimModuleSyntax": true,
     "resolveJsonModule": true
   },
-  "include": ["src/**/*"],
-  "exclude": ["src/ui"]
+  "include": ["src/**/*"]
 }

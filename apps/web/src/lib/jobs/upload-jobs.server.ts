@@ -6,7 +6,7 @@ import { z } from "zod";
 import { db } from "#db/connection.server";
 import { files, folders, jobs, users, type Job } from "#db";
 import { cleanFolderPath, cleanFolderSlug } from "@artbin/core/detection/filenames";
-import { registerJobHandler } from "../jobs.server.ts";
+import { registerJobHandler, updateJobProgress } from "../jobs.server.ts";
 import { getTusServer, uploadMetadataSchema } from "../tus.server.ts";
 import {
   finalizeFolders,
@@ -139,7 +139,7 @@ export async function handleUpload(job: Job, input: Record<string, unknown>) {
   };
 }
 
-export async function handleFinalize(_job: Job, input: Record<string, unknown>) {
+export async function handleFinalize(job: Job, input: Record<string, unknown>) {
   const slug = z.string().min(1).parse(input.parentFolder);
   const prefix = `${slug.replace(/[\\%_]/g, "\\$&")}/%`;
   const descendants = await db.query.folders.findMany({
@@ -149,6 +149,12 @@ export async function handleFinalize(_job: Job, input: Record<string, unknown>) 
   await finalizeFolders(
     descendants.map((folder) => folder.id),
     (error, id) => errors.push(`${id}: ${error.message}`),
+    (current, total) =>
+      updateJobProgress(
+        job.id,
+        total ? Math.floor((current / total) * 100) : 100,
+        `Refreshing folder previews: ${current}/${total}`,
+      ),
   );
   if (errors.length) throw new Error(`Folder finalization failed: ${errors.join("; ")}`);
   return { finalized: descendants.length };

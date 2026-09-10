@@ -670,17 +670,21 @@ export async function recalculateFolderCounts(folderIds: string[]): Promise<void
 export async function finalizeFolders(
   folderIds: string[],
   onError?: (error: Error, folderId: string) => void,
+  onProgress?: (current: number, total: number) => Promise<void>,
 ): Promise<void> {
   // Include ancestors so parent folders get previews from descendant textures
   const allIds = await getAncestorFolderIds(folderIds);
 
   await recalculateFolderCounts(folderIds); // Only recount the directly-affected folders
+  await onProgress?.(0, allIds.length);
+  let completed = 0;
   for (const folderId of allIds) {
     try {
       await generateFolderPreview(folderId);
     } catch (err) {
       onError?.(err instanceof Error ? err : new Error(String(err)), folderId);
     }
+    await onProgress?.(++completed, allIds.length);
   }
 }
 

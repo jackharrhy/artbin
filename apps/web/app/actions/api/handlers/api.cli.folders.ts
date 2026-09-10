@@ -13,6 +13,8 @@ export async function loader({ request }: Route.LoaderArgs) {
     const input = folderListInput.parse({
       slug: url.searchParams.get("slug") ?? undefined,
       includeSystem: url.searchParams.get("includeSystem") === "true",
+      cursor: url.searchParams.get("cursor") ?? undefined,
+      limit: url.searchParams.has("limit") ? Number(url.searchParams.get("limit")) : undefined,
     });
     return Response.json(
       await operationCatalog.foldersList.execute({ user, channel: "cli" }, input),

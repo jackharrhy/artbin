@@ -76,6 +76,7 @@ export async function readUploadJob(request: Request, jobId: string): Promise<Re
       id: job.id,
       status: job.status,
       progress: job.progress,
+      progressMessage: job.progressMessage,
       error: job.error,
       output: job.output ? JSON.parse(job.output) : null,
     },

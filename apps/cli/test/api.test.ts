@@ -8,6 +8,39 @@ afterEach(() => {
 });
 
 describe("ApiClient folder operations", () => {
+  test("follows every folder page so later top-level destinations are available", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({ folders: [{ slug: "a/deep/path" }], nextCursor: "a/deep/path" }),
+      )
+      .mockResolvedValueOnce(Response.json({ folders: [{ slug: "z-root" }] }));
+    vi.stubGlobal("fetch", fetchMock);
+    expect(
+      (await new ApiClient(config).listFolders()).folders.map((folder) => folder.slug),
+    ).toEqual(["a/deep/path", "z-root"]);
+    expect(fetchMock.mock.calls[1][0].searchParams.get("cursor")).toBe("a/deep/path");
+  });
+
+  test("creates large folder lists in ordered batches within the server limit", async () => {
+    const sizes: number[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url, request) => {
+        const { folders } = JSON.parse(request.body);
+        sizes.push(folders.length);
+        return Response.json({ created: folders, existing: [] });
+      }),
+    );
+    const folders = Array.from({ length: 201 }, (_, index) => ({
+      slug: `folder-${index}`,
+      name: `Folder ${index}`,
+    }));
+    const result = await new ApiClient(config).createFolders(folders);
+    expect(sizes).toEqual([100, 100, 1]);
+    expect(result.created).toEqual(folders);
+  });
+
   test("lists folders with the authenticated session", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       Response.json({

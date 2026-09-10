@@ -10,7 +10,10 @@ export function buildTree(archives: FoundArchive[]): TreeNode {
 
   for (const archive of archives) {
     // Split path into parts, excluding the filename
-    const parts = archive.path.split("/").filter(Boolean);
+    const parts = (archive.relativePath ?? archive.path)
+      .replaceAll("\\", "/")
+      .split("/")
+      .filter(Boolean);
     parts.pop(); // Remove filename
 
     let current = root;

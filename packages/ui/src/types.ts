@@ -1,5 +1,6 @@
 export interface FoundArchive {
   path: string;
+  relativePath?: string;
   name: string;
   type: string;
   size: number;

@@ -186,15 +186,9 @@ export async function getFolderTrail(folderId: string) {
 export async function getAncestorFolderIds(folderIds: string[], database = db): Promise<string[]> {
   if (folderIds.length === 0) return [];
 
-  // SQLite doesn't support array params in CTEs, so we need to seed with a
-  // UNION of the starting IDs. For reasonable batch sizes this is fine.
-  const seedUnion = folderIds
-    .map((id) => sql`SELECT ${id} AS id`)
-    .reduce((a, b) => sql`${a} UNION ALL ${b}`);
-
   const result = await database.all<{ id: string }>(
     sql`WITH RECURSIVE ancestors AS (
-      ${seedUnion}
+      SELECT value AS id FROM json_each(${JSON.stringify(folderIds)})
       UNION
       SELECT f.parent_id AS id FROM folders f JOIN ancestors a ON f.id = a.id WHERE f.parent_id IS NOT NULL
     ) SELECT DISTINCT id FROM ancestors`,

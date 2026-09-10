@@ -5,6 +5,7 @@ import { loadConfig } from "../lib/config.ts";
 import { ApiClient } from "../lib/api.ts";
 import { runImport } from "../lib/importer.ts";
 import { cleanFolderSlug } from "@artbin/core/detection/filenames";
+import { formatProgress } from "../lib/progress.ts";
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -72,11 +73,11 @@ export async function importCmd(args: Record<string, unknown>) {
       api,
       rootSlug,
       dryRun,
-      onProgress({ phase, message }) {
-        if (phase === "done") {
-          spinner.stop(message);
+      onProgress(progress) {
+        if (progress.phase === "done") {
+          spinner.stop(progress.message);
         } else {
-          spinner.message(message);
+          spinner.message(formatProgress(progress));
         }
       },
     });

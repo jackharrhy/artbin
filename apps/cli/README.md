@@ -13,7 +13,7 @@ artbin login
 `artbin login` uses `https://artbin.jackharrhy.dev` by default. Pass another server URL to connect
 to a self-hosted instance.
 
-Use CLI 0.3.0 with the current server. Uploads use resumable tus transfers in 1 MiB chunks,
+Use CLI 0.4.0 with the current server. Uploads use resumable tus transfers in 1 MiB chunks,
 with two files in flight. Processing and folder previews run as jobs that the CLI waits for.
 Interrupted requests retry from the server's recorded offset; restarting the CLI skips files
 already indexed with matching size and checksum. Conflicting files are reported, not overwritten.

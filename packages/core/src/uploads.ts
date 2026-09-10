@@ -3,6 +3,13 @@ import { Upload } from "tus-js-client";
 export const UPLOAD_CHUNK_BYTES = 1024 * 1024;
 export const MAX_UPLOAD_BYTES = 512 * 1024 * 1024;
 
+export interface UploadProgress {
+  phase: "transfer" | "processing" | "finalizing";
+  current: number;
+  total: number;
+  message: string;
+}
+
 export interface ArchiveAnalysis {
   originalName: string;
   archiveType: string;
@@ -40,14 +47,17 @@ async function pause(ms: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
+interface UploadClientOptions {
+  serverUrl: string;
+  headers?: Record<string, string>;
+  signal?: AbortSignal;
+  onProgress?: (progress: UploadProgress) => void;
+}
+
 /** Shared browser/CLI transport; tus owns byte offsets and transfer retries. */
 export class UploadClient {
-  private options: { serverUrl: string; headers?: Record<string, string>; signal?: AbortSignal };
-  constructor(options: {
-    serverUrl: string;
-    headers?: Record<string, string>;
-    signal?: AbortSignal;
-  }) {
+  private options: UploadClientOptions;
+  constructor(options: UploadClientOptions) {
     this.options = options;
   }
 
@@ -70,13 +80,23 @@ export class UploadClient {
     }
   }
 
-  private async waitForJob<T>(jobId: string): Promise<T> {
+  private async waitForJob<T>(jobId: string, phase: "processing" | "finalizing"): Promise<T> {
     for (;;) {
-      const job = await this.request<{ status: string; error: string | null; output: T }>(
-        `/api/uploads/jobs/${encodeURIComponent(jobId)}`,
-        {},
-        true,
-      );
+      const job = await this.request<{
+        status: string;
+        error: string | null;
+        output: T;
+        progress: number;
+        progressMessage?: string | null;
+      }>(`/api/uploads/jobs/${encodeURIComponent(jobId)}`, {}, true);
+      this.options.onProgress?.({
+        phase,
+        current: job.status === "completed" ? 100 : (job.progress ?? 0),
+        total: 100,
+        message:
+          job.progressMessage ??
+          (job.status === "pending" ? "Waiting for server worker…" : "Processing on server…"),
+      });
       if (job.status === "completed") return job.output;
       if (job.status === "failed" || job.status === "cancelled")
         throw new Error(`Upload job ${jobId} ${job.status}: ${job.error ?? "No details"}`);
@@ -106,6 +126,13 @@ export class UploadClient {
         chunkSize: UPLOAD_CHUNK_BYTES,
         retryDelays: [0, 1000, 3000, 5000, 10000],
         storeFingerprintForResuming: false,
+        onProgress: (current, total) =>
+          this.options.onProgress?.({
+            phase: "transfer",
+            current,
+            total,
+            message: `Transferring ${metadata.path}`,
+          }),
         onError(error) {
           done();
           reject(error);
@@ -125,7 +152,7 @@ export class UploadClient {
       { method: "POST" },
       true,
     );
-    return { uploadId, result: await this.waitForJob<UploadResult>(jobId) };
+    return { uploadId, result: await this.waitForJob<UploadResult>(jobId, "processing") };
   }
 
   async finalize(parentFolder: string): Promise<{ finalized: number }> {
@@ -137,6 +164,6 @@ export class UploadClient {
         body: JSON.stringify({ parentFolder }),
       },
     );
-    return "jobId" in result ? this.waitForJob(result.jobId) : result;
+    return "jobId" in result ? this.waitForJob(result.jobId, "finalizing") : result;
   }
 }

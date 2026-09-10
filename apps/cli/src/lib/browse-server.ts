@@ -9,9 +9,10 @@ export interface BrowseServerOptions {
   html: string;
   serverUrl: string;
   user: { name: string; isAdmin: boolean };
+  onProgress?: (progress: ImportProgress) => void;
 }
 
-interface ImportProgress {
+export interface ImportProgress {
   status: "idle" | "running" | "done" | "error";
   phase: string;
   current: number;
@@ -59,12 +60,24 @@ export function startBrowseServer(
     total: 0,
     message: "",
   };
+  function publish(progress: ImportProgress) {
+    importProgress = progress;
+    options.onProgress?.(progress);
+  }
 
   const server = createServer(async (req, res) => {
     const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
     const pathname = url.pathname;
 
     try {
+      // This server can upload local files using the CLI's authenticated session.
+      if (
+        !["127.0.0.1", "localhost"].includes(url.hostname) ||
+        (req.headers.origin && req.headers.origin !== url.origin)
+      ) {
+        jsonResponse(res, 403, { error: "Local same-origin requests only" });
+        return;
+      }
       // Serve the SPA
       if (req.method === "GET" && (pathname === "/" || pathname === "/index.html")) {
         htmlResponse(res, html);
@@ -79,13 +92,8 @@ export function startBrowseServer(
 
       // Return server info and folders
       if (req.method === "GET" && pathname === "/api/info") {
-        let folders: { slug: string; id: string }[] = [];
-        try {
-          const result = await api.listFolders();
-          folders = result.folders.map(({ slug, id }) => ({ slug, id }));
-        } catch {
-          // Folders fetch failed, return empty list
-        }
+        const result = await api.listFolders();
+        const folders = result.folders.map(({ slug, id }) => ({ slug, id }));
 
         jsonResponse(res, 200, { serverUrl, user, folders });
         return;
@@ -93,26 +101,44 @@ export function startBrowseServer(
 
       // Trigger import
       if (req.method === "POST" && pathname === "/api/import") {
-        if (importProgress.status === "running") {
-          jsonResponse(res, 409, {
-            status: "error",
-            message: "Import already in progress",
-          });
+        if (!req.headers["content-type"]?.startsWith("application/json")) {
+          jsonResponse(res, 415, { error: "Expected application/json" });
           return;
         }
 
         const body = JSON.parse(await readBody(req)) as {
           archivePaths: string[];
           destinationFolder: string;
+          includeLooseFiles?: boolean;
         };
+        if (
+          !body ||
+          !Array.isArray(body.archivePaths) ||
+          body.archivePaths.some(
+            (path) =>
+              typeof path !== "string" ||
+              !scanResult.archives.some((archive) => archive.path === path),
+          ) ||
+          typeof body.destinationFolder !== "string" ||
+          !body.destinationFolder.trim() ||
+          (body.includeLooseFiles !== undefined && typeof body.includeLooseFiles !== "boolean")
+        ) {
+          jsonResponse(res, 400, { error: "Invalid import selection or destination" });
+          return;
+        }
 
-        importProgress = {
+        if (importProgress.status === "running") {
+          jsonResponse(res, 409, { error: "Import already in progress" });
+          return;
+        }
+
+        publish({
           status: "running",
           phase: "starting",
           current: 0,
           total: 0,
           message: "Starting import...",
-        };
+        });
 
         // Return immediately, run import in background
         jsonResponse(res, 200, { status: "started" });
@@ -123,35 +149,36 @@ export function startBrowseServer(
           archivePaths: body.archivePaths,
           api,
           rootSlug: body.destinationFolder,
+          includeLooseFiles: body.includeLooseFiles,
           onProgress(info) {
-            importProgress = {
+            publish({
               status: "running",
               phase: info.phase,
               current: info.current,
               total: info.total,
               message: info.message,
-            };
+            });
           },
         })
           .then((result) => {
-            importProgress = {
+            publish({
               status: "done",
               phase: "done",
               current: result.uploaded,
               total: result.total,
               message: `Uploaded ${result.uploaded} files`,
               result,
-            };
+            });
           })
           .catch((err) => {
-            importProgress = {
+            publish({
               status: "error",
               phase: "error",
               current: importProgress.current,
               total: importProgress.total,
               message: String(err),
               error: String(err),
-            };
+            });
           });
 
         return;

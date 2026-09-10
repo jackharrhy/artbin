@@ -1,4 +1,4 @@
-import { UploadClient } from "@artbin/core/uploads";
+import { UploadClient, type UploadProgress } from "@artbin/core/uploads";
 import type { Config } from "./config.ts";
 
 export interface FolderSummary {
@@ -123,19 +123,25 @@ export class ApiClient {
     created: { slug: string; id: string }[];
     existing: { slug: string; id: string }[];
   }> {
-    const res = await fetch(`${this.serverUrl}/api/cli/folders`, {
-      method: "POST",
-      headers: { ...this.headers(), "Content-Type": "application/json" },
-      body: JSON.stringify({ folders, execution: { mode: "apply", confirm: true } }),
-    });
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`Create folders failed (${res.status}): ${body}`);
-    }
-    return (await res.json()) as {
+    const result: {
       created: { slug: string; id: string }[];
       existing: { slug: string; id: string }[];
-    };
+    } = { created: [], existing: [] };
+    for (let offset = 0; offset < folders.length; offset += 100) {
+      const res = await fetch(`${this.serverUrl}/api/cli/folders`, {
+        method: "POST",
+        headers: { ...this.headers(), "Content-Type": "application/json" },
+        body: JSON.stringify({
+          folders: folders.slice(offset, offset + 100),
+          execution: { mode: "apply", confirm: true },
+        }),
+      });
+      if (!res.ok) throw new Error(`Create folders failed (${res.status}): ${await res.text()}`);
+      const batch = (await res.json()) as typeof result;
+      result.created.push(...batch.created);
+      result.existing.push(...batch.existing);
+    }
+    return result;
   }
 
   async listFolders(options: { includeSystem?: boolean } = {}): Promise<{
@@ -144,12 +150,17 @@ export class ApiClient {
     const url = new URL(`${this.serverUrl}/api/cli/folders`);
     if (options.includeSystem) url.searchParams.set("includeSystem", "true");
 
-    const res = await fetch(url, { headers: this.headers() });
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`List folders failed (${res.status}): ${body}`);
+    const folders: FolderSummary[] = [];
+    for (;;) {
+      const res = await fetch(new URL(url), { headers: this.headers() });
+      if (!res.ok) throw new Error(`List folders failed (${res.status}): ${await res.text()}`);
+      const page = (await res.json()) as { folders: FolderSummary[]; nextCursor?: string };
+      folders.push(...page.folders);
+      if (!page.nextCursor) return { folders };
+      if (page.nextCursor === url.searchParams.get("cursor"))
+        throw new Error("Folder pagination did not advance");
+      url.searchParams.set("cursor", page.nextCursor);
     }
-    return (await res.json()) as { folders: FolderSummary[] };
   }
 
   async getFolder(slug: string): Promise<{ folder: FolderDetail }> {
@@ -212,22 +223,29 @@ export class ApiClient {
       sourceArchive?: string;
       buffer: Buffer;
     },
+    onProgress?: (progress: UploadProgress) => void,
   ): Promise<void> {
-    await new UploadClient({ serverUrl: this.serverUrl, headers: this.headers() }).upload(
-      file.buffer,
-      {
-        purpose: "file",
-        parentFolder,
-        path: file.path,
-        sha256: file.sha256,
-        ...(file.sourceArchive ? { sourceArchive: file.sourceArchive } : {}),
-      },
-    );
+    await new UploadClient({
+      serverUrl: this.serverUrl,
+      headers: this.headers(),
+      onProgress,
+    }).upload(file.buffer, {
+      purpose: "file",
+      parentFolder,
+      path: file.path,
+      sha256: file.sha256,
+      ...(file.sourceArchive ? { sourceArchive: file.sourceArchive } : {}),
+    });
   }
 
-  async finalize(parentFolder: string): Promise<{ finalized: number }> {
-    return new UploadClient({ serverUrl: this.serverUrl, headers: this.headers() }).finalize(
-      parentFolder,
-    );
+  async finalize(
+    parentFolder: string,
+    onProgress?: (progress: UploadProgress) => void,
+  ): Promise<{ finalized: number }> {
+    return new UploadClient({
+      serverUrl: this.serverUrl,
+      headers: this.headers(),
+      onProgress,
+    }).finalize(parentFolder);
   }
 }

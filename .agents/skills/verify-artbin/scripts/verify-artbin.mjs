@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
-import { spawn } from "node:child_process";
+import { spawn, execFileSync } from "node:child_process";
 import { createServer as createHttpServer } from "node:http";
 import { createHash } from "node:crypto";
 
@@ -449,6 +449,73 @@ try {
     await page.getByText("proof.txt", { exact: true }).waitFor();
     await shot(page, "13-archive-extracted.png");
     return ["archive transferred through tus", "analysis returned through durable job", "owned extraction queued", "exact archive bytes indexed and visible"];
+  });
+
+  await flow("CLI scan picker, progress, and ordinary retry", async () => {
+    execFileSync("pnpm", ["--filter", "./apps/cli", "run", "build:ui"], { cwd: repository, timeout: 60000 });
+    const { ApiClient } = await import(join(repository, "apps/cli/src/lib/api.ts"));
+    const { startBrowseServer } = await import(join(repository, "apps/cli/src/lib/browse-server.ts"));
+    const { scanDirectory } = await import(join(repository, "apps/cli/src/lib/scanner.ts"));
+    const { formatProgress } = await import(join(repository, "apps/cli/src/lib/progress.ts"));
+    const api = new ApiClient({ serverUrl: baseUrl, sessionId: "isolated-development" });
+    const destination = `z-scan-${nonce}`;
+    await api.createFolders([
+      ...Array.from({ length: 105 }, (_, index) => ({ slug: `scan-page-${nonce}-${index}`, name: `Scan page ${index}` })),
+      { slug: destination, name: destination },
+      { slug: `${destination}/child`, name: "Child", parentSlug: destination },
+      { slug: `${destination}/child/deep`, name: "Deep", parentSlug: `${destination}/child` },
+    ]);
+    const source = join(runtimeDirectory, "scan-source");
+    await mkdir(join(source, "Upper Textures"), { recursive: true });
+    const header = Buffer.alloc(18);
+    header[2] = 2; header.writeUInt16LE(32, 12); header.writeUInt16LE(32, 14); header[16] = 24; header[17] = 0x20;
+    const bytes = Buffer.concat([header, Buffer.alloc(32 * 32 * 3, 127)]);
+    await writeFile(join(source, "Upper Textures", "Wall Texture.tga"), bytes);
+    const scanResult = await scanDirectory(source);
+    check(scanResult.looseFiles.length === 1, "Scanner did not find the loose TGA fixture");
+    const updates = [];
+    const browse = await startBrowseServer({ scanResult, api, html: await readFile(join(repository, "apps/cli/dist-ui/index.html"), "utf8"),
+      serverUrl: baseUrl, user: { name: "Local administrator", isAdmin: true },
+      onProgress: progress => updates.push({ ...progress, terminal: formatProgress(progress) }),
+    });
+    const url = `http://127.0.0.1:${browse.port}`;
+    try {
+      await page.goto(url, { waitUntil: "networkidle" });
+      check(await page.locator("#root > div").evaluate(element => parseFloat(getComputedStyle(element).paddingLeft) > 0), "Bundled scan UI layout styles were not applied");
+      await page.getByRole("checkbox", { name: /Include 1 loose files/ }).check();
+      await page.getByRole("button", { name: "Import 1 selected" }).click();
+      await page.getByLabel("Top-level folder").selectOption(destination);
+      const picker = page.getByLabel("Destination folder", { exact: true });
+      check((await picker.locator("option").allTextContents()).length === 2, "Picker included deep descendants");
+      await picker.selectOption(`${destination}/child`);
+      await picker.selectOption(destination);
+      await shot(page, "14-scan-destination.png");
+      await page.getByRole("button", { name: "Start import", exact: true }).click();
+      await page.getByRole("progressbar").waitFor();
+      await shot(page, "15-scan-progress.png");
+      await page.getByRole("heading", { name: "Import complete", exact: true }).waitFor({ timeout: 60000 });
+      check(updates.some(update => update.phase === "uploading" && update.current > 0 && update.terminal.includes("%")), "No byte progress reached the terminal callback");
+      check(updates.some(update => update.phase === "finalizing"), "Finalization progress was not reported");
+      const savedPath = `${destination}/upper-textures/Wall_Texture.tga`;
+      check((await readFile(join(uploadsDirectory, savedPath))).equals(bytes), "Canonical imported path or bytes differ");
+      await page.getByRole("button", { name: "Back to browse" }).click();
+      await page.getByRole("button", { name: "Import 1 selected" }).click();
+      await page.getByRole("button", { name: "Start import", exact: true }).click();
+      await page.getByRole("heading", { name: "Import complete", exact: true }).waitFor({ timeout: 60000 });
+      const result = await fetch(`${url}/api/import-status`).then(response => response.json());
+      check(result.result.uploaded === 0 && result.result.skipped === 1, "Ordinary retry retransferred the indexed file");
+      await shot(page, "16-scan-retry.png");
+      const rejected = await fetch(`${url}/api/import`, { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ archivePaths: ["/not-scanned.pak"], destinationFolder: destination }),
+      });
+      check(rejected.status === 400, "Unscanned source path was accepted");
+      const crossOrigin = await fetch(`${url}/api/import`, { method: "POST", headers: { "Content-Type": "application/json", Origin: "https://untrusted.example" },
+        body: JSON.stringify({ archivePaths: [], destinationFolder: destination, includeLooseFiles: true }),
+      });
+      check(crossOrigin.status === 403, "Cross-origin request could start a local-file upload");
+      await writeFile(join(evidenceDirectory, "scan-progress.json"), JSON.stringify(updates, null, 2));
+    } finally { browse.close(); }
+    return ["destination beyond first page available", "top-level destination selectable without deep clutter", "loose-file-only import works", "browser and terminal progress reported", "ordinary retry skips indexed bytes and finalizes", "unscanned source rejected"];
   });
 
   await flow("database and filesystem state", async () => {
