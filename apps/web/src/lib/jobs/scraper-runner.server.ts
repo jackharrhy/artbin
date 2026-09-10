@@ -1,5 +1,5 @@
 /**
- * Shared scraper runner for remote texture/image import jobs.
+ * Shared scraper runner for remote catalog import jobs.
  *
  * Each scraper defines source-specific discovery (HTML parsing, manifest fetching)
  * and a download function. This module handles the common loop: folder creation,
@@ -54,7 +54,7 @@ export interface ScraperResult {
  * Download a remote file to a Buffer. Throws on non-OK responses.
  */
 export async function downloadUrl(url: string): Promise<Buffer> {
-  const res = await fetch(url);
+  const res = await fetch(url, { signal: AbortSignal.timeout(120_000) });
   if (!res.ok) {
     throw new Error(`Failed to download ${url}: ${res.status}`);
   }

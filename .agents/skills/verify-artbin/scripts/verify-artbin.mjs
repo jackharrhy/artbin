@@ -147,7 +147,7 @@ try {
   const port = await unusedPort();
   const baseUrl = `http://127.0.0.1:${port}`;
   report.baseUrl = baseUrl;
-  serverProcess = spawn(process.execPath, ["--import", "remix/node-tsx", "server.ts"], {
+  serverProcess = spawn(process.execPath, ["--import", "remix/node-tsx", "--import", join(scriptDirectory, "katamari-fixture.mjs"), "server.ts"], {
     cwd: webDirectory,
     detached: true,
     env: {
@@ -197,6 +197,73 @@ try {
     await page.getByRole("button", { name: "Add", exact: true }).waitFor();
     await shot(page, "01-library.png");
     return ["library loaded", "development administrator can add content"];
+  });
+
+  await flow("Katamari catalog import and repeat", async () => {
+    const database = new Database(databasePath);
+    try {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        await page.goto(`${baseUrl}/admin/import`, { waitUntil: "networkidle" });
+        await page
+          .locator("form")
+          .filter({ has: page.getByRole("link", { name: "Katamari Object Library", exact: true }) })
+          .getByRole("button", { name: "Import all" })
+          .click();
+        await page.getByText("katamari-import", { exact: true }).first().waitFor();
+        const deadline = Date.now() + 30_000;
+        let completed = false;
+        while (Date.now() < deadline) {
+          const jobs = database
+            .prepare("SELECT status, output, error FROM jobs WHERE type = 'katamari-import'")
+            .all();
+          check(
+            !jobs.some((job) => job.status === "failed"),
+            `Catalog import failed: ${JSON.stringify(jobs)}`,
+          );
+          if (jobs.length === attempt + 1 && jobs.every((job) => job.status === "completed")) {
+            check(
+              jobs.every((job) => JSON.parse(job.output).errors.length === 0),
+              "Catalog import had per-file errors",
+            );
+            completed = true;
+            break;
+          }
+          await new Promise((resolveWait) => setTimeout(resolveWait, 100));
+        }
+        check(completed, "Catalog import did not complete");
+        const models = database
+          .prepare("SELECT path, kind FROM files WHERE source = 'katamari'")
+          .all();
+        check(
+          models.length === 2 && models.every((file) => file.kind === "model"),
+          "Expected one model per game without duplicates",
+        );
+        for (const model of models) {
+          check(
+            (await readFile(join(uploadsDirectory, model.path))).subarray(0, 4).toString() ===
+              "glTF",
+            "Model not saved",
+          );
+          check(
+            (await readFile(join(uploadsDirectory, `${model.path}.preview.png`))).length > 0,
+            "Model preview missing",
+          );
+        }
+      }
+      await page.goto(`${baseUrl}/folder/katamari-object-library/katamari-damacy?view=models`, {
+        waitUntil: "networkidle",
+      });
+      await page.getByText("0001_Test_Model.glb", { exact: true }).first().waitFor();
+      await shot(page, "12-katamari-models.png");
+      return [
+        "admin queued and completed catalog import",
+        "both games ingested and rendered previews",
+        "missing source models skipped",
+        "repeat import creates no duplicates",
+      ];
+    } finally {
+      database.close();
+    }
   });
 
   await flow("administrator MCP surface", async () => {

@@ -61,6 +61,12 @@ const sourceDescriptionStyle = css({ color: theme.color.muted, fontSize: "0.875r
 
 const sources = [
   {
+    id: "katamari",
+    name: "Katamari Object Library",
+    description: "Textured GLB models from Katamari Damacy and We Love Katamari",
+    url: "https://katamari.andrew-boylan.com/",
+  },
+  {
     id: "texturetown",
     name: "TextureTown",
     description: "3,800+ retro game textures from textures.neocities.org",
@@ -239,6 +245,7 @@ export default createController(routes.admin.import, {
       if (!user) return new Response("Unauthorized", { status: 401 });
       const form = await context.request.formData();
       const intent = form.get("intent");
+      const source = sources.find((source) => source.id === intent);
 
       let queue: () => Promise<unknown>;
       if (intent === "remote-site-import") {
@@ -272,11 +279,11 @@ export default createController(routes.admin.import, {
             { user, channel: "admin" },
             { target: { scope: "all" }, confirm: true },
           );
-      } else if (intent === "texturetown" || intent === "texture-station" || intent === "sadgrl") {
+      } else if (source) {
         queue = () =>
           operationCatalog.importQueue.execute(
             { user, channel: "admin" },
-            { kind: "catalog", source: intent, confirm: true },
+            { kind: "catalog", source: source.id, confirm: true },
           );
       } else {
         return new Response("Unknown import action", { status: 400 });

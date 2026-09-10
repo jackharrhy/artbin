@@ -10,6 +10,7 @@ import "#lib/jobs/remote-import-job.server";
 import "#lib/jobs/sadgrl-job.server";
 import "#lib/jobs/scan-archives-job.server";
 import "#lib/jobs/texturetown-job.server";
+import "#lib/jobs/katamari-job.server";
 import "#lib/jobs/thejang-job.server";
 
 let uploadCleanup: ReturnType<typeof setInterval> | undefined;

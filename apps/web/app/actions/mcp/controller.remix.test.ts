@@ -501,6 +501,7 @@ describe("administrator MCP", () => {
       { kind: "catalog", source: "texturetown" },
       { kind: "catalog", source: "texture-station" },
       { kind: "catalog", source: "sadgrl" },
+      { kind: "catalog", source: "katamari" },
     ];
     for (const request of requests) {
       const queued = await mcpTool("admin-token", "artbin_import_queue", {
@@ -510,7 +511,7 @@ describe("administrator MCP", () => {
       assert.equal(queued.result.isError, undefined);
       assert.ok(queued.result.structuredContent.count >= 1);
     }
-    assert.equal((await harness.database.db.select().from(jobs)).length, 5);
+    assert.equal((await harness.database.db.select().from(jobs)).length, requests.length);
   });
 });
 

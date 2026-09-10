@@ -31,7 +31,7 @@ export const importQueueInput = z.discriminatedUnion("kind", [
   z
     .object({
       kind: z.literal("catalog"),
-      source: z.enum(["texturetown", "texture-station", "sadgrl"]),
+      source: z.enum(["texturetown", "texture-station", "sadgrl", "katamari"]),
       confirm: z.literal(true),
     })
     .strict(),
@@ -84,14 +84,8 @@ export async function queueImportOperation(
     return { count: 1, jobIds: [job.id] };
   }
 
-  const type =
-    input.source === "texturetown"
-      ? "texturetown-import"
-      : input.source === "texture-station"
-        ? "texture-station-import"
-        : "sadgrl-import";
   const job = await createJob({
-    type,
+    type: `${input.source}-import`,
     input: { userId: context.user.id },
     userId: context.user.id,
   });
