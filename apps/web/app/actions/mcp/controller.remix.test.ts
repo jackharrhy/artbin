@@ -502,6 +502,7 @@ describe("administrator MCP", () => {
       { kind: "catalog", source: "texture-station" },
       { kind: "catalog", source: "sadgrl" },
       { kind: "catalog", source: "katamari" },
+      { kind: "catalog", source: "early-web-graphics" },
     ];
     for (const request of requests) {
       const queued = await mcpTool("admin-token", "artbin_import_queue", {

@@ -12,6 +12,8 @@ Open a protected page while logged out to reach login, authenticate through 4orm
 
 The managed runner uses development auth only for product-flow isolation. For OAuth changes, separately drive the real redirect/callback against a non-production configured 4orm client, assert cookie persistence, revisit a protected page, and log out.
 
+The core runner also drives Admin > Import for Katamari and the Museum of Early Web Graphics using upstream fixtures. Museum coverage checks nested galleries, source attribution, original GIF bytes, rendered images, and duplicate-free repeat imports. Fixture responses replace only upstream HTTP; jobs, ingestion, database writes, and rendering remain real.
+
 ## Gotchas
 
 Development auth does not verify OAuth interoperability. Redirect URI, secure-cookie, proxy-origin, and state-cookie behavior differ in production. Never record credentials, session cookies, OAuth codes, or secrets in evidence.

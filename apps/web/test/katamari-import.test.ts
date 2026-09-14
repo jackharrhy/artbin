@@ -3,7 +3,7 @@ import type { Job } from "#db";
 
 const { runScraper } = vi.hoisted(() => ({
   runScraper: vi.fn<typeof import("../src/lib/jobs/scraper-runner.server.ts").runScraper>(
-    async () => ({}),
+    async () => ({ totalFiles: 0, totalFolders: 0, categoriesImported: [], errors: [] }),
   ),
 }));
 vi.mock("#lib/jobs.server", () => ({ registerJobHandler: vi.fn(), updateJobProgress: vi.fn() }));

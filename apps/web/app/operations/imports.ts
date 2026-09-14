@@ -31,7 +31,13 @@ export const importQueueInput = z.discriminatedUnion("kind", [
   z
     .object({
       kind: z.literal("catalog"),
-      source: z.enum(["texturetown", "texture-station", "sadgrl", "katamari"]),
+      source: z.enum([
+        "texturetown",
+        "texture-station",
+        "sadgrl",
+        "katamari",
+        "early-web-graphics",
+      ]),
       confirm: z.literal(true),
     })
     .strict(),

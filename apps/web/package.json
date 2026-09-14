@@ -31,6 +31,7 @@
     "archiver": "^8.0.0",
     "better-result": "^3.0.1",
     "better-sqlite3": "^13.0.3",
+    "cheerio": "^1.2.0",
     "drizzle-orm": "^0.45.2",
     "esbuild": "^0.28.2",
     "evlog": "^2.27.0",

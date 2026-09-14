@@ -61,6 +61,13 @@ const sourceDescriptionStyle = css({ color: theme.color.muted, fontSize: "0.875r
 
 const sources = [
   {
+    id: "early-web-graphics",
+    name: "Museum of Early Web Graphics",
+    description:
+      "Andy Baga’s curated clip art, GIFs, bars, and backgrounds; excludes Adult galleries",
+    url: "https://andybaga.neocities.org/museum/main",
+  },
+  {
     id: "katamari",
     name: "Katamari Object Library",
     description: "Textured GLB models from Katamari Damacy and We Love Katamari",

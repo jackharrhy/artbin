@@ -10,6 +10,7 @@ import { createRequire } from "node:module";
 import { spawn, execFileSync } from "node:child_process";
 import { createServer as createHttpServer } from "node:http";
 import { createHash } from "node:crypto";
+import { museumGif } from "../../../../apps/web/test/fixtures/early-web-graphics.mjs";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const repository = resolve(scriptDirectory, "../../../..");
@@ -147,7 +148,7 @@ try {
   const port = await unusedPort();
   const baseUrl = `http://127.0.0.1:${port}`;
   report.baseUrl = baseUrl;
-  serverProcess = spawn(process.execPath, ["--import", "remix/node-tsx", "--import", join(scriptDirectory, "katamari-fixture.mjs"), "server.ts"], {
+  serverProcess = spawn(process.execPath, ["--import", "remix/node-tsx", "--import", join(scriptDirectory, "katamari-fixture.mjs"), "--import", join(scriptDirectory, "museum-fixture.mjs"), "server.ts"], {
     cwd: webDirectory,
     detached: true,
     env: {
@@ -219,6 +220,41 @@ try {
     await page.getByText("No jobs found", { exact: true }).waitFor();
     await page.setViewportSize({ width: 1440, height: 1000 });
     return ["header ADMIN opens overview", "all eight destinations and return navigation work", "empty queue counts are visible", "mobile navigation works without page overflow"];
+  });
+
+  await flow("Museum catalog import and repeat", async () => {
+    const database = new Database(databasePath);
+    try {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        await page.goto(`${baseUrl}/admin/import`, { waitUntil: "networkidle" });
+        await page.locator("form").filter({ has: page.getByRole("link", { name: "Museum of Early Web Graphics", exact: true }) }).getByRole("button", { name: "Import all" }).click();
+        await page.getByText("early-web-graphics-import", { exact: true }).first().waitFor();
+        const deadline = Date.now() + 30_000;
+        let completed = false;
+        while (Date.now() < deadline) {
+          const jobs = database.prepare("SELECT status, output, error FROM jobs WHERE type = 'early-web-graphics-import'").all();
+          check(!jobs.some(job => job.status === "failed"), JSON.stringify(jobs));
+          if (jobs.length === attempt + 1 && jobs.every(job => job.status === "completed")) {
+            check(jobs.every(job => JSON.parse(job.output).errors.length === 0), "Museum per-file errors");
+            completed = true;
+            break;
+          }
+          await new Promise(resolveWait => setTimeout(resolveWait, 100));
+        }
+        check(completed, "Museum import did not complete");
+        const images = database.prepare("SELECT path FROM files WHERE source = 'early-web-graphics'").all();
+        check(images.length === 7, "Expected seven museum images, with no duplicates on repeat");
+        for (const image of images) check((await readFile(join(uploadsDirectory, image.path))).equals(museumGif), "Original GIF bytes changed");
+        const gallery = database.prepare("SELECT parent_id, description FROM folders WHERE slug = 'museum-of-early-web-graphics/clipart/dragons'").get();
+        const parent = database.prepare("SELECT id FROM folders WHERE slug = 'museum-of-early-web-graphics/clipart'").get();
+        check(gallery.parent_id === parent.id && gallery.description.includes('/museum/clipart/dragons'), "Museum hierarchy or provenance missing");
+      }
+      await page.goto(`${baseUrl}/folder/museum-of-early-web-graphics/clipart/dragons?view=textures`, { waitUntil: "networkidle" });
+      await page.getByRole("heading", { name: "Dragons & Friends", exact: true }).waitFor();
+      check(await page.locator("main img").evaluateAll(images => images.length >= 2 && images.every(image => image.complete && image.naturalWidth > 0)), "Museum gallery images did not load");
+      await shot(page, "15-museum-gallery.png");
+      return ["admin import completes", "nested folders retain gallery attribution", "GIF bytes preserved", "repeat import creates no duplicates"];
+    } finally { database.close(); }
   });
 
   await flow("Katamari catalog import and repeat", async () => {

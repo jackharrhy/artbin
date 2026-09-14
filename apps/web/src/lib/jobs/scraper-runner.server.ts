@@ -15,6 +15,8 @@ import { updateJobProgress } from "../jobs.server.ts";
 import { ingestFile, getOrCreateFolder, ROOT_FOLDER, finalizeFolders } from "../files.server.ts";
 
 export interface ScraperCategory {
+  description?: string;
+  children?: ScraperCategory[];
   /** Display name for the category folder */
   name: string;
   /** Slug segment (will be nested under parent: `parentSlug/categorySlug`) */
@@ -50,6 +52,10 @@ export interface ScraperResult {
   errors: string[];
 }
 
+function countFiles(items: ScraperCategory[]): number {
+  return items.reduce((sum, cat) => sum + cat.files.length + countFiles(cat.children ?? []), 0);
+}
+
 /**
  * Download a remote file to a Buffer. Throws on non-OK responses.
  */
@@ -74,7 +80,7 @@ export async function runScraper(
   categories: ScraperCategory[],
   /** Progress range start (0-100). Discovery phase uses 0..progressStart. */
   progressStart = 10,
-): Promise<Record<string, unknown>> {
+): Promise<ScraperResult & Record<string, unknown>> {
   const log = createRequestLogger();
   log.set({ job: { id: job.id, type: job.type } });
 
@@ -87,21 +93,21 @@ export async function runScraper(
   );
   const createdFolderIds: string[] = [parentFolderId];
 
-  const totalFiles = categories.reduce((sum, cat) => sum + cat.files.length, 0);
+  const totalFiles = countFiles(categories);
   let processedFiles = 0;
   let importedFiles = 0;
   const errors: string[] = [];
   const categoriesImported: string[] = [];
 
-  for (const category of categories) {
-    if (category.files.length === 0) continue;
+  async function importCategory(category: ScraperCategory, parentId: string, parentSlug: string) {
+    if (countFiles([category]) === 0) return;
 
-    const folderSlug = `${config.parentSlug}/${category.slug}`;
+    const folderSlug = `${parentSlug}/${category.slug}`;
     const folderId = await getOrCreateFolder(
       folderSlug,
       category.name,
-      parentFolderId,
-      config.categoryDescription(category.name),
+      parentId,
+      category.description ?? config.categoryDescription(category.name),
     );
     createdFolderIds.push(folderId);
     categoriesImported.push(category.name);
@@ -154,6 +160,12 @@ export async function runScraper(
         );
       }
     }
+    for (const child of category.children ?? []) {
+      await importCategory(child, folderId, folderSlug);
+    }
+  }
+  for (const category of categories) {
+    await importCategory(category, parentFolderId, config.parentSlug);
   }
 
   // Finalize: recalculate folder counts and generate previews
