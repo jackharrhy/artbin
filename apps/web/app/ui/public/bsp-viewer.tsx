@@ -79,7 +79,6 @@ async function mountWorldView(
   worldView.style.height = `${height}px`;
   worldView.style.width = "100%";
   worldView.setAttribute("controls", props.format === "quake2-bsp38" ? "fly" : "walk");
-  worldView.setAttribute("audio", "false");
   worldView.source = worldSource(props);
   worldView.walkabilitySource = props.walkabilityUrl ?? null;
   worldView.addEventListener("warning", (event) => {

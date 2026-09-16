@@ -5,6 +5,7 @@ A home for game development assets: textures, maps, models, and sounds.
 Organize files into folders, preview maps and models in the browser, browse WAD textures, and
 import collections from GameBanana, SCMapDB, or local archives. Map previews use
 [@jackharrhy/worldview](https://github.com/jackharrhy/worldview).
+Click an interactive map to capture the mouse and enable its available sounds.
 
 ## development
 
