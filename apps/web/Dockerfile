@@ -2,7 +2,7 @@ FROM node:25-bookworm-slim AS build
 RUN apt-get update \
     && apt-get install -y --no-install-recommends python3 make g++ \
     && rm -rf /var/lib/apt/lists/* \
-    && npm install -g pnpm@11.9.0
+    && npm install -g pnpm@12.5.1
 WORKDIR /app
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY apps/web/package.json apps/web/
@@ -15,7 +15,7 @@ FROM node:25-bookworm-slim
 RUN apt-get update \
     && apt-get install -y --no-install-recommends imagemagick \
     && rm -rf /var/lib/apt/lists/* \
-    && npm install -g pnpm@11.9.0
+    && npm install -g pnpm@12.5.1
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 RUN convert -version && identify -version
 WORKDIR /app

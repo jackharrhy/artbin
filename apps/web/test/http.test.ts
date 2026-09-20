@@ -10,7 +10,8 @@
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { spawn, type ChildProcess } from "child_process";
 import { mkdirSync, writeFileSync, rmSync } from "fs";
-import { join } from "path";
+import { dirname, join, relative, resolve, sep } from "path";
+import { createRequire } from "node:module";
 
 const PORT = 4389;
 const BASE = `http://localhost:${PORT}`;
@@ -161,9 +162,13 @@ describe("HTTP integration tests", () => {
     });
 
     test("replaces Node environment references in browser dependencies", async () => {
-      const typeGpuEnv = await fetch(
-        `${BASE}/assets/node_modules/.pnpm/typegpu%400.12.1/node_modules/typegpu/shared/env.js`,
-      );
+      const worldviewRequire = createRequire(import.meta.resolve("@jackharrhy/worldview"));
+      const envPath = join(dirname(worldviewRequire.resolve("typegpu")), "shared/env.js");
+      const assetPath = relative(resolve(process.cwd(), "../.."), envPath)
+        .split(sep)
+        .map(encodeURIComponent)
+        .join("/");
+      const typeGpuEnv = await fetch(`${BASE}/assets/${assetPath}`);
 
       expect(typeGpuEnv.status).toBe(200);
       const source = await typeGpuEnv.text();

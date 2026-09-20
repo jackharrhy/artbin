@@ -24,7 +24,7 @@
   "dependencies": {
     "7zip-bin-full": "^26.2.1",
     "@artbin/core": "workspace:*",
-    "@jackharrhy/worldview": "^0.6.0",
+    "@jackharrhy/worldview": "^0.6.1",
     "@tscircuit/alphabet": "^0.0.26",
     "@tus/file-store": "2.1.1",
     "@tus/server": "2.4.5",
