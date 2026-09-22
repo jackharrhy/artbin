@@ -42,4 +42,4 @@ RUN mkdir -p data public/uploads tmp/uploads \
     && chown -R node:node data public/uploads tmp/uploads
 USER node
 EXPOSE 3000
-CMD ["pnpm", "run", "start"]
+CMD ["node", "--import", "remix/node-tsx", "server.ts"]
